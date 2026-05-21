@@ -48,6 +48,19 @@ const ConfigSchema = z.object({
   STRIPE_SECRET_KEY: stripeKeySchema('sk_'),
   STRIPE_WEBHOOK_SECRET: stripeKeySchema('whsec_'),
   STRIPE_PUBLISHABLE_KEY: stripeKeySchema('pk_'),
+
+  // SMTP (Mailpit in dev; Postmark/SendGrid in prod via SMTP relay)
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: z.coerce.number().int().positive().default(1027),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASSWORD: z.string().default(''),
+  SMTP_FROM: z.string().default('Shopio Dev <hello@shopio.local>'),
+  SMTP_ENABLED: z
+    .preprocess(
+      (v) => (typeof v === 'string' ? v.toLowerCase() === 'true' : Boolean(v)),
+      z.boolean(),
+    )
+    .default(true),
 });
 
 function stripeKeySchema(prefix: string) {

@@ -11,6 +11,7 @@ import { and, asc, desc, eq, ilike, or, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { sendOrderPaidEmail } from '../lib/order-emails';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -49,7 +50,7 @@ export async function registerOrderRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
   // GET /admin/orders — list (tenant-scoped via auth)
@@ -282,6 +283,16 @@ export async function registerOrderRoutes(
         },
         'order.status_updated',
       );
+
+      // Trigger paid email when transitioning into paid (manual admin mark)
+      if (
+        (parsed.data.status === 'paid' || parsed.data.paymentStatus === 'paid') &&
+        existing.paymentStatus !== 'paid'
+      ) {
+        void sendOrderPaidEmail({ db, config, log: app.log }, existing.id).catch((err) => {
+          app.log.error({ err, orderId: existing.id }, 'order.paid_email_failed');
+        });
+      }
 
       return reply.send({ data: serializeOrder(updated!, items) });
     },

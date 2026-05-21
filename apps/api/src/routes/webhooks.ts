@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
+import { sendOrderPaidEmail } from '../lib/order-emails';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -107,6 +108,7 @@ export async function registerWebhookRoutes(
           await handleCheckoutSessionCompleted(
             app,
             db,
+            config,
             event.data.object as Stripe.Checkout.Session,
           );
           break;
@@ -135,6 +137,7 @@ export async function registerWebhookRoutes(
 async function handleCheckoutSessionCompleted(
   app: FastifyInstance,
   db: AppDb,
+  config: ShopioConfig,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
   const orderId = session.client_reference_id ?? session.metadata?.shopio_order_id;
@@ -144,12 +147,7 @@ async function handleCheckoutSessionCompleted(
   }
 
   const [order] = await db
-    .select({
-      id: schema.orders.id,
-      pubId: schema.orders.pubId,
-      status: schema.orders.status,
-      paymentStatus: schema.orders.paymentStatus,
-    })
+    .select()
     .from(schema.orders)
     .where(eq(schema.orders.pubId, orderId))
     .limit(1);
@@ -184,6 +182,11 @@ async function handleCheckoutSessionCompleted(
     },
     'stripe.webhook.order_paid',
   );
+
+  // Send payment confirmation email (best-effort)
+  await sendOrderPaidEmail({ db, config, log: app.log }, order.id).catch((err) => {
+    app.log.error({ err, orderId: order.id }, 'stripe.webhook.email_failed');
+  });
 }
 
 async function handleCheckoutSessionExpired(

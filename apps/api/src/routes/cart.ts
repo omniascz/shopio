@@ -27,6 +27,7 @@ import { generatePubId } from '@shopio/authz';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
+import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -429,6 +430,41 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           { orderId: result.id, tenantId: tenant.id, customerEmail: input.customerEmail },
           'checkout.order_placed',
         );
+
+        // Send order-placed email (best-effort, non-blocking)
+        void (async () => {
+          try {
+            const emailCtx: OrderEmailContext = {
+              tenantName: tenant.displayName,
+              tenantSlug: tenant.slug,
+              storefrontBaseUrl: config.SHOPIO_BASE_URL,
+              orderNumber: result.orderNumber,
+              customerName: result.customerName,
+              customerEmail: result.customerEmail,
+              shippingAddress: input.shippingAddress,
+              items: items.map((it) => ({
+                productTitle: it.titleSnapshot.split(' — ')[0] ?? it.titleSnapshot,
+                variantTitle: it.titleSnapshot.split(' — ')[1] ?? '',
+                sku: null,
+                quantity: it.quantity,
+                lineTotalMinor: it.unitPriceAmount * BigInt(it.quantity),
+              })),
+              currency: result.currency,
+              totalMinor: result.totalAmount,
+              placedAt: result.placedAt,
+            };
+            const { subject, text, html } = renderOrderPlacedEmail(emailCtx);
+            await sendEmail(config, {
+              to: result.customerEmail,
+              subject,
+              text,
+              html,
+            });
+            app.log.info({ orderId: result.id }, 'checkout.email_sent');
+          } catch (err) {
+            app.log.error({ err, orderId: result.id }, 'checkout.email_failed');
+          }
+        })();
 
         // Stripe Checkout Session — if configured. Otherwise mock path.
         let paymentUrl: string | null = null;
