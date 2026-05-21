@@ -1,24 +1,13 @@
 /**
  * Shared schema helpers — used across all tables.
- * Per `05-naming-conventions.md` ID prefix system.
+ *
+ * Note: `uuidv7()` Postgres function is NOT native to Postgres 17. We install a
+ * custom plpgsql implementation in the first migration (`0000_init.sql`).
+ *
+ * Schemas use `default(sql`uuidv7()`)` directly via Drizzle's pg-core uuid().
  */
 
-import { customType } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
-/**
- * UUIDv7 column type — time-sortable + collision-resistant.
- * Per `03-data-models-master.md`. Requires Postgres 17 + uuidv7() function.
- */
-export const uuidv7 = customType<{ data: string; driverData: string }>({
-  dataType() {
-    return `uuid DEFAULT uuidv7()`;
-  },
-});
-
-/** Standard timestamp columns helper. */
-export function timestamps() {
-  return {
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  };
-}
+/** Convenience: standard `created_at` + `updated_at` timestamp columns helper. */
+export const timestamps = sql`now()`;

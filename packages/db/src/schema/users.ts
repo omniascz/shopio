@@ -7,7 +7,7 @@
 
 import { sql } from 'drizzle-orm';
 import { customType, pgTable, text, timestamp, uuid, jsonb, inet, integer, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.js';
+import { tenants } from './tenants';
 
 const citext = customType<{ data: string }>({
   dataType() {
