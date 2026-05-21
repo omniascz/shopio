@@ -6,6 +6,7 @@ import cookie from '@fastify/cookie';
 import { getConfig, corsOrigins } from './config';
 import { getDb } from './db';
 import { registerAuthRoutes } from './routes/auth';
+import { registerTenantRoutes } from './routes/tenants';
 
 export async function buildServer() {
   const config = getConfig();
@@ -54,9 +55,10 @@ export async function buildServer() {
     docs: 'https://docs.shopio.com',
   }));
 
-  // Auth routes (per `30-security.md §16.1`)
+  // Auth + tenant routes (per `30-security.md §16.1`, `36-personas-rbac.md §14`)
   const db = getDb(config);
   await registerAuthRoutes(server, { config, db });
+  await registerTenantRoutes(server, { config, db });
 
   return server;
 }
