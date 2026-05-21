@@ -10,6 +10,7 @@ import { registerTenantRoutes } from './routes/tenants';
 import { registerProductRoutes } from './routes/products';
 import { registerStorefrontRoutes } from './routes/storefront';
 import { registerCartRoutes } from './routes/cart';
+import { registerOrderRoutes } from './routes/orders';
 
 export async function buildServer() {
   const config = getConfig();
@@ -65,6 +66,7 @@ export async function buildServer() {
   await registerProductRoutes(server, { config, db });
   await registerStorefrontRoutes(server, { config, db });
   await registerCartRoutes(server, { config, db });
+  await registerOrderRoutes(server, { config, db });
 
   return server;
 }
