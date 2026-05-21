@@ -1,0 +1,38 @@
+{
+  "name": "@shopio/admin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Shopio admin — Vite + React 19 SPA (per DEC-FE-001)",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite --port 3031",
+    "build": "vite build",
+    "preview": "vite preview --port 3031",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@shopio/sdk": "workspace:*",
+    "@shopio/ui": "workspace:*",
+    "@shopio/authz": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-router": "^1.87.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

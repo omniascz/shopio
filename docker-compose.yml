@@ -1,0 +1,106 @@
+# Shopio local development environment
+# Per `38-deployment-guide.md §3.5`
+# Run: `docker compose up -d`
+#
+# Port allocation (avoids conflicts with other local projects):
+#   Postgres     5435 (Shopio default; 5432-5434 used by other projects)
+#   Redis        6385
+#   Meilisearch  7700
+#   MinIO API    9100
+#   MinIO UI     9101
+#   Mailpit SMTP 1027
+#   Mailpit web  8027
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  # Postgres 17 + pgvector preinstalled (per `33-ai-features.md §6`)
+    container_name: shopio-postgres
+    environment:
+      POSTGRES_USER: shopio
+      POSTGRES_PASSWORD: shopio_dev_password
+      POSTGRES_DB: shopio_dev
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - '5435:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U shopio -d shopio_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopio-redis
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '512mb', '--maxmemory-policy', 'allkeys-lru']
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6385:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    container_name: shopio-meilisearch
+    environment:
+      MEILI_MASTER_KEY: dev_master_key_change_in_production
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    volumes:
+      - meilisearch_data:/meili_data
+    ports:
+      - '7700:7700'
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: shopio-minio
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9100:9000'   # S3 API
+      - '9101:9001'   # console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: shopio-mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '1027:1025'   # SMTP
+      - '8027:8025'   # web UI
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: shopio-postgres-data
+  redis_data:
+    name: shopio-redis-data
+  meilisearch_data:
+    name: shopio-meilisearch-data
+  minio_data:
+    name: shopio-minio-data

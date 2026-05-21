@@ -1,0 +1,17 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--shopio-font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: var(--shopio-color-surface-1);
+  color: var(--shopio-color-fg-default);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+}

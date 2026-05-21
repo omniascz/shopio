@@ -1,0 +1,101 @@
+/**
+ * Shopio core design tokens as CSS variables.
+ * Per `35-graphic-templates.md §3.3` light + dark resolution.
+ */
+
+:root {
+  /* Brand */
+  --shopio-color-primary: #0066ff;
+  --shopio-color-primary-pressed: #0052cc;
+  --shopio-color-primary-soft: #e5f0ff;
+  --shopio-color-accent: #ff6b35;
+
+  /* Surface (light) */
+  --shopio-color-surface-1: #fafafa;
+  --shopio-color-surface-2: #ffffff;
+  --shopio-color-surface-3: #f4f4f5;
+  --shopio-color-surface-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Foreground (light) */
+  --shopio-color-fg-strong: #0a0a0a;
+  --shopio-color-fg-default: #3f3f46;
+  --shopio-color-fg-muted: #71717a;
+  --shopio-color-fg-on-primary: #ffffff;
+
+  /* Border (light) */
+  --shopio-color-border-default: #e4e4e7;
+  --shopio-color-border-strong: #d4d4d8;
+  --shopio-color-border-focus: #3b82f6;
+
+  /* Status */
+  --shopio-color-success: #10b981;
+  --shopio-color-warning: #f59e0b;
+  --shopio-color-danger: #ef4444;
+  --shopio-color-info: #3b82f6;
+
+  /* Typography */
+  --shopio-font-sans:
+    'Inter', 'Inter Variable', system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif;
+  --shopio-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* Spacing (4pt scale) */
+  --shopio-spacing-1: 4px;
+  --shopio-spacing-2: 8px;
+  --shopio-spacing-3: 12px;
+  --shopio-spacing-4: 16px;
+  --shopio-spacing-6: 24px;
+  --shopio-spacing-8: 32px;
+  --shopio-spacing-12: 48px;
+  --shopio-spacing-16: 64px;
+
+  /* Radius */
+  --shopio-radius-sm: 4px;
+  --shopio-radius-md: 8px;
+  --shopio-radius-lg: 12px;
+  --shopio-radius-full: 9999px;
+
+  /* Shadows */
+  --shopio-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shopio-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shopio-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+
+  /* Motion */
+  --shopio-motion-fast: 150ms;
+  --shopio-motion-base: 250ms;
+  --shopio-motion-slow: 400ms;
+}
+
+[data-color-scheme='dark'] {
+  --shopio-color-surface-1: #0a0a0a;
+  --shopio-color-surface-2: #18181b;
+  --shopio-color-surface-3: #27272a;
+  --shopio-color-fg-strong: #f4f4f5;
+  --shopio-color-fg-default: #d4d4d8;
+  --shopio-color-fg-muted: #a1a1aa;
+  --shopio-color-border-default: #3f3f46;
+  --shopio-color-border-strong: #52525b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme='light']) {
+    --shopio-color-surface-1: #0a0a0a;
+    --shopio-color-surface-2: #18181b;
+    --shopio-color-surface-3: #27272a;
+    --shopio-color-fg-strong: #f4f4f5;
+    --shopio-color-fg-default: #d4d4d8;
+    --shopio-color-fg-muted: #a1a1aa;
+    --shopio-color-border-default: #3f3f46;
+    --shopio-color-border-strong: #52525b;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

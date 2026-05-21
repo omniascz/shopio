@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Prague
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    labels: ['dependencies', 'auto-update']
+    groups:
+      typescript:
+        patterns: ['typescript', '@types/*']
+      react:
+        patterns: ['react', 'react-dom', '@types/react*']
+      next:
+        patterns: ['next']
+      vite:
+        patterns: ['vite', '@vitejs/*', 'vitest']
+      drizzle:
+        patterns: ['drizzle-orm', 'drizzle-kit', 'postgres']
+      tanstack:
+        patterns: ['@tanstack/*']
+      ai-providers:
+        patterns: ['@anthropic-ai/*', 'openai']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ['ci', 'auto-update']
+
+  - package-ecosystem: docker
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ['docker', 'auto-update']
