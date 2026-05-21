@@ -37,21 +37,28 @@ export async function registerWebhookRoutes(
   // Raw body parser scoped to webhook route only.
   // (Fastify content-type parsers are global; we filter inside the handler.)
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    const buf = body as Buffer;
+    const text = buf.toString('utf8');
+
     if (req.url === WEBHOOK_PATH) {
       // Keep raw buffer for signature verification
-      (req as unknown as { rawBody: Buffer }).rawBody = body as Buffer;
+      (req as unknown as { rawBody: Buffer }).rawBody = buf;
       try {
-        const json = JSON.parse((body as Buffer).toString('utf8'));
-        done(null, json);
+        done(null, text.length > 0 ? JSON.parse(text) : {});
       } catch (err) {
         done(err as Error, undefined);
       }
       return;
     }
-    // Default JSON parsing for other routes
+
+    // Default JSON parsing for other routes. Empty bodies (DELETE, PATCH without
+    // payload) → undefined so Fastify treats `req.body` as absent rather than error.
+    if (text.length === 0) {
+      done(null, undefined);
+      return;
+    }
     try {
-      const json = JSON.parse((body as Buffer).toString('utf8'));
-      done(null, json);
+      done(null, JSON.parse(text));
     } catch (err) {
       done(err as Error, undefined);
     }

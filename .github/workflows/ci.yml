@@ -125,6 +125,85 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+  e2e:
+    name: E2E (storefront purchase flow)
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: shopio
+          POSTGRES_PASSWORD: shopio_test_password
+          POSTGRES_DB: shopio_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopio"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://shopio:shopio_test_password@localhost:5432/shopio_test
+      NODE_ENV: development
+      SHOPIO_JWT_SECRET: e2e_jwt_secret_at_least_32_chars_long_for_dev_only
+      SHOPIO_SESSION_PEPPER: e2e_pepper_at_least_16_chars
+      SHOPIO_BASE_URL: http://localhost:3030
+      SHOPIO_ADMIN_URL: http://localhost:3031
+      SHOPIO_API_URL: http://localhost:4040
+      CORS_ORIGIN: http://localhost:3030,http://localhost:3031
+      LOG_LEVEL: warn
+      API_URL: http://localhost:4040
+      STOREFRONT_URL: http://localhost:3030
+      NEXT_PUBLIC_SHOPIO_API_URL: http://localhost:4040
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: pnpm db:migrate
+
+      - name: Seed database
+        run: pnpm db:seed
+
+      - name: Start API (background)
+        run: pnpm --filter @shopio/api dev &
+        env:
+          NODE_ENV: development
+
+      - name: Wait for API to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:4040/health/live > /dev/null; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API failed to start" >&2
+          exit 1
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @shopio/storefront exec playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: pnpm --filter @shopio/storefront test:e2e
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/storefront/playwright-report/
+          retention-days: 7
+
   security-scan:
     name: Security scans
     runs-on: ubuntu-latest
@@ -154,6 +233,6 @@ jobs:
   all-green:
     name: All checks passed
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, build, security-scan]
+    needs: [lint, typecheck, test, build, e2e, security-scan]
     steps:
       - run: echo "All CI checks green."
