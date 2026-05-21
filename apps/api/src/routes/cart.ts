@@ -26,6 +26,7 @@ import { schema } from '@shopio/db';
 import { generatePubId } from '@shopio/authz';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
+import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -375,7 +376,7 @@ export async function registerCartRoutes(
               totalAmount: total,
               status: 'pending_payment',
               paymentStatus: 'pending',
-              paymentMethod: 'mock',
+              paymentMethod: isStripeEnabled(config) ? 'stripe' : 'mock',
               channelKind: 'storefront_web',
               customerLocale: tenant.defaultLocale,
               customerNote: input.customerNote ?? null,
@@ -432,6 +433,54 @@ export async function registerCartRoutes(
           'checkout.order_placed',
         );
 
+        // Stripe Checkout Session — if configured. Otherwise mock path.
+        let paymentUrl: string | null = null;
+        if (isStripeEnabled(config)) {
+          try {
+            const storefrontBase = config.SHOPIO_BASE_URL;
+            const session = await createCheckoutSession(config, {
+              orderId: result.pubId,
+              orderNumber: result.orderNumber,
+              customerEmail: result.customerEmail,
+              currency: result.currency,
+              items: items.map((it) => ({
+                title: it.titleSnapshot,
+                quantity: it.quantity,
+                unitAmountMinor: it.unitPriceAmount,
+              })),
+              successUrl: `${storefrontBase}/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}&session_id={CHECKOUT_SESSION_ID}`,
+              cancelUrl: `${storefrontBase}/s/${tenant.slug}/checkout?cancelled=1`,
+            });
+            paymentUrl = session.paymentUrl;
+
+            // Stash Stripe session id on order for webhook correlation
+            await db
+              .update(schema.orders)
+              .set({
+                metadata: dsql`${schema.orders.metadata} || ${JSON.stringify({
+                  stripe_checkout_session_id: session.sessionId,
+                })}::jsonb`,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.orders.id, result.id));
+
+            app.log.info(
+              { orderId: result.id, stripeSessionId: session.sessionId },
+              'checkout.stripe_session_created',
+            );
+          } catch (err) {
+            app.log.error({ err, orderId: result.id }, 'checkout.stripe_session_failed');
+            // Order is already placed — surface error so client can retry payment
+            return reply.code(502).send({
+              error: {
+                code: 'PAYMENT_PROVIDER_ERROR',
+                message: 'Order placed but payment provider unavailable. Contact support.',
+                order_number: result.orderNumber,
+              },
+            });
+          }
+        }
+
         return reply.code(201).send({
           data: {
             order: {
@@ -439,15 +488,19 @@ export async function registerCartRoutes(
               number: result.orderNumber,
               status: result.status,
               payment_status: result.paymentStatus,
+              payment_method: result.paymentMethod,
               total: {
                 amount: result.totalAmount.toString(),
                 currency: result.currency,
               },
               placed_at: result.placedAt,
               customer_email: result.customerEmail,
-              confirmation_url: `/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
+              confirmation_url: `/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
             },
-            next_step: 'In production, redirect to payment. In MVP, order is placed with status=pending_payment.',
+            payment_url: paymentUrl,
+            next_step: paymentUrl
+              ? 'Redirect customer to payment_url to complete payment'
+              : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
           },
         });
       } catch (err) {

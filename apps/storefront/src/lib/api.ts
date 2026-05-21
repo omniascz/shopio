@@ -188,11 +188,13 @@ export interface OrderConfirmation {
     number: string;
     status: string;
     payment_status: string;
+    payment_method: string | null;
     total: Money;
     placed_at: string;
     customer_email: string;
     confirmation_url: string;
   };
+  payment_url: string | null;
   next_step: string;
 }
 

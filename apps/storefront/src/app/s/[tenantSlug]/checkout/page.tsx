@@ -53,6 +53,11 @@ export default function CheckoutPage({ params }: Props) {
         ...(form.customerNote.trim() && { customerNote: form.customerNote.trim() }),
       });
 
+      if (result.payment_url) {
+        // Stripe (or other provider) — redirect to hosted checkout
+        window.location.href = result.payment_url;
+        return;
+      }
       const dest = `/s/${tenantSlug}/orders/${result.order.number}?email=${encodeURIComponent(result.order.customer_email)}`;
       router.push(dest);
     } catch (e) {

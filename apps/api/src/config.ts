@@ -42,7 +42,24 @@ const ConfigSchema = z.object({
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
+
+  // Stripe (optional — falls back to mock if absent or placeholder).
+  // Real keys are >40 chars; placeholders like "sk_test_..." (or empty) → mock mode.
+  STRIPE_SECRET_KEY: stripeKeySchema('sk_'),
+  STRIPE_WEBHOOK_SECRET: stripeKeySchema('whsec_'),
+  STRIPE_PUBLISHABLE_KEY: stripeKeySchema('pk_'),
 });
+
+function stripeKeySchema(prefix: string) {
+  return z.preprocess(
+    (v) => {
+      if (typeof v !== 'string') return undefined;
+      if (v.length < 30 || !v.startsWith(prefix) || v.includes('...')) return undefined;
+      return v;
+    },
+    z.string().min(30).optional(),
+  );
+}
 
 export type ShopioConfig = z.infer<typeof ConfigSchema>;
 
