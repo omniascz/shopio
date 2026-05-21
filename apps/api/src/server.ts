@@ -7,6 +7,7 @@ import { getConfig, corsOrigins } from './config';
 import { getDb } from './db';
 import { registerAuthRoutes } from './routes/auth';
 import { registerTenantRoutes } from './routes/tenants';
+import { registerProductRoutes } from './routes/products';
 
 export async function buildServer() {
   const config = getConfig();
@@ -59,6 +60,7 @@ export async function buildServer() {
   const db = getDb(config);
   await registerAuthRoutes(server, { config, db });
   await registerTenantRoutes(server, { config, db });
+  await registerProductRoutes(server, { config, db });
 
   return server;
 }
