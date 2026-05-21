@@ -1,0 +1,69 @@
+/**
+ * Runtime config loader. Reads from process.env (populated by `.env`).
+ *
+ * Per `30-security.md §7.x` — secrets never logged.
+ */
+
+import { config as loadEnv } from 'dotenv';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { z } from 'zod';
+
+// Load .env from app, or workspace root
+const __dirname = dirname(fileURLToPath(import.meta.url));
+for (const candidate of [
+  resolve(__dirname, '..', '.env'),
+  resolve(__dirname, '..', '..', '..', '.env'),
+]) {
+  if (existsSync(candidate)) {
+    loadEnv({ path: candidate });
+    break;
+  }
+}
+
+const ConfigSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  PORT: z.coerce.number().int().positive().default(4040),
+  HOST: z.string().default('0.0.0.0'),
+
+  // URLs
+  SHOPIO_BASE_URL: z.string().url().default('http://localhost:3030'),
+  SHOPIO_ADMIN_URL: z.string().url().default('http://localhost:3031'),
+  SHOPIO_API_URL: z.string().url().default('http://localhost:4040'),
+
+  // Database
+  DATABASE_URL: z.string().url(),
+
+  // Secrets
+  SHOPIO_JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 chars'),
+  SHOPIO_SESSION_PEPPER: z.string().min(16),
+
+  // CORS
+  CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
+});
+
+export type ShopioConfig = z.infer<typeof ConfigSchema>;
+
+let _cached: ShopioConfig | null = null;
+
+export function getConfig(): ShopioConfig {
+  if (_cached) return _cached;
+  const parsed = ConfigSchema.safeParse(process.env);
+  if (!parsed.success) {
+    console.error('❌ Invalid environment configuration:');
+    for (const issue of parsed.error.issues) {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    }
+    process.exit(1);
+  }
+  _cached = parsed.data;
+  return _cached;
+}
+
+export function corsOrigins(cfg: ShopioConfig): string[] {
+  return cfg.CORS_ORIGIN.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}

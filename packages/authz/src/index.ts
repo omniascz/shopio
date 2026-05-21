@@ -9,6 +9,9 @@
  * - JWT permission claim builder
  */
 
-export * from './permissions.js';
-export * from './personas.js';
-export * from './check.js';
+export * from './permissions';
+export * from './personas';
+export * from './check';
+export * from './password';
+export * from './tokens';
+export * from './sessions';
