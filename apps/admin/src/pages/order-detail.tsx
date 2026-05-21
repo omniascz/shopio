@@ -128,13 +128,12 @@ export function OrderDetailPage() {
                   <td colSpan={4} style={{ ...tdStyle, textAlign: 'right', color: '#666' }}>
                     Daň
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatMoney(order.totals.tax)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    {formatMoney(order.totals.tax)}
+                  </td>
                 </tr>
                 <tr style={{ borderTop: '2px solid #111' }}>
-                  <td
-                    colSpan={4}
-                    style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}
-                  >
+                  <td colSpan={4} style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
                     Celkem
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>

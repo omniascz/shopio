@@ -74,7 +74,14 @@ export function ProductsListPage() {
         </select>
       </div>
 
-      <div style={{ background: '#fff', padding: '0.5rem', borderRadius: 8, border: '1px solid #e9ecef' }}>
+      <div
+        style={{
+          background: '#fff',
+          padding: '0.5rem',
+          borderRadius: 8,
+          border: '1px solid #e9ecef',
+        }}
+      >
         {query.isLoading && <p>Načítání…</p>}
         {query.data && query.data.products.length === 0 && (
           <p style={{ color: '#666' }}>Žádné produkty.</p>
@@ -99,11 +106,20 @@ export function ProductsListPage() {
                       <div style={{ fontSize: '0.8125rem', color: '#666' }}>{p.vendor}</div>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '0.8125rem', color: '#666' }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      fontFamily: 'monospace',
+                      fontSize: '0.8125rem',
+                      color: '#666',
+                    }}
+                  >
                     {p.slug}
                   </td>
                   <td style={tdStyle}>{p.status}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatMoney(productBasePrice(p))}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    {formatMoney(productBasePrice(p))}
+                  </td>
                   <td style={{ ...tdStyle, color: '#666', fontSize: '0.8125rem' }}>
                     {p.published_at ? new Date(p.published_at).toLocaleDateString('cs-CZ') : '—'}
                   </td>

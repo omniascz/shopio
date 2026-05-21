@@ -41,7 +41,11 @@ export default function OrderConfirmationPage({ params }: Props) {
   }, [tenantSlug, orderNumber, email]);
 
   if (loading) {
-    return <main style={pageStyle}><p>Načítání objednávky…</p></main>;
+    return (
+      <main style={pageStyle}>
+        <p>Načítání objednávky…</p>
+      </main>
+    );
   }
 
   if (notFoundErr || !order) {
@@ -67,7 +71,9 @@ export default function OrderConfirmationPage({ params }: Props) {
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }} aria-hidden>✓</div>
+        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }} aria-hidden>
+          ✓
+        </div>
         <h1 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem' }}>Děkujeme za nákup!</h1>
         <p style={{ margin: 0, color: '#444' }}>
           Vaše objednávka <strong>{order.number}</strong> byla přijata.
@@ -117,10 +123,18 @@ export default function OrderConfirmationPage({ params }: Props) {
       <section style={sectionStyle}>
         <h2 style={sectionHeaderStyle}>Doručovací adresa</h2>
         <address style={{ fontStyle: 'normal', fontSize: '0.9375rem', lineHeight: 1.5 }}>
-          {order.customer_name}<br />
-          {order.shipping_address.line1}<br />
-          {order.shipping_address.line2 && <>{order.shipping_address.line2}<br /></>}
-          {order.shipping_address.postalCode} {order.shipping_address.city}<br />
+          {order.customer_name}
+          <br />
+          {order.shipping_address.line1}
+          <br />
+          {order.shipping_address.line2 && (
+            <>
+              {order.shipping_address.line2}
+              <br />
+            </>
+          )}
+          {order.shipping_address.postalCode} {order.shipping_address.city}
+          <br />
           {order.shipping_address.countryCode}
         </address>
       </section>
@@ -133,7 +147,9 @@ export default function OrderConfirmationPage({ params }: Props) {
           <dt style={dtStyle}>Stav</dt>
           <dd style={ddStyle}>{order.status}</dd>
           <dt style={dtStyle}>Stav platby</dt>
-          <dd style={ddStyle}>{order.payment_status} ({order.payment_method})</dd>
+          <dd style={ddStyle}>
+            {order.payment_status} ({order.payment_method})
+          </dd>
           <dt style={dtStyle}>Vytvořeno</dt>
           <dd style={ddStyle}>{new Date(order.placed_at).toLocaleString('cs-CZ')}</dd>
         </dl>

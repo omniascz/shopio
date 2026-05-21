@@ -64,7 +64,9 @@ async function main() {
       WHERE table_schema = 'public'
       ORDER BY table_name
     `;
-    console.log(`   ✅ ${tables.length} tables present: ${tables.map((t) => t.table_name).join(', ')}`);
+    console.log(
+      `   ✅ ${tables.length} tables present: ${tables.map((t) => t.table_name).join(', ')}`,
+    );
 
     const sampleId = await sql<{ id: string }[]>`SELECT uuidv7() AS id`;
     console.log(`   ✅ uuidv7() works: ${sampleId[0]?.id}`);

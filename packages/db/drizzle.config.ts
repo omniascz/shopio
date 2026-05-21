@@ -2,8 +2,7 @@ import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
 const url =
-  process.env.DATABASE_URL ??
-  'postgres://shopio:shopio_dev_password@localhost:5435/shopio_dev';
+  process.env.DATABASE_URL ?? 'postgres://shopio:shopio_dev_password@localhost:5435/shopio_dev';
 
 export default defineConfig({
   dialect: 'postgresql',

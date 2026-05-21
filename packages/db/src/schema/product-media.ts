@@ -22,17 +22,21 @@ import { tenants } from './tenants';
 export const productMedia = pgTable(
   'product_media',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
-    pubId: text('pub_id').notNull(),                                                                                                                                                                                                                                                                                  // mda_ NanoID
+    pubId: text('pub_id').notNull(), // mda_ NanoID
     // Asset
-    kind: text('kind', { enum: ['image', 'video', 'model_3d'] }).notNull().default('image'),
-    url: text('url').notNull(),                                                                                                                                                                                                                                                                                              // CDN URL or S3 key
+    kind: text('kind', { enum: ['image', 'video', 'model_3d'] })
+      .notNull()
+      .default('image'),
+    url: text('url').notNull(), // CDN URL or S3 key
     alt: text('alt'),
     widthPx: integer('width_px'),
     heightPx: integer('height_px'),
@@ -44,7 +48,9 @@ export const productMedia = pgTable(
     // Audit
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     productIdx: index('idx_product_media_product').on(t.productId, t.position),

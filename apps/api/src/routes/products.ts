@@ -21,12 +21,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, or, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
-import {
-  PERMISSIONS,
-  can,
-  generatePubId,
-  type PermissionCode,
-} from '@shopio/authz';
+import { PERMISSIONS, can, generatePubId, type PermissionCode } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -55,7 +50,10 @@ const VariantInput = z.object({
   title: z.string().max(255).default('Default'),
   priceAmount: z.union([z.bigint(), z.number(), z.string()]).transform((v) => BigInt(v)),
   priceCurrency: z.string().length(3).default('CZK'),
-  compareAtAmount: z.union([z.bigint(), z.number(), z.string()]).transform((v) => (v ? BigInt(v) : null)).optional(),
+  compareAtAmount: z
+    .union([z.bigint(), z.number(), z.string()])
+    .transform((v) => (v ? BigInt(v) : null))
+    .optional(),
   weightGrams: z.number().int().nonnegative().optional(),
   requiresShipping: z.boolean().default(true),
   stockOnHand: z.number().int().nonnegative().default(0),
@@ -83,7 +81,10 @@ const CreateProductBody = z.object({
     .regex(/^[a-z0-9-]+$/)
     .optional(),
   descriptionHtml: z.string().max(50000).optional(),
-  basePriceAmount: z.union([z.bigint(), z.number(), z.string()]).transform((v) => (v ? BigInt(v) : null)).optional(),
+  basePriceAmount: z
+    .union([z.bigint(), z.number(), z.string()])
+    .transform((v) => (v ? BigInt(v) : null))
+    .optional(),
   basePriceCurrency: z.string().length(3).optional(),
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).default('draft'),
   vendor: z.string().max(120).optional(),
@@ -102,7 +103,10 @@ const UpdateProductBody = z.object({
     .regex(/^[a-z0-9-]+$/)
     .optional(),
   descriptionHtml: z.string().max(50000).optional(),
-  basePriceAmount: z.union([z.bigint(), z.number(), z.string()]).transform((v) => (v ? BigInt(v) : null)).optional(),
+  basePriceAmount: z
+    .union([z.bigint(), z.number(), z.string()])
+    .transform((v) => (v ? BigInt(v) : null))
+    .optional(),
   basePriceCurrency: z.string().length(3).optional(),
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).optional(),
   vendor: z.string().max(120).nullable().optional(),
@@ -154,9 +158,18 @@ export async function registerProductRoutes(
     let parentId: string | null = null;
     if (input.parentId) {
       const [parent] = await db
-        .select({ id: schema.categories.id, path: schema.categories.path, depth: schema.categories.depth })
+        .select({
+          id: schema.categories.id,
+          path: schema.categories.path,
+          depth: schema.categories.depth,
+        })
         .from(schema.categories)
-        .where(and(eq(schema.categories.tenantId, auth.tenantId), eq(schema.categories.id, input.parentId)))
+        .where(
+          and(
+            eq(schema.categories.tenantId, auth.tenantId),
+            eq(schema.categories.id, input.parentId),
+          ),
+        )
         .limit(1);
       if (!parent) {
         return reply.code(422).send({

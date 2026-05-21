@@ -44,9 +44,7 @@ export function AppShell() {
             width: 240,
           }}
         >
-          <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: 4 }}>
-            {user?.email}
-          </div>
+          <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: 4 }}>{user?.email}</div>
           <button
             onClick={() => void handleLogout()}
             style={{

@@ -6,15 +6,27 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { bigint, pgTable, text, timestamp, uuid, jsonb, inet, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  jsonb,
+  inet,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 export const auditLogEntries = pgTable(
   'audit_log_entries',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
-    tenantId: uuid('tenant_id'),                                                                                                  // NULL for platform-level
-    pubId: text('pub_id').notNull(),                                                                                                  // aud_ NanoID
-    sequenceNumber: bigint('sequence_number', { mode: 'bigint' }).notNull(),                                                            // per tenant
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
+    tenantId: uuid('tenant_id'), // NULL for platform-level
+    pubId: text('pub_id').notNull(), // aud_ NanoID
+    sequenceNumber: bigint('sequence_number', { mode: 'bigint' }).notNull(), // per tenant
     // Action
     category: text('category', {
       enum: [
@@ -33,11 +45,19 @@ export const auditLogEntries = pgTable(
         'agent',
       ],
     }).notNull(),
-    action: text('action').notNull(),                                                                                                      // 'user.login', 'product.delete', ...
+    action: text('action').notNull(), // 'user.login', 'product.delete', ...
     outcome: text('outcome', { enum: ['success', 'failure', 'denied', 'pending'] }).notNull(),
     // Subject (who)
     actorKind: text('actor_kind', {
-      enum: ['user', 'service_account', 'api_token', 'app_installation', 'platform_staff', 'system', 'agent'],
+      enum: [
+        'user',
+        'service_account',
+        'api_token',
+        'app_installation',
+        'platform_staff',
+        'system',
+        'agent',
+      ],
     }).notNull(),
     actorUserId: uuid('actor_user_id'),
     actorTokenId: uuid('actor_token_id'),
@@ -62,14 +82,20 @@ export const auditLogEntries = pgTable(
     // Timing
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     ingestedAt: timestamp('ingested_at', { withTimezone: true }).notNull().defaultNow(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     pubIdUnique: uniqueIndex('uq_audit_log_pub_id').on(t.pubId),
     sequenceUnique: uniqueIndex('uq_audit_log_sequence').on(t.tenantId, t.sequenceNumber),
     tenantIdx: index('idx_audit_log_tenant').on(t.tenantId, t.occurredAt),
-    actorIdx: index('idx_audit_log_actor').on(t.actorUserId, t.occurredAt).where(sql`actor_user_id IS NOT NULL`),
-    resourceIdx: index('idx_audit_log_resource').on(t.resourceKind, t.resourceId, t.occurredAt).where(sql`resource_id IS NOT NULL`),
+    actorIdx: index('idx_audit_log_actor')
+      .on(t.actorUserId, t.occurredAt)
+      .where(sql`actor_user_id IS NOT NULL`),
+    resourceIdx: index('idx_audit_log_resource')
+      .on(t.resourceKind, t.resourceId, t.occurredAt)
+      .where(sql`resource_id IS NOT NULL`),
     categoryIdx: index('idx_audit_log_category').on(t.tenantId, t.category, t.occurredAt),
     failuresIdx: index('idx_audit_log_outcome_failure')
       .on(t.tenantId, t.occurredAt)

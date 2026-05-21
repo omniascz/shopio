@@ -6,16 +6,16 @@
 
 ## Obsah
 
-| Dokument | Účel | Status |
-|---|---|---|
-| [`privacy-policy-cs.md`](./privacy-policy-cs.md) | Privacy policy CZ verze | 🟡 DRAFT |
-| [`privacy-policy-en.md`](./privacy-policy-en.md) | Privacy policy EN verze | 🟡 DRAFT |
-| [`terms-of-service-cs.md`](./terms-of-service-cs.md) | Obchodní podmínky CZ | 🟡 DRAFT |
-| [`terms-of-service-en.md`](./terms-of-service-en.md) | Terms of Service EN | 🟡 DRAFT |
-| [`cookie-policy-cs.md`](./cookie-policy-cs.md) | Cookies CZ | 🟡 DRAFT |
-| [`dpa-template.md`](./dpa-template.md) | Data Processing Agreement template (B2B with merchants) | 🟡 DRAFT |
-| [`sub-processors.md`](./sub-processors.md) | Sub-processor disclosure list | 🟡 DRAFT |
-| [`security-policy-public.md`](./security-policy-public.md) | Public security policy (trust center) | 🟡 DRAFT |
+| Dokument                                                   | Účel                                                    | Status   |
+| ---------------------------------------------------------- | ------------------------------------------------------- | -------- |
+| [`privacy-policy-cs.md`](./privacy-policy-cs.md)           | Privacy policy CZ verze                                 | 🟡 DRAFT |
+| [`privacy-policy-en.md`](./privacy-policy-en.md)           | Privacy policy EN verze                                 | 🟡 DRAFT |
+| [`terms-of-service-cs.md`](./terms-of-service-cs.md)       | Obchodní podmínky CZ                                    | 🟡 DRAFT |
+| [`terms-of-service-en.md`](./terms-of-service-en.md)       | Terms of Service EN                                     | 🟡 DRAFT |
+| [`cookie-policy-cs.md`](./cookie-policy-cs.md)             | Cookies CZ                                              | 🟡 DRAFT |
+| [`dpa-template.md`](./dpa-template.md)                     | Data Processing Agreement template (B2B with merchants) | 🟡 DRAFT |
+| [`sub-processors.md`](./sub-processors.md)                 | Sub-processor disclosure list                           | 🟡 DRAFT |
+| [`security-policy-public.md`](./security-policy-public.md) | Public security policy (trust center)                   | 🟡 DRAFT |
 
 ## Process před publikací
 
@@ -28,12 +28,14 @@
 ## Doporučení k právníkovi
 
 Kategorie advokátů pro Shopio:
+
 - **CZ obchodní právo** — primární (zakládání, smlouvy)
 - **GDPR / data protection** — must-have
 - **EU SaaS** — kdo zná EU regulatory landscape (NIS2, DSA, AI Act)
 - **Mezinárodní obchod** — pro EU-wide expansion (Fáze 2)
 
 Doporučené firmy CZ (orientačně):
+
 - Dentons, Baker McKenzie, CMS — velké, drahé, kompetentní
 - ROWAN LEGAL, Havel & Partners — střední tier
 - Aignos, eLegal, Crowe LP — boutique tech-friendly + dostupnější

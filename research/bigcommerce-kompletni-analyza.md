@@ -46,6 +46,7 @@ BigCommerce (od 2025 zastřešeno značkou **Commerce.com**) je americká SaaS e
 **Zakladatelé:** Eddie Machaalani a Mitchell Harper
 
 **Klíčová čísla (2026):**
+
 - Přes **40 000** aktivních obchodů
 - **0,3 % globálního podílu** na e-commerce platformách (podle StoreLeads)
 - ~3–5 % globálního trhu e-commerce platforem (podle dalších zdrojů)
@@ -54,22 +55,26 @@ BigCommerce (od 2025 zastřešeno značkou **Commerce.com**) je americká SaaS e
 - Zaměstnanci: ~1 500
 
 **Akvizice:**
+
 - **Feedonomics** (2021, ~$300M) – omnichannel product feed management
 - **Makeswift** (2024) – vizuální page builder
 - **Mythic Markets** (menší)
 
 **Rebranding 2025:**
 Na BigSummit 2025 oznámeno, že mateřská značka bude **Commerce.com** – zastřešuje tři hlavní produkty:
+
 - **BigCommerce** (e-commerce platforma)
 - **Feedonomics** (feed management)
 - **Makeswift** (page builder)
 
 **Pozicování:**
+
 - "Open SaaS" – kombinace SaaS pohodlí + open flexibilita
 - Cílová skupina: **mid-market B2B a B2C** s obraty 500K – 100M USD
 - Konkurent Shopify, silnější v B2B, slabší v mass-market
 
 **Hlavní výhody:**
+
 - **Žádné transaction fees** na všech plánech
 - **Nativní B2B funkce** (nikoliv jen apps)
 - **Headless-first approach** s Catalyst
@@ -79,6 +84,7 @@ Na BigSummit 2025 oznámeno, že mateřská značka bude **Commerce.com** – za
 - Povinné upgrady plánů podle GMV (automatické)
 
 **Slabé stránky:**
+
 - Méně apps než Shopify (1 000+ vs. 8 000+)
 - Méně populární → menší komunita designérů
 - Strmější learning curve (složitější než Shopify)
@@ -116,6 +122,7 @@ BigCommerce má **dvě hlavní varianty**:
 ### 2.3 Commerce.com struktura (2025+)
 
 Pod Commerce.com značkou:
+
 - **BigCommerce** → platforma
 - **Feedonomics** → marketplace feeds (+ SMB varianta)
 - **Makeswift** → visual page builder (pro Stencil i Catalyst)
@@ -163,6 +170,7 @@ BigCommerce má unikátní **revenue-based tier system** – musíte upgradovat,
 **GMV cap: 180 000 USD/rok**
 
 Přidává:
+
 - **Customer groups** (custom pricing)
 - **Persistent cart** (uložený košík mezi zařízeními)
 - **Abandoned cart saver** (automatic recovery emails)
@@ -177,6 +185,7 @@ Přidává:
 **GMV cap: 400 000 USD/rok**
 
 Přidává:
+
 - **Google customer reviews**
 - **Product filtering** (faceted search)
 - **Custom SSL certificate** (brand domain SSL)
@@ -193,6 +202,7 @@ Přidává:
 **Bez GMV capu** (negotiated)
 
 Přidává:
+
 - **Price lists** (advanced B2B pricing)
 - **Customer provisioning API**
 - **Dedicated Customer Success Manager**
@@ -210,28 +220,29 @@ Přidává:
 ### 3.6 B2B Edition (add-on)
 
 Samostatný add-on pro pokročilé B2B funkce. Dostupný na Pro+ plánech.
+
 - Custom pricing (100–1 000+ USD/měs. podle velikosti)
 - Přináší Buyer Portal, quote management, PO workflows, company accounts
 
 ### 3.7 Srovnávací tabulka
 
-| Funkce | Standard | Plus | Pro | Enterprise |
-|---|---|---|---|---|
-| Cena (roční) USD | 29 | 79 | 299 | 1 000+ |
-| GMV cap | $50K | $180K | $400K | ∞ |
-| Neomezené produkty | ✅ | ✅ | ✅ | ✅ |
-| Staff accounts | ∞ | ∞ | ∞ | ∞ |
-| Transaction fee | 0% | 0% | 0% | 0% |
-| CC rate (online, US) | 2,9%+0,30 | 2,5%+0,30 | 2,2%+0,30 | negotiated |
-| Abandoned cart | ❌ | ✅ | ✅ | ✅ |
-| Persistent cart | ❌ | ✅ | ✅ | ✅ |
-| Customer groups | ❌ | ✅ | ✅ | ✅ |
-| Custom SSL | ❌ | ❌ | ✅ | ✅ |
-| Product filtering | ❌ | ❌ | ✅ | ✅ |
-| Price lists | ❌ | ❌ | ❌ | ✅ |
-| Priority support | ❌ | ❌ | ✅ | ✅ |
-| Multi-Storefront | ❌ | ❌ | limited | ✅ |
-| B2B Edition | add-on | add-on | add-on | included/add-on |
+| Funkce               | Standard  | Plus      | Pro       | Enterprise      |
+| -------------------- | --------- | --------- | --------- | --------------- |
+| Cena (roční) USD     | 29        | 79        | 299       | 1 000+          |
+| GMV cap              | $50K      | $180K     | $400K     | ∞               |
+| Neomezené produkty   | ✅        | ✅        | ✅        | ✅              |
+| Staff accounts       | ∞         | ∞         | ∞         | ∞               |
+| Transaction fee      | 0%        | 0%        | 0%        | 0%              |
+| CC rate (online, US) | 2,9%+0,30 | 2,5%+0,30 | 2,2%+0,30 | negotiated      |
+| Abandoned cart       | ❌        | ✅        | ✅        | ✅              |
+| Persistent cart      | ❌        | ✅        | ✅        | ✅              |
+| Customer groups      | ❌        | ✅        | ✅        | ✅              |
+| Custom SSL           | ❌        | ❌        | ✅        | ✅              |
+| Product filtering    | ❌        | ❌        | ✅        | ✅              |
+| Price lists          | ❌        | ❌        | ❌        | ✅              |
+| Priority support     | ❌        | ❌        | ✅        | ✅              |
+| Multi-Storefront     | ❌        | ❌        | limited   | ✅              |
+| B2B Edition          | add-on    | add-on    | add-on    | included/add-on |
 
 ### 3.8 Automatic plan upgrade
 
@@ -438,16 +449,19 @@ Každý produkt má:
 BigCommerce má sofistikovaný **product options system**:
 
 **Product Options:**
+
 - Velikost, barva, materiál, styl, atd.
 - Unlimited options per product
 - Unlimited choices per option
 - **Rectangles, swatches, radio buttons, dropdown, checkbox**
 
 **Option Sets:**
+
 - Reusable option groups
 - Pro konzistenci napříč produkty
 
 **Variants:**
+
 - Auto-generated kombinace options
 - Per-variant SKU, price, weight, image, inventory
 - **Modifier options** (nejsou varianta, ale customizace):
@@ -495,6 +509,7 @@ BigCommerce má sofistikovaný **product options system**:
 ### 5.9 Custom fields
 
 Unlimited custom fields per produkt:
+
 - Key-value pairs
 - Visible on storefront (volitelně)
 - Useful pro specifications, care instructions, technical data
@@ -619,6 +634,7 @@ BigCommerce má tři úrovně inventory tracking:
 ### 6.5 Multi-location inventory (Enterprise)
 
 BigCommerce přidal multi-location inventory v 2023:
+
 - **Multiple warehouses/locations**
 - **Per-location stock levels**
 - **Order routing** podle locations
@@ -643,6 +659,7 @@ BigCommerce přidal multi-location inventory v 2023:
 ### 6.8 Integrace s inventory management
 
 Přes apps:
+
 - **Cin7**
 - **SKULabs**
 - **Brightpearl**
@@ -660,6 +677,7 @@ Přes apps:
 
 MARKDOWN_EOF
 wc -l /home/claude/bigcommerce/bigcommerce-kompletni-analyza.md
+
 ---
 
 ## 7. Objednávky a fulfillment
@@ -669,6 +687,7 @@ wc -l /home/claude/bigcommerce/bigcommerce-kompletni-analyza.md
 BigCommerce používá detailní stavový systém:
 
 **Order Statuses:**
+
 - Incomplete
 - Pending
 - Awaiting Payment
@@ -713,12 +732,14 @@ BigCommerce používá detailní stavový systém:
 ### 7.4 Shipping labels
 
 **Native shipping labels (USA):**
+
 - **USPS, UPS, FedEx, DHL Express**
 - Discounted rates
 - Batch printing
 - Void labels
 
 **Přes apps (globálně):**
+
 - **ShipStation**
 - **Shippo**
 - **Sendcloud** (EU)
@@ -736,6 +757,7 @@ BigCommerce používá detailní stavový systém:
 ### 7.6 Email notifications
 
 Pre-built templates:
+
 - Order confirmation
 - Order shipped
 - Order completed
@@ -782,6 +804,7 @@ Customizable v admin nebo přes HTML.
 ### 7.11 Returns (RMA)
 
 **Native RMA system:**
+
 - Customer-initiated return requests
 - Return reasons (customizable)
 - Return status tracking
@@ -833,6 +856,7 @@ Customizable v admin nebo přes HTML.
 ### 8.2 Customer groups (Plus+)
 
 Segmentace se speciálními pravidly:
+
 - **Custom pricing per skupina**
 - **Visible products per skupina**
 - **Category access restrictions**
@@ -843,6 +867,7 @@ Segmentace se speciálními pravidly:
 ### 8.3 Customer segments (Plus+)
 
 Dynamic segmenty pro marketing:
+
 - Based on order history
 - Based on total spend
 - Based on location
@@ -864,6 +889,7 @@ Dynamic segmenty pro marketing:
 ### 8.6 Customer communication
 
 Přes apps:
+
 - **Gorgias** (help desk)
 - **Zendesk**
 - **Intercom**
@@ -915,6 +941,7 @@ Přes apps:
 ### 9.2 Customizable checkout
 
 Na **Plus+ plánech:**
+
 - Custom CSS
 - Custom fields
 - Brand logo, colors
@@ -922,6 +949,7 @@ Na **Plus+ plánech:**
 - Terms & conditions display
 
 Na **Pro / Enterprise:**
+
 - Full checkout SDK
 - Custom checkout JS API
 - Rebuild checkout from scratch
@@ -932,6 +960,7 @@ Na **Pro / Enterprise:**
 **65+ platebních poskytovatelů v 2026:**
 
 **Global:**
+
 - **Stripe** (most popular)
 - **PayPal**
 - **Amazon Pay**
@@ -949,6 +978,7 @@ Na **Pro / Enterprise:**
 - **Zip** (BNPL)
 
 **Regional:**
+
 - **Bolt** (USA)
 - **Sezzle** (USA)
 - **Digital River**
@@ -963,6 +993,7 @@ Na **Pro / Enterprise:**
 - **2Checkout** (global)
 
 **ČR:**
+
 - **Stripe** (hlavní)
 - **PayPal**
 - **Mollie** (pokud aktivní v ČR)
@@ -973,6 +1004,7 @@ Na **Pro / Enterprise:**
 ### 9.4 0% Transaction fee
 
 **Unique BigCommerce advantage:**
+
 - Žádné transaction fees na jakémkoliv plánu
 - Ušetří významné částky oproti Shopify Basic (2%)
 - Platí se jen processing fees brány
@@ -980,6 +1012,7 @@ Na **Pro / Enterprise:**
 ### 9.5 Credit card rates
 
 Nativní CC processing (přes BigCommerce Payments):
+
 - **Standard:** 2,9% + 0,30 USD
 - **Plus:** 2,5% + 0,30 USD
 - **Pro:** 2,2% + 0,30 USD
@@ -1000,6 +1033,7 @@ Nativní CC processing (přes BigCommerce Payments):
 ### 9.8 Subscriptions
 
 ⚠️ **BigCommerce nemá native subscriptions.** Nutno:
+
 - **Recharge** (app)
 - **Bold Subscriptions**
 - **PayWhirl**
@@ -1008,6 +1042,7 @@ Nativní CC processing (přes BigCommerce Payments):
 ### 9.9 BOPIS (Buy Online, Pickup In Store)
 
 Oznámeno na BigSummit 2024 jako nativní v Stencil (Cornerstone), Catalyst a Checkout:
+
 - Pick up at store
 - Delivery window
 - Store locator
@@ -1040,6 +1075,7 @@ BigCommerce checkout je známý **rychlostí** – průměr **2,9 s page load**,
 ### 10.3 Real-time shipping
 
 BigCommerce má **real-time shipping na všech plánech** (Shopify jen na Advanced+):
+
 - USPS
 - UPS
 - FedEx
@@ -1074,11 +1110,13 @@ To je zásadní výhoda proti Shopify Basic.
 ### 10.7 Shipping labels
 
 **Native (USA):**
+
 - **USPS Priority, First Class, Express** discounted
 - **UPS** Ground, Next Day Air
 - **FedEx** Home, 2Day
 
 **Přes apps:**
+
 - ShipStation
 - Shippo
 - Sendcloud (EU – Zásilkovna, DPD, GLS, PPL)
@@ -1126,6 +1164,7 @@ To je zásadní výhoda proti Shopify Basic.
 ### 11.1 Tax management
 
 **Native tax engine:**
+
 - **Manual tax rates** per zone
 - **Automatic tax** (Avalara AvaTax integrace – Pro+)
 - **Tax classes** (per produkt type)
@@ -1135,6 +1174,7 @@ To je zásadní výhoda proti Shopify Basic.
 ### 11.2 Tax automation
 
 **Avalara AvaTax:**
+
 - Real-time calculation
 - USA rooftop-level accuracy
 - EU VAT rates
@@ -1212,6 +1252,7 @@ Stencil je BigCommerce's theme framework (analogie Liquid u Shopify).
 ### 12.3 Stencil CLI
 
 Command-line tool pro vývoj témat:
+
 - Local development environment
 - Live preview před publishem
 - Theme push/pull
@@ -1228,6 +1269,7 @@ Command-line tool pro vývoj témat:
 ### 12.5 Theme customization
 
 **Pro non-developers (Page Builder):**
+
 - Drag-and-drop editor
 - Colors, fonts, layout
 - Featured products count
@@ -1236,6 +1278,7 @@ Command-line tool pro vývoj témat:
 - Custom HTML widgets
 
 **Pro developers:**
+
 - Full HTML/CSS/JS access
 - Handlebars templating
 - Custom widgets
@@ -1260,6 +1303,7 @@ Starší theme engine z ere před Stencil – v 2026 prakticky deprecated. Stáv
 ### 13.1 Page Builder (nativní)
 
 Drag-and-drop editor pro non-developers:
+
 - **Text blocks**
 - **Images** (single, galleries)
 - **Banners**
@@ -1271,6 +1315,7 @@ Drag-and-drop editor pro non-developers:
 - **Spacers**
 
 Limitations:
+
 - Pracuje v rámci dané sekce
 - Ne plně volný canvas jako Wix
 - Visuální úpravy omezené
@@ -1286,6 +1331,7 @@ Limitations:
 ### 13.3 Makeswift (acquired 2024)
 
 **Visual page builder s headless architekturou:**
+
 - **Drag-and-drop** s real componenty
 - **Multiplayer editing** (kolaborace v real-time)
 - **Primary pro Catalyst** (headless)
@@ -1294,6 +1340,7 @@ Limitations:
 - **Professional designer toolkit**
 
 **Makeswift přínosy:**
+
 - Design system import
 - Custom components
 - Type-safe
@@ -1302,15 +1349,15 @@ Limitations:
 
 ### 13.4 Makeswift vs. Page Builder
 
-| Feature | Page Builder | Makeswift |
-|---|---|---|
-| Stencil | ✅ | ✅ (nové) |
-| Catalyst | ❌ | ✅ |
-| Multiplayer | ❌ | ✅ |
-| React components | ❌ | ✅ |
-| Real-time collaboration | ❌ | ✅ |
-| Custom code | limited | unlimited |
-| Learning curve | low | medium |
+| Feature                 | Page Builder | Makeswift |
+| ----------------------- | ------------ | --------- |
+| Stencil                 | ✅           | ✅ (nové) |
+| Catalyst                | ❌           | ✅        |
+| Multiplayer             | ❌           | ✅        |
+| React components        | ❌           | ✅        |
+| Real-time collaboration | ❌           | ✅        |
+| Custom code             | limited      | unlimited |
+| Learning curve          | low          | medium    |
 
 ### 13.5 Pricing
 
@@ -1344,6 +1391,7 @@ Catalyst je BigCommerce's **next-gen headless storefront framework**, launched F
 ### 14.3 Catalyst features
 
 **Performance:**
+
 - Google Lighthouse 100
 - Server-side rendering
 - Edge caching
@@ -1351,6 +1399,7 @@ Catalyst je BigCommerce's **next-gen headless storefront framework**, launched F
 - Core Web Vitals leadership
 
 **E-commerce components:**
+
 - Product listing
 - Product detail
 - Cart management
@@ -1360,6 +1409,7 @@ Catalyst je BigCommerce's **next-gen headless storefront framework**, launched F
 - B2B Buyer Portal
 
 **Customization:**
+
 - Custom components
 - Theming
 - Routing flexibility
@@ -1391,15 +1441,15 @@ pnpm create @bigcommerce/catalyst@latest
 
 ### 14.7 Catalyst vs. Stencil
 
-| | Stencil | Catalyst |
-|---|---|---|
-| Tech | Handlebars | React/Next.js |
-| Hosting | BigCommerce | Self-hosted (Vercel, AWS) |
-| Performance | Good | Excellent (Lighthouse 100) |
-| Flexibility | Moderate | Unlimited |
-| Developer required | Optional | Required |
-| Learning curve | Low | High |
-| Best for | SMB | Mid-market, Enterprise |
+|                    | Stencil     | Catalyst                   |
+| ------------------ | ----------- | -------------------------- |
+| Tech               | Handlebars  | React/Next.js              |
+| Hosting            | BigCommerce | Self-hosted (Vercel, AWS)  |
+| Performance        | Good        | Excellent (Lighthouse 100) |
+| Flexibility        | Moderate    | Unlimited                  |
+| Developer required | Optional    | Required                   |
+| Learning curve     | Low         | High                       |
+| Best for           | SMB         | Mid-market, Enterprise     |
 
 ### 14.8 Catalyst demo
 
@@ -1607,6 +1657,7 @@ Unique k BigCommerce: **B2B Edition funguje across multiple storefronts** – je
 ### 16.15 B2B vs. Shopify Plus B2B
 
 BigCommerce B2B Edition je často hodnocena jako **pokročilejší** než Shopify Plus B2B:
+
 - Více workflow options
 - Multi-storefront B2B
 - Native headless support
@@ -1629,12 +1680,14 @@ BigCommerce B2B Edition je často hodnocena jako **pokročilejší** než Shopif
 ### 17.2 Multi-language
 
 **Native features:**
+
 - **Multi-Storefront per jazyk**
 - Každý storefront má vlastní language
 - **Product translations** přes APIs nebo apps
 - **hreflang tags** automaticky
 
 **Přes apps:**
+
 - **Weglot**
 - **GTranslate**
 - **Translate.io**
@@ -1664,6 +1717,7 @@ BigCommerce B2B Edition je často hodnocena jako **pokročilejší** než Shopif
 ### 17.6 Multi-storefront pro mezinárodní
 
 Typicky doporučeno nastavit:
+
 - USA store → USD
 - UK store → GBP
 - EU store → EUR
@@ -1682,22 +1736,26 @@ Typicky doporučeno nastavit:
 ### 18.1 Native marketing tools
 
 **Promotions (automatic discounts):**
+
 - Bez potřeby kódů
 - Triggery (cart value, products, customer groups)
 - Unlimited na všech plánech
 
 **Coupon codes:**
+
 - Percentage / fixed / BOGO / free shipping
 - Expiration, usage limits
 - Customer-specific
 
 **Email marketing:**
+
 - Basic email templates
 - **Klaviyo** native integration (zdarma base)
 - **Mailchimp**
 - **Omnisend**
 
 **Banners:**
+
 - Storefront banners
 - Category-specific
 - Scheduled display
@@ -1707,6 +1765,7 @@ Typicky doporučeno nastavit:
 ### 18.2 Sales channels
 
 **Marketplaces (přes Feedonomics + native):**
+
 - **Amazon** (native integration)
 - **eBay**
 - **Walmart Marketplace**
@@ -1720,12 +1779,14 @@ Typicky doporučeno nastavit:
 - **Best Buy Marketplace**
 
 **Social:**
+
 - Facebook, Instagram shopping tags
 - TikTok Pixel
 - Pinterest catalog
 - Snapchat catalog
 
 **Price comparison:**
+
 - Google Shopping
 - Shopzilla
 - NexTag
@@ -1803,6 +1864,7 @@ Feedonomics je **zásadní součást BigCommerce ekosystému** – akviz 2021, d
 ### 19.2 Podporované channels
 
 **Marketplaces:**
+
 - Amazon (USA + globally)
 - Walmart Marketplace
 - eBay
@@ -1817,12 +1879,14 @@ Feedonomics je **zásadní součást BigCommerce ekosystému** – akviz 2021, d
 - Overstock
 
 **Comparison engines:**
+
 - Google Shopping
 - Microsoft Shopping
 - Connexity
 - Shopzilla
 
 **Affiliate networks:**
+
 - Rakuten
 - CJ
 - Impact
@@ -1876,6 +1940,7 @@ Feedonomics je **zásadní součást BigCommerce ekosystému** – akviz 2021, d
 **Unlimited** na všech plánech.
 
 **Typy:**
+
 - **Discount off product**
 - **Discount off order**
 - **Discount off shipping**
@@ -1887,6 +1952,7 @@ Feedonomics je **zásadní součást BigCommerce ekosystému** – akviz 2021, d
 - **Brand discounts**
 
 **Podmínky:**
+
 - Min. order amount
 - Specific products / categories
 - Customer groups (Plus+)
@@ -2040,6 +2106,7 @@ Feedonomics je **zásadní součást BigCommerce ekosystému** – akviz 2021, d
 ### 21.8 Page speed
 
 BigCommerce je **známý rychlostí:**
+
 - Průměr 361ms server response
 - Třetí nejrychlejší platforma (po Catalyst storefront a vlastních custom)
 - Good Core Web Vitals scores
@@ -2148,7 +2215,6 @@ BigCommerce je **známý rychlostí:**
 
 Advanced BI tools pro enterprise merchants.
 
-
 ---
 
 ## 23. AI v BigCommerce
@@ -2158,11 +2224,13 @@ BigCommerce má AI funkce méně expandovanější než Shopify Sidekick nebo Wi
 ### 23.1 Feedonomics AI
 
 **Content rewriting:**
+
 - AI přepisuje product descriptions per channel
 - Optimizes pro Amazon, Google Shopping, TikTok atd.
 - Compliance s channel-specific requirements
 
 **AI categorization:**
+
 - Auto-assign products do kategorie
 - Attribute extraction z popisů
 - Error detection
@@ -2200,6 +2268,7 @@ BigCommerce má AI funkce méně expandovanější než Shopify Sidekick nebo Wi
 ### 23.7 AI roadmap
 
 Na BigSummit 2025 BigCommerce oznámil:
+
 - Expanded AI content features
 - AI-powered merchandising
 - Predictive analytics
@@ -2227,6 +2296,7 @@ BigCommerce má **silnou developer platformu**, podobnou Shopify v kvalitě API.
 - **Rate limits** (různé per plan)
 
 **Hlavní endpoints:**
+
 - **Catalog** (products, categories, brands, variants)
 - **Orders**
 - **Customers**
@@ -2283,6 +2353,7 @@ BigCommerce má **silnou developer platformu**, podobnou Shopify v kvalitě API.
 ### 24.6 Checkout SDK
 
 Pro custom checkout experiences:
+
 - **JavaScript SDK**
 - Build custom checkout UI
 - Headless checkout flow
@@ -2375,39 +2446,51 @@ Celá sekce 14 pokrývá Catalyst.
 ### 25.2 Top kategorie aplikací
 
 **Email marketing:**
+
 - Klaviyo, Mailchimp, Omnisend, ActiveCampaign
 
 **Reviews:**
+
 - Yotpo, Judge.me, Loox, Stamped
 
 **Shipping:**
+
 - ShipStation, Shippo, AfterShip, Sendcloud, Easyship
 
 **Subscriptions:**
+
 - Recharge, Bold Subscriptions, PayWhirl
 
 **Loyalty:**
+
 - Smile.io, LoyaltyLion, Yotpo Loyalty
 
 **Search:**
+
 - Searchanise, Algolia, Klevu, Boost AI Search
 
 **Accounting:**
+
 - QuickBooks, Xero, NetSuite
 
 **CRM:**
+
 - HubSpot, Salesforce, Zoho
 
 **Translation:**
+
 - Weglot, GTranslate
 
 **Chat:**
+
 - Gorgias, Zendesk, LiveChat, Tidio
 
 **Print-on-demand:**
+
 - Printful, Printify, Gelato
 
 **Dropshipping:**
+
 - Syncee, Modalyst, Spocket
 
 ### 25.3 BigCommerce Native Apps (zdarma)
@@ -2521,6 +2604,7 @@ Celá sekce 14 pokrývá Catalyst.
 ### 26.10 PCI 4.0 (2025+)
 
 BigCommerce implementoval PCI 4.0 compliance:
+
 - Nonce-based script authorization
 - Integrity checks
 - Justification pro scripts
@@ -2545,12 +2629,12 @@ BigCommerce implementoval PCI 4.0 compliance:
 
 ### 27.1 Support tiers
 
-| Plán | Support |
-|---|---|
-| Standard | 24/7 chat + email |
-| Plus | 24/7 chat + email |
-| Pro | Priority chat + email + priority phone |
-| Enterprise | Dedicated CSM, priority 24/7, SLA |
+| Plán       | Support                                |
+| ---------- | -------------------------------------- |
+| Standard   | 24/7 chat + email                      |
+| Plus       | 24/7 chat + email                      |
+| Pro        | Priority chat + email + priority phone |
+| Enterprise | Dedicated CSM, priority 24/7, SLA      |
 
 ### 27.2 Help Center
 
@@ -2584,6 +2668,7 @@ BigCommerce implementoval PCI 4.0 compliance:
 ### 27.6 BigSummit
 
 Annual conference:
+
 - Product announcements
 - Keynote sessions
 - Hands-on workshops
@@ -2755,6 +2840,7 @@ BigCommerce v roce 2026 představuje **silnou mid-market a B2B-first platformu**
 ### Pro koho se BigCommerce hodí
 
 ✅ **Ideální pro:**
+
 - **Mid-market B2B** ($500K – $10M GMV) – nejlepší volba po Shopify Plus
 - **Enterprise B2B s multi-storefront** potřebami
 - **Obchody chtějící headless** (Catalyst)
@@ -2767,6 +2853,7 @@ BigCommerce v roce 2026 představuje **silnou mid-market a B2B-first platformu**
 ### Pro koho méně
 
 ❌ **Méně vhodné pro:**
+
 - **Small starters / solopreneurs** (Shopify Basic, Wix Core, Squarespace Core levnější a jednodušší)
 - **Design-first brands** (Squarespace, Wix lepší)
 - **Creators s digital products / courses** (Squarespace, Kajabi lepší)
@@ -2778,6 +2865,7 @@ BigCommerce v roce 2026 představuje **silnou mid-market a B2B-first platformu**
 ### Pozice na trhu
 
 BigCommerce se pozicuje jako **"open SaaS" alternativa k Shopify**:
+
 - **Open:** flexibilnější APIs, headless-first s Catalyst, Multi-Storefront
 - **SaaS:** hostované, žádná infrastruktura starost
 - **B2B-leader** v mid-market segmentu
@@ -2786,11 +2874,13 @@ BigCommerce se pozicuje jako **"open SaaS" alternativa k Shopify**:
 ### Shrnutí v kontextu ČR
 
 V České republice má BigCommerce **mizivý podíl** – podobně jako Squarespace. Důvody:
+
 - **Chybí lokalizace** (jazyk, platby, dopravci, účetnictví, EET)
 - **Žádné české agency partnerství** oficiálně
 - **Minimální komunita** Czech merchants
 
 Pro český obchod jsou lepší volby:
+
 - **Shoptet / Upgates** (lokální SaaS)
 - **Shopify** (s lokálními apps přes Zásilkovnu, ComGate)
 - **WooCommerce** (flexibility + open-source)
@@ -2802,30 +2892,29 @@ BigCommerce by měl smysl jen pro **mezinárodně orientovaný český B2B obcho
 
 ### Srovnání všech 4 platforem (Shopify, Wix, Squarespace, BigCommerce)
 
-| Kritérium | Shopify | Wix | Squarespace | BigCommerce |
-|---|---|---|---|---|
-| **Cena (entry)** | 29 USD | 17 USD | 16 USD | 29 USD |
-| **Design freedom** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ |
-| **Templates** | 200+ | 2 500+ | 200+ | 100+ |
-| **E-commerce depth** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **B2B** | ⭐⭐⭐⭐ (Plus) | ⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ (#1) |
-| **App ecosystem** | ⭐⭐⭐⭐⭐ (8 000+) | ⭐⭐⭐ (500) | ⭐⭐ (50-80) | ⭐⭐⭐ (~1 000) |
-| **Transaction fees** | 2% Basic | 0% | 3% Basic | 0% všechny |
-| **Real-time shipping** | jen Advanced | add-on | jen Advanced | ✅ všechny |
-| **Multi-currency** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ |
-| **Multi-language** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **Multi-storefront** | ⭐⭐ (Plus only) | ⭐⭐ | ❌ | ⭐⭐⭐⭐⭐ (unikátní) |
-| **Headless** | ⭐⭐⭐⭐⭐ (Hydrogen) | ⭐⭐⭐⭐ (Vibe) | ⭐ | ⭐⭐⭐⭐⭐ (Catalyst) |
-| **AI** | ⭐⭐⭐⭐ (Sidekick) | ⭐⭐⭐⭐⭐ (Astro) | ⭐⭐⭐⭐ (Design Intelligence) | ⭐⭐⭐ (Feedonomics AI) |
-| **POS** | ⭐⭐⭐⭐⭐ (global) | ⭐⭐⭐ (USA/CA) | ⭐⭐ (USA) | ⭐⭐⭐ (Square) |
-| **Digital products** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Booking / Services** | ⭐⭐ | ⭐⭐⭐⭐ (Wix Bookings) | ⭐⭐⭐⭐⭐ (Acuity) | ⭐⭐ |
-| **Marketplaces** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ (Feedonomics) |
-| **Ease of use** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **ČR lokalizace** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐ |
-| **Overall positioning** | #1 e-commerce | All-in-one | Design-first | B2B / Mid-market |
+| Kritérium               | Shopify               | Wix                     | Squarespace                    | BigCommerce              |
+| ----------------------- | --------------------- | ----------------------- | ------------------------------ | ------------------------ |
+| **Cena (entry)**        | 29 USD                | 17 USD                  | 16 USD                         | 29 USD                   |
+| **Design freedom**      | ⭐⭐⭐                | ⭐⭐⭐⭐⭐              | ⭐⭐⭐⭐                       | ⭐⭐                     |
+| **Templates**           | 200+                  | 2 500+                  | 200+                           | 100+                     |
+| **E-commerce depth**    | ⭐⭐⭐⭐⭐            | ⭐⭐⭐                  | ⭐⭐⭐                         | ⭐⭐⭐⭐⭐               |
+| **B2B**                 | ⭐⭐⭐⭐ (Plus)       | ⭐⭐                    | ⭐                             | ⭐⭐⭐⭐⭐ (#1)          |
+| **App ecosystem**       | ⭐⭐⭐⭐⭐ (8 000+)   | ⭐⭐⭐ (500)            | ⭐⭐ (50-80)                   | ⭐⭐⭐ (~1 000)          |
+| **Transaction fees**    | 2% Basic              | 0%                      | 3% Basic                       | 0% všechny               |
+| **Real-time shipping**  | jen Advanced          | add-on                  | jen Advanced                   | ✅ všechny               |
+| **Multi-currency**      | ⭐⭐⭐⭐⭐            | ⭐⭐⭐⭐                | ⭐                             | ⭐⭐⭐⭐                 |
+| **Multi-language**      | ⭐⭐⭐⭐⭐            | ⭐⭐⭐⭐                | ⭐⭐                           | ⭐⭐⭐                   |
+| **Multi-storefront**    | ⭐⭐ (Plus only)      | ⭐⭐                    | ❌                             | ⭐⭐⭐⭐⭐ (unikátní)    |
+| **Headless**            | ⭐⭐⭐⭐⭐ (Hydrogen) | ⭐⭐⭐⭐ (Vibe)         | ⭐                             | ⭐⭐⭐⭐⭐ (Catalyst)    |
+| **AI**                  | ⭐⭐⭐⭐ (Sidekick)   | ⭐⭐⭐⭐⭐ (Astro)      | ⭐⭐⭐⭐ (Design Intelligence) | ⭐⭐⭐ (Feedonomics AI)  |
+| **POS**                 | ⭐⭐⭐⭐⭐ (global)   | ⭐⭐⭐ (USA/CA)         | ⭐⭐ (USA)                     | ⭐⭐⭐ (Square)          |
+| **Digital products**    | ⭐⭐⭐                | ⭐⭐⭐⭐                | ⭐⭐⭐⭐⭐                     | ⭐⭐⭐                   |
+| **Booking / Services**  | ⭐⭐                  | ⭐⭐⭐⭐ (Wix Bookings) | ⭐⭐⭐⭐⭐ (Acuity)            | ⭐⭐                     |
+| **Marketplaces**        | ⭐⭐⭐⭐              | ⭐⭐⭐                  | ⭐⭐                           | ⭐⭐⭐⭐⭐ (Feedonomics) |
+| **Ease of use**         | ⭐⭐⭐⭐              | ⭐⭐⭐⭐                | ⭐⭐⭐⭐⭐                     | ⭐⭐⭐                   |
+| **ČR lokalizace**       | ⭐⭐⭐                | ⭐⭐⭐                  | ⭐⭐                           | ⭐                       |
+| **Overall positioning** | #1 e-commerce         | All-in-one              | Design-first                   | B2B / Mid-market         |
 
 ---
 
-*Dokument sestaven na základě oficiální dokumentace BigCommerce (support.bigcommerce.com, developer.bigcommerce.com, bigcommerce.com/blog), Catalyst documentation (catalyst.dev), BigSummit 2024/2025 oznámení, Commerce.com rebranding announcement, a nezávislých analýz (Ecommerce Paradise, WebsiteBuilderExpert, LitExtension, Netsolutions, Folio3, Anchor Group, WizCommerce, Duck Soup Ecommerce, Hypa, Kensium) – duben 2026.*
-
+_Dokument sestaven na základě oficiální dokumentace BigCommerce (support.bigcommerce.com, developer.bigcommerce.com, bigcommerce.com/blog), Catalyst documentation (catalyst.dev), BigSummit 2024/2025 oznámení, Commerce.com rebranding announcement, a nezávislých analýz (Ecommerce Paradise, WebsiteBuilderExpert, LitExtension, Netsolutions, Folio3, Anchor Group, WizCommerce, Duck Soup Ecommerce, Hypa, Kensium) – duben 2026._

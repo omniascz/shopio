@@ -83,10 +83,7 @@ export async function registerStorefrontRoutes(
         })
         .from(schema.categories)
         .where(
-          and(
-            eq(schema.categories.tenantId, tenant.id),
-            eq(schema.categories.status, 'active'),
-          ),
+          and(eq(schema.categories.tenantId, tenant.id), eq(schema.categories.status, 'active')),
         )
         .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder));
 

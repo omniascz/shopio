@@ -13,7 +13,7 @@
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  # Postgres 17 + pgvector preinstalled (per `33-ai-features.md §6`)
+    image: pgvector/pgvector:pg17 # Postgres 17 + pgvector preinstalled (per `33-ai-features.md §6`)
     container_name: shopio-postgres
     environment:
       POSTGRES_USER: shopio
@@ -35,7 +35,16 @@ services:
   redis:
     image: redis:7-alpine
     container_name: shopio-redis
-    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '512mb', '--maxmemory-policy', 'allkeys-lru']
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--maxmemory',
+        '512mb',
+        '--maxmemory-policy',
+        'allkeys-lru',
+      ]
     volumes:
       - redis_data:/data
     ports:
@@ -73,8 +82,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - '9100:9000'   # S3 API
-      - '9101:9001'   # console
+      - '9100:9000' # S3 API
+      - '9101:9001' # console
     volumes:
       - minio_data:/data
     healthcheck:
@@ -91,8 +100,8 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
     ports:
-      - '1027:1025'   # SMTP
-      - '8027:8025'   # web UI
+      - '1027:1025' # SMTP
+      - '8027:8025' # web UI
     restart: unless-stopped
 
 volumes:

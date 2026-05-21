@@ -190,14 +190,16 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   // Orders
   // ---------------------------------------------------------------------------
-  async listOrders(params: {
-    status?: string | undefined;
-    paymentStatus?: string | undefined;
-    q?: string | undefined;
-    limit?: number | undefined;
-    offset?: number | undefined;
-    sort?: string | undefined;
-  } = {}): Promise<{ orders: OrderListItem[]; total: number; offset: number; limit: number }> {
+  async listOrders(
+    params: {
+      status?: string | undefined;
+      paymentStatus?: string | undefined;
+      q?: string | undefined;
+      limit?: number | undefined;
+      offset?: number | undefined;
+      sort?: string | undefined;
+    } = {},
+  ): Promise<{ orders: OrderListItem[]; total: number; offset: number; limit: number }> {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== '') qs.set(k, String(v));
@@ -223,12 +225,14 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   // Products (admin)
   // ---------------------------------------------------------------------------
-  async listProducts(params: {
-    status?: string | undefined;
-    q?: string | undefined;
-    limit?: number | undefined;
-    offset?: number | undefined;
-  } = {}): Promise<{ products: ProductListItem[]; count: number; offset: number; limit: number }> {
+  async listProducts(
+    params: {
+      status?: string | undefined;
+      q?: string | undefined;
+      limit?: number | undefined;
+      offset?: number | undefined;
+    } = {},
+  ): Promise<{ products: ProductListItem[]; count: number; offset: number; limit: number }> {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== '') qs.set(k, String(v));

@@ -23,6 +23,7 @@ Per [`zadani/30-security.md`](./zadani/30-security.md).
 ## Scope
 
 V scope:
+
 - Shopio core (`apps/`, `packages/`)
 - API endpoints (REST + GraphQL + tRPC + MCP)
 - Admin UI + storefront UI
@@ -32,6 +33,7 @@ V scope:
 - Customer + admin auth
 
 Out of scope:
+
 - Third-party hosted services (Stripe, Anthropic, AWS — report to them)
 - Social engineering / phishing reports
 - Physical attacks

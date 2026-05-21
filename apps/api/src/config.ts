@@ -51,14 +51,11 @@ const ConfigSchema = z.object({
 });
 
 function stripeKeySchema(prefix: string) {
-  return z.preprocess(
-    (v) => {
-      if (typeof v !== 'string') return undefined;
-      if (v.length < 30 || !v.startsWith(prefix) || v.includes('...')) return undefined;
-      return v;
-    },
-    z.string().min(30).optional(),
-  );
+  return z.preprocess((v) => {
+    if (typeof v !== 'string') return undefined;
+    if (v.length < 30 || !v.startsWith(prefix) || v.includes('...')) return undefined;
+    return v;
+  }, z.string().min(30).optional());
 }
 
 export type ShopioConfig = z.infer<typeof ConfigSchema>;

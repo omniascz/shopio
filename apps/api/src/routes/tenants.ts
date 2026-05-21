@@ -13,7 +13,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import {
   PERMISSIONS,
@@ -77,145 +77,131 @@ export async function registerTenantRoutes(
   // ---------------------------------------------------------------------------
   // POST /api/{date}/tenants — create tenant, current user becomes OWNER
   // ---------------------------------------------------------------------------
-  app.post(
-    '/api/2026-05-20/tenants',
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const parsed = CreateTenantBody.safeParse(req.body);
-      if (!parsed.success) {
-        return reply.code(422).send({
-          error: {
-            code: 'VALIDATION_FAILED',
-            message: 'Invalid input',
-            field_errors: parsed.error.flatten().fieldErrors,
-          },
-        });
-      }
-      const auth = req.auth!;
-      const input = parsed.data;
-
-      const slug = input.slug ?? slugify(input.displayName);
-
-      // Uniqueness check
-      const [existing] = await db
-        .select({ id: schema.tenants.id })
-        .from(schema.tenants)
-        .where(eq(schema.tenants.slug, slug))
-        .limit(1);
-      if (existing) {
-        return reply.code(409).send({
-          error: { code: 'SLUG_TAKEN', message: `Slug "${slug}" already taken; choose another` },
-        });
-      }
-
-      const result = await db.transaction(async (tx) => {
-        const [tenant] = await tx
-          .insert(schema.tenants)
-          .values({
-            pubId: generatePubId('tnt'),
-            slug,
-            displayName: input.displayName,
-            countryCode: input.countryCode,
-            defaultLocale: input.defaultLocale,
-            defaultCurrency: input.defaultCurrency,
-            timezone: input.timezone,
-            status: 'active', // MVP: skip provisioning workflow; goes live immediately
-          })
-          .returning();
-
-        if (!tenant) throw new Error('Tenant creation failed');
-
-        // Auto-assign current user as OWNER (per `36 §RULE-RBAC-005`)
-        const [membership] = await tx
-          .insert(schema.userTenantMemberships)
-          .values({
-            tenantId: tenant.id,
-            userId: auth.userId,
-            personaCode: 'MERCHANT-OWNER',
-            status: 'active',
-            acceptedAt: new Date(),
-            assignedByUserId: auth.userId,
-          })
-          .returning();
-
-        return { tenant, membership };
-      });
-
-      app.log.info(
-        { tenantId: result.tenant.id, ownerId: auth.userId },
-        'tenants.create.success',
-      );
-
-      return reply.code(201).send({
-        data: {
-          tenant: {
-            id: result.tenant.pubId,
-            slug: result.tenant.slug,
-            display_name: result.tenant.displayName,
-            country_code: result.tenant.countryCode,
-            default_locale: result.tenant.defaultLocale,
-            default_currency: result.tenant.defaultCurrency,
-            plan_tier: result.tenant.planTier,
-            status: result.tenant.status,
-            created_at: result.tenant.createdAt,
-          },
-          your_persona: 'MERCHANT-OWNER',
-          next_step:
-            'Switch to this tenant via POST /auth/switch-tenant with tenantId, then complete onboarding',
+  app.post('/api/2026-05-20/tenants', { preHandler: requireAuth }, async (req, reply) => {
+    const parsed = CreateTenantBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(422).send({
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid input',
+          field_errors: parsed.error.flatten().fieldErrors,
         },
       });
-    },
-  );
+    }
+    const auth = req.auth!;
+    const input = parsed.data;
+
+    const slug = input.slug ?? slugify(input.displayName);
+
+    // Uniqueness check
+    const [existing] = await db
+      .select({ id: schema.tenants.id })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.slug, slug))
+      .limit(1);
+    if (existing) {
+      return reply.code(409).send({
+        error: { code: 'SLUG_TAKEN', message: `Slug "${slug}" already taken; choose another` },
+      });
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [tenant] = await tx
+        .insert(schema.tenants)
+        .values({
+          pubId: generatePubId('tnt'),
+          slug,
+          displayName: input.displayName,
+          countryCode: input.countryCode,
+          defaultLocale: input.defaultLocale,
+          defaultCurrency: input.defaultCurrency,
+          timezone: input.timezone,
+          status: 'active', // MVP: skip provisioning workflow; goes live immediately
+        })
+        .returning();
+
+      if (!tenant) throw new Error('Tenant creation failed');
+
+      // Auto-assign current user as OWNER (per `36 §RULE-RBAC-005`)
+      const [membership] = await tx
+        .insert(schema.userTenantMemberships)
+        .values({
+          tenantId: tenant.id,
+          userId: auth.userId,
+          personaCode: 'MERCHANT-OWNER',
+          status: 'active',
+          acceptedAt: new Date(),
+          assignedByUserId: auth.userId,
+        })
+        .returning();
+
+      return { tenant, membership };
+    });
+
+    app.log.info({ tenantId: result.tenant.id, ownerId: auth.userId }, 'tenants.create.success');
+
+    return reply.code(201).send({
+      data: {
+        tenant: {
+          id: result.tenant.pubId,
+          slug: result.tenant.slug,
+          display_name: result.tenant.displayName,
+          country_code: result.tenant.countryCode,
+          default_locale: result.tenant.defaultLocale,
+          default_currency: result.tenant.defaultCurrency,
+          plan_tier: result.tenant.planTier,
+          status: result.tenant.status,
+          created_at: result.tenant.createdAt,
+        },
+        your_persona: 'MERCHANT-OWNER',
+        next_step:
+          'Switch to this tenant via POST /auth/switch-tenant with tenantId, then complete onboarding',
+      },
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // GET /api/{date}/me/tenants — list current user's memberships
   // ---------------------------------------------------------------------------
-  app.get(
-    '/api/2026-05-20/me/tenants',
-    { preHandler: requireAuth },
-    async (req, reply) => {
-      const auth = req.auth!;
+  app.get('/api/2026-05-20/me/tenants', { preHandler: requireAuth }, async (req, reply) => {
+    const auth = req.auth!;
 
-      const rows = await db
-        .select({
-          membershipId: schema.userTenantMemberships.id,
-          personaCode: schema.userTenantMemberships.personaCode,
-          status: schema.userTenantMemberships.status,
-          acceptedAt: schema.userTenantMemberships.acceptedAt,
-          tenantId: schema.tenants.id,
-          tenantPubId: schema.tenants.pubId,
-          tenantSlug: schema.tenants.slug,
-          tenantDisplayName: schema.tenants.displayName,
-          tenantStatus: schema.tenants.status,
-          tenantPlanTier: schema.tenants.planTier,
-        })
-        .from(schema.userTenantMemberships)
-        .innerJoin(
-          schema.tenants,
-          eq(schema.userTenantMemberships.tenantId, schema.tenants.id),
-        )
-        .where(eq(schema.userTenantMemberships.userId, auth.userId));
+    const rows = await db
+      .select({
+        membershipId: schema.userTenantMemberships.id,
+        personaCode: schema.userTenantMemberships.personaCode,
+        status: schema.userTenantMemberships.status,
+        acceptedAt: schema.userTenantMemberships.acceptedAt,
+        tenantId: schema.tenants.id,
+        tenantPubId: schema.tenants.pubId,
+        tenantSlug: schema.tenants.slug,
+        tenantDisplayName: schema.tenants.displayName,
+        tenantStatus: schema.tenants.status,
+        tenantPlanTier: schema.tenants.planTier,
+      })
+      .from(schema.userTenantMemberships)
+      .innerJoin(schema.tenants, eq(schema.userTenantMemberships.tenantId, schema.tenants.id))
+      .where(eq(schema.userTenantMemberships.userId, auth.userId));
 
-      return reply.send({
-        data: {
-          memberships: rows.map((r) => ({
-            membership_id: r.membershipId,
-            persona: r.personaCode,
-            status: r.status,
-            accepted_at: r.acceptedAt,
-            tenant: {
-              id: r.tenantPubId,
-              slug: r.tenantSlug,
-              display_name: r.tenantDisplayName,
-              status: r.tenantStatus,
-              plan_tier: r.tenantPlanTier,
-            },
-          })),
-          current_tenant_id: auth.tenantId || null,
-        },
-      });
-    },
-  );
+    return reply.send({
+      data: {
+        memberships: rows.map((r) => ({
+          membership_id: r.membershipId,
+          persona: r.personaCode,
+          status: r.status,
+          accepted_at: r.acceptedAt,
+          tenant: {
+            id: r.tenantPubId,
+            slug: r.tenantSlug,
+            display_name: r.tenantDisplayName,
+            status: r.tenantStatus,
+            plan_tier: r.tenantPlanTier,
+          },
+        })),
+        current_tenant_id: auth.tenantId || null,
+      },
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // POST /api/{date}/auth/switch-tenant — re-issue JWT with new tenant context
@@ -235,9 +221,17 @@ export async function registerTenantRoutes(
 
       // Accept either pub_id or UUID
       const [tenant] = await db
-        .select({ id: schema.tenants.id, pubId: schema.tenants.pubId, displayName: schema.tenants.displayName })
+        .select({
+          id: schema.tenants.id,
+          pubId: schema.tenants.pubId,
+          displayName: schema.tenants.displayName,
+        })
         .from(schema.tenants)
-        .where(tenantRef.startsWith('tnt_') ? eq(schema.tenants.pubId, tenantRef) : eq(schema.tenants.id, tenantRef))
+        .where(
+          tenantRef.startsWith('tnt_')
+            ? eq(schema.tenants.pubId, tenantRef)
+            : eq(schema.tenants.id, tenantRef),
+        )
         .limit(1);
 
       if (!tenant) {
@@ -314,7 +308,10 @@ export async function registerTenantRoutes(
       const verify = await verifyTenantAccess(db, auth.userId, tenantPubId);
       if (!verify) {
         return reply.code(404).send({
-          error: { code: 'TENANT_NOT_FOUND_OR_NOT_MEMBER', message: 'Tenant not found or you have no access' },
+          error: {
+            code: 'TENANT_NOT_FOUND_OR_NOT_MEMBER',
+            message: 'Tenant not found or you have no access',
+          },
         });
       }
 
@@ -391,7 +388,10 @@ export async function registerTenantRoutes(
       const verify = await verifyTenantAccess(db, auth.userId, tenantPubId);
       if (!verify) {
         return reply.code(404).send({
-          error: { code: 'TENANT_NOT_FOUND_OR_NOT_MEMBER', message: 'Tenant not found or no access' },
+          error: {
+            code: 'TENANT_NOT_FOUND_OR_NOT_MEMBER',
+            message: 'Tenant not found or no access',
+          },
         });
       }
       if (!can(auth, PERMISSIONS.ADMIN_TEAM_MANAGE) && !can(auth, PERMISSIONS.ADMIN_FULL)) {
@@ -422,7 +422,8 @@ export async function registerTenantRoutes(
         return reply.code(404).send({
           error: {
             code: 'USER_NOT_FOUND',
-            message: 'User with that email does not exist. MVP: invite flow only supports existing users.',
+            message:
+              'User with that email does not exist. MVP: invite flow only supports existing users.',
             todo: 'Email-based invite flow Fáze 1 wave 2',
           },
         });
@@ -430,7 +431,10 @@ export async function registerTenantRoutes(
 
       // Check existing membership
       const [existing] = await db
-        .select({ id: schema.userTenantMemberships.id, status: schema.userTenantMemberships.status })
+        .select({
+          id: schema.userTenantMemberships.id,
+          status: schema.userTenantMemberships.status,
+        })
         .from(schema.userTenantMemberships)
         .where(
           and(

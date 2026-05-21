@@ -67,7 +67,11 @@ export default function CheckoutPage({ params }: Props) {
   }
 
   if (loading && !cart) {
-    return <main style={pageStyle}><p>Načítání…</p></main>;
+    return (
+      <main style={pageStyle}>
+        <p>Načítání…</p>
+      </main>
+    );
   }
 
   if (!cart || cart.items.length === 0) {
@@ -99,7 +103,10 @@ export default function CheckoutPage({ params }: Props) {
           gap: '3rem',
         }}
       >
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+        >
           <h2 style={{ fontSize: '1.125rem', margin: '0 0 0.5rem' }}>Kontaktní údaje</h2>
           <Field label="E-mail" required>
             <input
@@ -186,9 +193,7 @@ export default function CheckoutPage({ params }: Props) {
             />
           </Field>
 
-          {error && (
-            <p style={{ color: '#c00', fontSize: '0.875rem', margin: 0 }}>{error}</p>
-          )}
+          {error && <p style={{ color: '#c00', fontSize: '0.875rem', margin: 0 }}>{error}</p>}
 
           <button
             type="submit"
@@ -213,7 +218,14 @@ export default function CheckoutPage({ params }: Props) {
           </p>
         </form>
 
-        <aside style={{ background: '#f8f8f8', padding: '1.5rem', borderRadius: 8, height: 'fit-content' }}>
+        <aside
+          style={{
+            background: '#f8f8f8',
+            padding: '1.5rem',
+            borderRadius: 8,
+            height: 'fit-content',
+          }}
+        >
           <h2 style={{ fontSize: '1rem', margin: '0 0 1rem' }}>Shrnutí objednávky</h2>
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem' }}>
             {cart.items.map((it) => (

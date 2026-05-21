@@ -29,11 +29,13 @@ import { tenants } from './tenants';
 export const carts = pgTable(
   'carts',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
-    pubId: text('pub_id').notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // crt_ NanoID
+    pubId: text('pub_id').notNull(), // crt_ NanoID
     /** Anonymous session ID (from signed cookie). Null for customer-linked. */
     sessionId: text('session_id'),
     /** Customer reference (Fáze 1 wave 2). */
@@ -48,8 +50,10 @@ export const carts = pgTable(
     /** Audit. */
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }),                                                                                                                                                                                                                                                                                                                                                                                                                                                              // anonymous carts expire after N days
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    expiresAt: timestamp('expires_at', { withTimezone: true }), // anonymous carts expire after N days
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     pubIdUnique: uniqueIndex('uq_carts_pub_id').on(t.tenantId, t.pubId),
@@ -60,21 +64,25 @@ export const carts = pgTable(
       .on(t.tenantId, t.customerId)
       .where(sql`status = 'active' AND customer_id IS NOT NULL`),
     tenantStatusIdx: index('idx_carts_tenant_status').on(t.tenantId, t.status),
-    expiryIdx: index('idx_carts_expiry').on(t.expiresAt).where(sql`status = 'active'`),
+    expiryIdx: index('idx_carts_expiry')
+      .on(t.expiresAt)
+      .where(sql`status = 'active'`),
   }),
 );
 
 export const cartItems = pgTable(
   'cart_items',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     cartId: uuid('cart_id')
       .notNull()
       .references(() => carts.id, { onDelete: 'cascade' }),
-    pubId: text('pub_id').notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            // cti_ NanoID
+    pubId: text('pub_id').notNull(), // cti_ NanoID
     /** Variant snapshot — variant_id + product_id captured for joins. */
     variantId: uuid('variant_id')
       .notNull()
@@ -92,7 +100,9 @@ export const cartItems = pgTable(
     /** Audit. */
     addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     cartIdx: index('idx_cart_items_cart').on(t.cartId, t.addedAt),

@@ -36,6 +36,7 @@
 ### 1.1 Open source je obrovský trh
 
 **Fakta (2026):**
+
 - **WooCommerce:** 33–38 % globálního e-commerce market share, **6+ milionů aktivních obchodů**, **9 milionů instalací historicky**
 - **Magento / Adobe Commerce:** 2 % market share, ale obsluhuje **top enterprise** (Coca-Cola, Nike, Asus, HP)
 - **PrestaShop:** 300 000+ obchodů, silný v **Evropě a Latinské Americe**
@@ -47,6 +48,7 @@
 ### 1.2 Co od nich merchants očekávají
 
 Merchants, kteří **přichází z open source na SaaS**, očekávají:
+
 - **Flexibilitu customizace** (open source má nekonečnou)
 - **Data ownership** (open source je úplný vlastník)
 - **Žádný lock-in**
@@ -58,6 +60,7 @@ Merchants, kteří **přichází z open source na SaaS**, očekávají:
 ### 1.3 Proč open source merchants migrují
 
 **Hlavní důvody opuštění open source:**
+
 - **Updates = peklo** (WooCommerce/Magento update rozbije pluginy)
 - **Security** (denní útoky na WordPress → WooCommerce)
 - **Performance** (špatný hosting → pomalý web)
@@ -70,10 +73,12 @@ Merchants, kteří **přichází z open source na SaaS**, očekávají:
 ### 1.4 Dvě strategie získání open source merchants
 
 **Strategie A: Migrace na plný SaaS**
+
 - Zoufalí open source merchants chtějí **end to pain**
 - Lákáme je na: managed everything, žádná údržba, stále flexibilní
 
 **Strategie B: Hybrid model**
+
 - **Self-host option** dostupný pro náročné
 - **SaaS** pro pohodlí
 - Merchant si vybírá
@@ -83,6 +88,7 @@ Merchants, kteří **přichází z open source na SaaS**, očekávají:
 ### 1.5 Proč kombinovat nejlepší z open source s SaaS
 
 Open source platformy vyvíjejí **15-20 let** a mají **stovky komunitních nápadů**, které SaaS platformy nemají:
+
 - Hooks & filters systém (WordPress/WooCommerce)
 - Event observers (Magento)
 - Template overrides (všechny)
@@ -99,21 +105,22 @@ Open source platformy vyvíjejí **15-20 let** a mají **stovky komunitních ná
 
 **Rychlý snapshot hlavních hráčů, jejich charakteristik a co nás u nich zajímá:**
 
-| Platforma | Obchodů | Jazyk | Cílí na | Hlavní síla | Co si vzít |
-|---|---|---|---|---|---|
-| **WooCommerce** | 6M+ | PHP / WP | SMB, content-first | Obří ekosystém, WordPress | Hooks, pluginy, HPOS, block checkout |
-| **PrestaShop** | 300k | PHP | SMB, EU | Lokalizace, dostupnost | Multi-store, překlady, SMB focus |
-| **Magento / Adobe Commerce** | 120k | PHP | Enterprise | B2B, škálovatelnost | Modularity, multi-store, GraphQL, Hyvä |
-| **Sylius** | 10k+ | PHP / Symfony | Enterprise custom | Code quality, testovatelnost | Modern architecture, Symfony patterns |
-| **Medusa** | 5k+ | Node.js / TS | Headless první | Developer experience, API | TypeScript-first, modular, Next.js |
-| **OpenCart** | 300k+ | PHP | SMB, jednoduché | Rychlý start, jednoduchý | Simplicity wins, multi-store lite |
-| **Spree Commerce** | 10k+ | Ruby on Rails | Enterprise custom | Rails quality | Event-driven, flexibility |
-| **Saleor** | 5k+ | Python / GraphQL | Mid-market composable | GraphQL-only, headless | API-first, Django patterns |
-| **Shopware CE** | 100k+ | PHP / Symfony | Mid-market | B2B, Shopping Experiences | Už rozebráno v jiném dokumentu |
+| Platforma                    | Obchodů | Jazyk            | Cílí na               | Hlavní síla                  | Co si vzít                             |
+| ---------------------------- | ------- | ---------------- | --------------------- | ---------------------------- | -------------------------------------- |
+| **WooCommerce**              | 6M+     | PHP / WP         | SMB, content-first    | Obří ekosystém, WordPress    | Hooks, pluginy, HPOS, block checkout   |
+| **PrestaShop**               | 300k    | PHP              | SMB, EU               | Lokalizace, dostupnost       | Multi-store, překlady, SMB focus       |
+| **Magento / Adobe Commerce** | 120k    | PHP              | Enterprise            | B2B, škálovatelnost          | Modularity, multi-store, GraphQL, Hyvä |
+| **Sylius**                   | 10k+    | PHP / Symfony    | Enterprise custom     | Code quality, testovatelnost | Modern architecture, Symfony patterns  |
+| **Medusa**                   | 5k+     | Node.js / TS     | Headless první        | Developer experience, API    | TypeScript-first, modular, Next.js     |
+| **OpenCart**                 | 300k+   | PHP              | SMB, jednoduché       | Rychlý start, jednoduchý     | Simplicity wins, multi-store lite      |
+| **Spree Commerce**           | 10k+    | Ruby on Rails    | Enterprise custom     | Rails quality                | Event-driven, flexibility              |
+| **Saleor**                   | 5k+     | Python / GraphQL | Mid-market composable | GraphQL-only, headless       | API-first, Django patterns             |
+| **Shopware CE**              | 100k+   | PHP / Symfony    | Mid-market            | B2B, Shopping Experiences    | Už rozebráno v jiném dokumentu         |
 
 ### 2.1 Vývojářská popularita
 
 **Z GitHubu (hvězdičky, duben 2026):**
+
 - Medusa: **25 000+ stars** (nejaktivnější)
 - Saleor: **21 000+ stars**
 - Spree Commerce: **13 000+ stars**
@@ -143,6 +150,7 @@ WooCommerce je **největší e-commerce platforma světa** (36 % online stores).
 ### 3.2 Co je na WooCommerce unikátní
 
 **1. WordPress symbióza**
+
 - Content + commerce pod jednou střechou
 - **Blog + e-shop** nativně (bez integrací)
 - SEO síla WordPressu (mocná)
@@ -150,17 +158,20 @@ WooCommerce je **největší e-commerce platforma světa** (36 % online stores).
 
 **2. Hook system**
 WordPress má **actions** (do něčeho) a **filters** (modify něčeho). WooCommerce je staví extrémně **extensible**:
+
 - `woocommerce_before_add_to_cart_button` (před tlačítkem)
 - `woocommerce_calculated_total` (modify calculation)
 - 3 000+ hooks napříč codebase
 - **Developer může přepsat cokoliv bez editace core**
 
 **3. Free core**
+
 - 100 % zdarma
 - **Placené jsou jen extensions**
 - Merchant má **kontrolu nad každým aspektem**
 
 **4. Ohromný ekosystém**
+
 - **59 000+ WordPress pluginů** technicky kompatibilních
 - Yoast SEO, WPML (multi-language), ElementorPro
 - Tisíce agentur globálně
@@ -168,6 +179,7 @@ WordPress má **actions** (do něčeho) a **filters** (modify něčeho). WooComm
 
 **5. Block Checkout (2024+)**
 Nový checkout based on Gutenberg blocks:
+
 - Drag-and-drop editovatelný
 - Konverze-optimized
 - **Fast**
@@ -175,6 +187,7 @@ Nový checkout based on Gutenberg blocks:
 
 **6. High-Performance Order Storage (HPOS)**
 Od 2024:
+
 - Objednávky v **dedikovaných tabulkách** (ne WP posts)
 - **10× rychlejší** queries
 - Škálovatelnost **milionů objednávek**
@@ -186,6 +199,7 @@ Od 2024:
 **Proč:** Nejextensibelnější architektura v e-commerce. Every developer WordPress toto zná.
 
 **Jak implementovat:**
+
 - **Event bus** napříč platformou
 - **Pre/post hooks** pro každou akci (order created, product updated, payment received)
 - **Filter hooks** pro modifikaci dat (order total, product price, cart items)
@@ -193,6 +207,7 @@ Od 2024:
 - **Visual hook explorer** (ukáže, co se kdy volá)
 
 **Výhoda pro nás:**
+
 - Developers z WordPress/WooCommerce se snadno **přenesou** na naši platformu
 - **Migration-friendly** (jejich custom code funguje podobně)
 - Nemusíme vymýšlet API, jen hooks
@@ -202,6 +217,7 @@ Od 2024:
 **Proč:** WooCommerce výhra = content marketing obchody (fashion blogs, gourmet, hobby).
 
 **Jak:**
+
 - **Blog built-in** jako first-class citizen
 - **Content-to-commerce** linking snadno
 - **Shoppable articles**
@@ -215,6 +231,7 @@ Od 2024:
 **Proč:** WooCommerce ukázal, že **monolithic order storage nescaluje**.
 
 **Jak:**
+
 - **Orders v dedikovaných tabulkách** od začátku
 - **Event sourcing** pro order changes
 - **Scalable na miliony orders**
@@ -227,6 +244,7 @@ Od 2024:
 **Proč:** Gutenberg blocks = future of editing.
 
 **Jak:**
+
 - **Block editor** pro product pages
 - **Block editor** pro email templates
 - **Block editor** pro PDF invoices
@@ -240,6 +258,7 @@ Od 2024:
 **Proč:** `wp plugin create` je best-in-class developer experience.
 
 **Jak:**
+
 - `commerce-cli plugin create my-plugin`
 - **Scaffolding** generates complete plugin structure
 - **Hot reload** during development
@@ -253,6 +272,7 @@ Od 2024:
 **Proč:** WooCommerce marketplace má **free + paid** model fungující.
 
 **Jak:**
+
 - Podpora **free plugins** (community)
 - Podpora **paid plugins** (revenue share developers)
 - **Reviews, ratings, security audits**
@@ -264,21 +284,25 @@ Od 2024:
 ### 3.4 Co si z WooCommerce NEBRAT
 
 #### A. WordPress dependency ❌
+
 - Security issues
 - Performance issues z WP stack
 - **Nebudeme na WordPress**
 
 #### B. "Everything is a post" architektura ❌
+
 - Zastaralé
 - Performance limits
 - **HPOS to řeší, ale lépe začít čistě**
 
 #### C. Plugin compatibility pekla ❌
+
 - "Nainstaloval jsem plugin, rozbil se web"
 - Konflikty mezi pluginy
 - **Musí být přísnější sandbox**
 
 #### D. Fragmentace ekosystému ❌
+
 - **8 000 pluginů, polovina deprecated, třetina placená, čtvrtina rozbitá**
 - Merchant nemá jak vybrat
 - **Náš marketplace musí být kurovaný**
@@ -302,6 +326,7 @@ Od 2024:
 
 **1. Multi-store v ceně**
 Od Prestashop 1.5:
+
 - **Multiple shops** z jedné instalace
 - **Shared inventory** optional
 - **Shared customers** optional
@@ -309,6 +334,7 @@ Od Prestashop 1.5:
 - **Konkurence:** Shopify Plus $2 000/měs., Shopware Evolve €2 400/měs.
 
 **2. Multilanguage od první verze**
+
 - **65+ jazyků** built-in
 - **Per-language content**
 - **Per-language URLs**
@@ -316,12 +342,14 @@ Od Prestashop 1.5:
 - **Silná lokalizace** per country
 
 **3. Affiliate Program modul**
+
 - Nativní affiliate systém
 - Commission tiers
 - Partner dashboards
 - **Free modul** (ne placený addon)
 
 **4. Product combinations**
+
 - Varianty produktů ve velké detailu
 - **Attribute groups** (color → size → material → ...)
 - **Combinaton generator**
@@ -329,12 +357,14 @@ Od Prestashop 1.5:
 - **Weight adjustments**
 
 **5. SMB focus a dostupnost**
+
 - **Nižší technické nároky** než Magento
 - **Rychlejší setup**
 - **Levnější** hosting
 - **Srozumitelnější** pro merchants bez devů
 
 **6. European focus**
+
 - **GDPR** compliance priorita
 - **French legal** (defaultní OP, záruky)
 - **EU VAT** handling
@@ -348,6 +378,7 @@ Od Prestashop 1.5:
 **Proč:** Jejich multi-store je **nejlépe navržený** mezi SMB platforms.
 
 **Jak:**
+
 - **Shared catalog option** (master + branches)
 - **Independent catalog option** (úplně separate)
 - **Shared customer option**
@@ -362,6 +393,7 @@ Od Prestashop 1.5:
 **Proč:** PrestaShop **65+ jazyků** je nepřekonatelné (WooCommerce 67 jazyků, Shopware ~20, Shopify ~20).
 
 **Jak:**
+
 - **Community translation portal** (like Crowdin)
 - **AI translations** pro všechno
 - **Human review** workflow
@@ -375,6 +407,7 @@ Od Prestashop 1.5:
 **Proč:** PrestaShop to má nejpropracovanější pro **konfigurovatelné produkty**.
 
 **Jak:**
+
 - **Attribute groups** (hierarchické)
 - **Attribute dependencies** (pokud color = red, size only M/L)
 - **Combination generator** (auto-create all combinations)
@@ -388,6 +421,7 @@ Od Prestashop 1.5:
 **Proč:** PrestaShop je **z Francie**, takže EU compliance je DNA.
 
 **Jak:**
+
 - **Default legal texts** per country
 - **Required fields** per country (ICAO codes, VAT IDs)
 - **EU VAT rules** (reverse charge, OSS)
@@ -401,6 +435,7 @@ Od Prestashop 1.5:
 **Proč:** PrestaShop Addons marketplace (placené moduly) je **velmi přísně kurovaný**.
 
 **Jak:**
+
 - **Ověření kvality** před publish
 - **Security audit** automaticky
 - **Performance benchmarks** per module
@@ -414,6 +449,7 @@ Od Prestashop 1.5:
 **Proč:** PrestaShop admin je **přístupnější** než Magento pro malé merchants.
 
 **Jak:**
+
 - **Progressive disclosure** (start simple, advanced unlocks)
 - **Guided setup** wizard
 - **Default to sensible** options
@@ -425,15 +461,18 @@ Od Prestashop 1.5:
 ### 4.4 Co si z PrestaShop NEBRAT
 
 #### A. Performance problémy ❌
+
 - Velké katalogy = pomalé
 - Cache složitý
 - **My máme edge-first**
 
 #### B. Fragmentace verzí ❌
+
 - 1.5, 1.6, 1.7, 8.x, moduly kompatibilní jen s some
 - **Jednoznačná verzovací strategie** u nás
 
 #### C. Nedostatek B2B features ❌
+
 - PrestaShop = B2C first
 - B2B jen přes placené moduly
 - **U nás B2B nativně** (viz strategy dokument)
@@ -457,6 +496,7 @@ Od Prestashop 1.5:
 
 **1. Modular architektura od základu**
 Magento je **100 % modulární**:
+
 - Každá feature = module
 - **Core modules** (Catalog, Sales, Checkout)
 - **Custom modules** bez editace core
@@ -464,12 +504,14 @@ Magento je **100 % modulární**:
 - **Dependency graph**
 
 **2. Event-driven architecture**
+
 - **Event observers** (subscribe na events)
 - **Plugins/interceptors** (AOP-style intercepts)
 - **Extension points** everywhere
 - **Clean separation** concerns
 
 **3. Nejlepší B2B v open source**
+
 - **Companies accounts**
 - **Multiple buyers** per company
 - **Shared catalogs**
@@ -481,6 +523,7 @@ Magento je **100 % modulární**:
 - Všechno v Adobe Commerce
 
 **4. EAV (Entity-Attribute-Value) model**
+
 - **Ultra-flexible** product attributes
 - **Add any attribute** without schema change
 - **Per-category** attribute sets
@@ -489,6 +532,7 @@ Magento je **100 % modulární**:
 
 **5. Multi-store a multi-website**
 Tří-úrovňová hierarchie:
+
 - **Global scope** (all stores)
 - **Website scope** (group of stores)
 - **Store scope** (individual storefront)
@@ -497,12 +541,14 @@ Tří-úrovňová hierarchie:
 **Per-scope override** všech nastavení.
 
 **6. GraphQL API (2.3+)**
+
 - **Native GraphQL** Storefront API
 - **Ekvivalent Shopify Storefront API**
 - **Headless ready**
 - **Hyvä theme** ekosystém (nejrychlejší)
 
 **7. Pricing rules engine**
+
 - **Shopping cart rules** (complex conditions)
 - **Catalog rules** (per product/category)
 - **Tier pricing** advanced
@@ -510,6 +556,7 @@ Tří-úrovňová hierarchie:
 
 **8. Inventory (Multi-Source)**
 Od Magento 2.3:
+
 - **Multiple inventory sources**
 - **Stock allocation** per source
 - **Source priority** rules
@@ -523,6 +570,7 @@ Od Magento 2.3:
 **Proč:** Merchants potřebují **custom fields** bez devů.
 
 **Jak (modernizovaný EAV):**
+
 - **JSON-based** custom attributes (ne EAV tabulky – pomalé)
 - **Attribute sets** per category/product type
 - **Inheritance**
@@ -537,6 +585,7 @@ Od Magento 2.3:
 **Proč:** Magento event observers = **top-tier extensibility**.
 
 **Jak:**
+
 - **Observable events** napříč systémem
 - **Subscribe handlers** (Flow Builder-style visual nebo code)
 - **Priority** ordering
@@ -550,6 +599,7 @@ Od Magento 2.3:
 **Proč:** Nejlepší multi-warehouse open source.
 
 **Jak:**
+
 - **Multiple sources** per product
 - **Stock priority** algorithms (distance, cost, availability)
 - **Reservations** system
@@ -563,6 +613,7 @@ Od Magento 2.3:
 **Proč:** Nejkomplexnější rules engine.
 
 **Jak:**
+
 - **Visual rule builder** (jako Shopware Rule Builder)
 - **Cart rules** (celkové objednávky)
 - **Catalog rules** (per produkt)
@@ -578,6 +629,7 @@ Od Magento 2.3:
 **Proč:** Tri-level hierarchie je **jedinečná flexibilita**.
 
 **Jak:**
+
 - **Global settings** (apply all)
 - **Website settings** (group)
 - **Store settings** (individual)
@@ -591,6 +643,7 @@ Od Magento 2.3:
 **Proč:** Magento's GraphQL je **enterprise standard**.
 
 **Jak:**
+
 - **GraphQL-first** design
 - **Federated schema** (z modulů)
 - **Subscriptions** support
@@ -604,6 +657,7 @@ Od Magento 2.3:
 **Proč:** Nejpokročilejší segmentace mezi open source.
 
 **Jak:**
+
 - **Dynamic segments** (auto-updated)
 - **Conditions** (purchase history, demographics, behavior)
 - **Used in:** pricing, promotions, content, email
@@ -616,6 +670,7 @@ Od Magento 2.3:
 **Proč:** Hyvä (community theme pro Magento) ukázal, že **modernizace starého frontend enormně rychle**.
 
 **Jak (inspirace):**
+
 - **Alpine.js + Tailwind** stack (lightweight)
 - **No jQuery**
 - **Server-side rendered** + hydration
@@ -627,22 +682,26 @@ Od Magento 2.3:
 ### 5.4 Co si z Magento NEBRAT
 
 #### A. Extreme complexity ❌
+
 - Steep learning curve (6-12 měsíců)
 - Over-engineered pro 95 % merchants
 - **Composable ano, ale ne pro non-devs**
 
 #### B. Performance problémy ❌
+
 - EAV pomalý
 - Bootstrap slow
 - Cache jako umění
 - **Náš systém rychlý z defaultu**
 
 #### C. Cena Adobe Commerce ❌
+
 - $22 000+/rok license
 - $100k+ implementation
 - **My levnější a stejně mocní**
 
 #### D. Developer-only mindset ❌
+
 - Admin vyžaduje devy pro mnoho tasks
 - **Our admin = non-devs friendly + dev-friendly**
 
@@ -655,6 +714,7 @@ Od Magento 2.3:
 ### 6.1 Co je unikátní
 
 **1. Symfony framework**
+
 - **Best PHP framework** (mimo Laravel)
 - **Clean architecture**
 - **SOLID principles**
@@ -662,24 +722,28 @@ Od Magento 2.3:
 - **Dependency injection**
 
 **2. Plus Edition (commercial)**
+
 - **Sylius Plus** = open core model
 - Commercial features (B2B, multi-store, partial shipments)
 - **License fee** for commercial features
 - **Still self-hosted**
 
 **3. Plugin-first**
+
 - **Every feature = plugin**
 - **Core je minimal**
 - **Plugins composable**
 - **Easy testing**
 
 **4. API Platform integration**
+
 - **API Platform** (Symfony-based REST/GraphQL)
 - **Auto-generated API** z entit
 - **OpenAPI docs** automatic
 - **Headless z dne 1**
 
 **5. Behat / BDD**
+
 - **Behavior-driven development** built into culture
 - **User story tests**
 - **Readable specs**
@@ -692,6 +756,7 @@ Od Magento 2.3:
 **Proč:** Sylius ukázal, že **clean code + tests** jsou možné v e-commerce.
 
 **Jak:**
+
 - **100 % test coverage** target
 - **BDD specs** pro features
 - **Clean architecture** enforced
@@ -705,6 +770,7 @@ Od Magento 2.3:
 **Proč:** "Core open, addons commercial" je proven model.
 
 **Jak:**
+
 - **Core open source** (attract devs)
 - **Commercial extensions** (our revenue)
 - **Self-hosting** option
@@ -717,6 +783,7 @@ Od Magento 2.3:
 **Proč:** **Auto-generated API z entit** = massive dev time savings.
 
 **Jak:**
+
 - **Define entity once**
 - **API endpoints auto-generated** (REST + GraphQL)
 - **Docs auto-generated**
@@ -730,6 +797,7 @@ Od Magento 2.3:
 **Proč:** Sylius = gold standard **moderní PHP e-commerce**.
 
 **Jak:**
+
 - **Service container** DI
 - **Event dispatcher**
 - **Messenger** (async processing)
@@ -743,6 +811,7 @@ Od Magento 2.3:
 **Proč:** Sylius plugin architecture je **composable před tím, než to bylo trendy**.
 
 **Jak:**
+
 - **Plugins standalone** (instalable/uninstallable)
 - **Dependencies** explicit
 - **Override any service**
@@ -753,10 +822,12 @@ Od Magento 2.3:
 ### 6.3 Co si z Sylius NEBRAT
 
 #### A. Developer-only audience ❌
+
 - Admin = funkční, ale prostý
 - **Non-devs se na to nekoukají**
 
 #### B. Malá komunita ❌
+
 - ~7 500 GitHub stars
 - **Nemůžeme spoléhat jen na komunitu**
 
@@ -769,6 +840,7 @@ Od Magento 2.3:
 ### 7.1 Co je unikátní
 
 **1. TypeScript first**
+
 - Ne PHP
 - Ne Ruby
 - **TypeScript everywhere**
@@ -776,18 +848,21 @@ Od Magento 2.3:
 - **Modern JS** tooling
 
 **2. Headless-only**
+
 - Ne "monolith s API"
 - **API-first from day 1**
 - Admin **separate** (React)
 - Storefront **separate** (Next.js)
 
 **3. Admin in React**
+
 - Modern React admin
 - Hot reload
 - Developer joy
 - Customizable
 
 **4. Next.js starter**
+
 - **Official Next.js** storefront
 - **Production-ready**
 - **SEO-optimized**
@@ -795,11 +870,13 @@ Od Magento 2.3:
 - **Streaming**
 
 **5. Flexible cart**
+
 - **Unified cart abstraction**
 - Support: standard, subscription, split orders
 - **Line item modifiers**
 
 **6. Modular v2.0 (2024)**
+
 - Kompletní redesign
 - **Modules** přes packages
 - **Independent deployability**
@@ -807,6 +884,7 @@ Od Magento 2.3:
 - **Admin extensions**
 
 **7. MikroORM**
+
 - Modern ORM
 - Better than TypeORM, Prisma
 - **Data migrations** friendly
@@ -818,6 +896,7 @@ Od Magento 2.3:
 **Proč:** **Budoucnost backend** je TypeScript (nebo Rust/Go).
 
 **Jak:**
+
 - **TypeScript** everywhere
 - **Shared types** frontend-backend
 - **Fullstack** type safety
@@ -831,6 +910,7 @@ Od Magento 2.3:
 **Proč:** Medusa's workflow engine je **next-gen Flow Builder**.
 
 **Jak:**
+
 - **Define workflows** in TypeScript
 - **Compensation logic** (rollback on failure)
 - **Retry strategies**
@@ -844,6 +924,7 @@ Od Magento 2.3:
 **Proč:** **Independent modules** = composable reality.
 
 **Jak:**
+
 - **Product module** standalone
 - **Cart module** standalone
 - **Order module** standalone
@@ -857,6 +938,7 @@ Od Magento 2.3:
 **Proč:** Medusa + Next.js = **best-in-class modern storefront**.
 
 **Jak:**
+
 - **Official Next.js starter** v 15 nebo 16
 - **App Router**
 - **Server components**
@@ -871,6 +953,7 @@ Od Magento 2.3:
 **Proč:** Medusa admin je **React-based, extensible**.
 
 **Jak:**
+
 - **Widgets** (add to existing pages)
 - **Routes** (entire custom pages)
 - **Form fields** (extend existing forms)
@@ -883,6 +966,7 @@ Od Magento 2.3:
 **Proč:** Medusa cart je **nejflexibilnější**.
 
 **Jak:**
+
 - **Line items** s modifiers
 - **Multi-warehouse** shipping
 - **Split orders** automatic
@@ -894,15 +978,18 @@ Od Magento 2.3:
 ### 7.3 Co si z Medusa NEBRAT
 
 #### A. Immaturity (2026) ❌
+
 - Ještě se vyvíjí rychle
 - Breaking changes
 - **My musíme být stabilnější**
 
 #### B. Developer-only ❌
+
 - Žádný non-dev admin (zatím)
 - **My musíme být pro obě skupiny**
 
 #### C. Small ecosystem ❌
+
 - ~5k obchodů vs. WooCommerce 6M
 - **Ecosystem time**
 
@@ -915,17 +1002,20 @@ Od Magento 2.3:
 ### 8.1 Co je unikátní
 
 **1. Simplicity**
+
 - **Install in 5 minutes**
 - **Lehký** na hosting
 - **Jednoduchá** struktura
 - **Málo pluginů potřeba** pro start
 
 **2. Multi-store built-in**
+
 - Even v open version
 - **Basic multi-store**
 - **Shared admin**
 
 **3. Low resource requirements**
+
 - Runs on **shared hosting**
 - **Fast** na slabém hardware
 - **Minimal dependencies**
@@ -937,6 +1027,7 @@ Od Magento 2.3:
 **Proč:** OpenCart ukazuje, že **simplicity wins** pro SMB.
 
 **Jak:**
+
 - **Default admin** ultra-jednoduchý
 - **Advanced features** hidden (unlock-able)
 - **Progressive disclosure**
@@ -949,8 +1040,9 @@ Od Magento 2.3:
 **Proč:** OpenCart setup **minuty, ne dny**.
 
 **Jak:**
+
 - **One-click deploy**
-- **Templates**  ready-to-sell
+- **Templates** ready-to-sell
 - **Sample data** optional
 - **Guided tour**
 - **First-product wizard**
@@ -962,6 +1054,7 @@ Od Magento 2.3:
 **Proč:** OpenCart **nedělá příliš**, a to je jeho síla pro SMB.
 
 **Jak:**
+
 - **Core features** only in default
 - **Add-ons** optional
 - **Fast by default**
@@ -978,23 +1071,27 @@ Od Magento 2.3:
 ### 9.1 Co je unikátní
 
 **1. Ruby on Rails elegance**
+
 - **Convention over configuration**
 - **Rapid development**
 - **Beautiful code**
 - **Strong conventions**
 
 **2. Modular engine architecture**
+
 - Každý modul = **Rails engine**
 - **Mountable** in any Rails app
 - **Extensible** deeply
 - **Composable**
 
 **3. Event-driven notifications**
+
 - **ActiveSupport notifications**
 - **Subscribe to anything**
 - **Perfect for integrations**
 
 **4. Enterprise adoption**
+
 - GoDaddy bought Spree (2015)
 - **Enterprise-grade** support
 - **Stable** core
@@ -1006,6 +1103,7 @@ Od Magento 2.3:
 **Proč:** Rails-style DX = merchants/devs **productive instantly**.
 
 **Jak:**
+
 - **Sensible defaults**
 - **Minimal config** pro 90 % cases
 - **Override when needed**
@@ -1018,6 +1116,7 @@ Od Magento 2.3:
 **Proč:** Module = deployable unit = **true composable**.
 
 **Jak (adaptace pro náš stack):**
+
 - **Modules as packages**
 - **Mount in different deployments**
 - **Independent scaling**
@@ -1034,29 +1133,34 @@ Od Magento 2.3:
 ### 10.1 Co je unikátní
 
 **1. GraphQL-only**
+
 - **Ne REST**
 - **GraphQL everywhere**
 - **Type-safe**
 - **Subscriptions**
 
 **2. Python / Django**
+
 - Moderní Python stack
 - **AsyncIO** for performance
 - **PostgreSQL** only (no MySQL)
 - **Type hints** everywhere
 
 **3. Headless-first**
+
 - Ne "with headless option"
 - **Headless is the only way**
 - Admin is separate React app
 - Storefront is separate
 
 **4. Multichannel**
+
 - **Channel concept** (per-region/brand/customer segment)
 - **Per-channel pricing, inventory, availability**
 - **Strong separation**
 
 **5. Saleor Apps platform**
+
 - **Third-party apps** mimo core
 - **Webhooks** heavy
 - **OAuth** for installations
@@ -1068,6 +1172,7 @@ Od Magento 2.3:
 **Proč:** Saleor dokázal, že **pure GraphQL platforma** funguje.
 
 **Jak:**
+
 - **GraphQL primary API**
 - **REST secondary** (for backwards compatibility)
 - **Subscriptions** for real-time
@@ -1080,6 +1185,7 @@ Od Magento 2.3:
 **Proč:** Saleor's channels = **lepší multi-store koncept**.
 
 **Jak:**
+
 - **Channel = namespace** for pricing, inventory, availability
 - **Products assignable** to multiple channels
 - **Clean separation** of concerns
@@ -1092,6 +1198,7 @@ Od Magento 2.3:
 **Proč:** Saleor Apps **nejsou in-process plugins**, ale **external services**.
 
 **Jak:**
+
 - **Apps** hostovány externally
 - **Webhooks** pro komunikaci
 - **OAuth** for permissions
@@ -1108,24 +1215,29 @@ Už rozebráno v samostatném dokumentu (shopware-cloud-kompletni-analyza.md), a
 ### 11.1 Co je z Shopware CE (open source)
 
 **1. MIT licence**
+
 - Permissive
 - **Bez GPL copyleft**
 - Commercial plugins OK
 
 **2. Shopping Experiences**
+
 - **Best-in-class CMS** v open source
 - **Per-customer-group content**
 
 **3. Rule Builder**
+
 - **Visual rule engine**
 - **Bez kódu**
 - **Napříč systémem**
 
 **4. Flow Builder**
+
 - **Business automation**
 - **Symfony Messenger** pod kapotou
 
 **5. Symfony stack**
+
 - Same as Sylius
 - **Modern PHP**
 
@@ -1134,6 +1246,7 @@ Už rozebráno v samostatném dokumentu (shopware-cloud-kompletni-analyza.md), a
 **(Již zmíněno v strategickém dokumentu – sekce 8, 9, 10 původního dokumentu.)**
 
 Klíčové:
+
 - **Shopping Experiences** UX
 - **Rule Builder** napříč systémem
 - **Flow Builder** automation
@@ -1142,8 +1255,7 @@ Klíčové:
 
 ---
 
-MARKDOWN_EOF
----
+## MARKDOWN_EOF
 
 ## 12. Unikátní vychytávky open source světa
 
@@ -1152,28 +1264,33 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 12.1 Developer-side vychytávky
 
 **1. Hooks & filters (WooCommerce)**
+
 - 3 000+ events napříč codebase
 - Developer může interceptovat **cokoliv**
 - **Naše verze:** TypeScript event bus s autocomplete
 
 **2. Event observers (Magento)**
+
 - Subscribe to events
 - Priority ordering
 - Sync/async
 - **Naše verze:** dekorátory v TypeScript
 
 **3. Theme override system**
+
 - **Copy file to override** (WooCommerce style)
 - Inheritance
 - Fallback to core
 - **Naše verze:** layer-based themes
 
 **4. Dependency injection (Magento, Sylius)**
+
 - Service container
 - Override any service
 - **Naše verze:** Nest.js DI (TypeScript-native)
 
 **5. CLI tools (WooCommerce WP-CLI, Magento bin/magento)**
+
 - Scaffolding
 - Cache management
 - Database operations
@@ -1181,42 +1298,49 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Naše verze:** `commerce-cli`
 
 **6. Docker dev environments (všechny moderní)**
+
 - **One-command setup**
 - **Identical to production**
 - **Fast iteration**
 - **Naše verze:** Bun-based zero-config
 
 **7. Database migrations**
+
 - Version-controlled schema changes
 - **Upgrade path** automatic
 - **Downgrade** possible
 - **Naše verze:** Prisma/Drizzle migrations
 
 **8. Indexing system (Magento)**
+
 - **Background indexing** heavy data
 - **Flat tables** for reading
 - **Product, category, price indexers**
 - **Naše verze:** Materialized views + edge cache
 
 **9. Cron job management (Magento, WooCommerce)**
+
 - Scheduled tasks
 - **WP-Cron** style UI
 - **Recurring jobs**
 - **Naše verze:** Edge cron + Temporal.io patterns
 
 **10. Translation systems (PrestaShop)**
+
 - **In-admin editing**
 - **Community contributions**
 - **Export/import** translations
 - **Naše verze:** AI + community + professional
 
 **11. Error reporting (všechny)**
+
 - **Logs accessible**
 - **Debugging mode**
 - **Stack traces**
 - **Naše verze:** Sentry-like with AI suggestions
 
 **12. Caching layers (Magento)**
+
 - **Multi-level cache** (Redis, Varnish, Browser)
 - **Tag-based invalidation**
 - **Full page cache**
@@ -1225,53 +1349,62 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 12.2 Merchant-side vychytávky
 
 **1. Unlimited categories / products (vše open source)**
+
 - **Soft limits only**
 - **Hosting-based**
 - **Naše verze:** Truly unlimited (cloud-based)
 
 **2. Bulk editing (Magento)**
+
 - **Edit thousands of products** at once
 - **CSV import/export**
 - **Conditional updates**
 - **Naše verze:** AI-assisted bulk + CSV/Excel
 
 **3. Price rules (Magento)**
+
 - **Catalog rules** (per produkt)
 - **Cart rules** (per order)
 - **Complex conditions**
 - **Naše verze:** Rule Builder visual
 
 **4. Customer segmentation (Magento)**
+
 - **Dynamic segments**
 - **Auto-updating**
 - **Used in promotions**
 - **Naše verze:** AI-powered segments
 
 **5. Attribute sets (Magento)**
+
 - **Per product type**
 - **Different fields** pro různé products
 - **Shared attributes** across sets
 - **Naše verze:** Flexible schema per category
 
 **6. Product combinations (PrestaShop)**
+
 - **All variations** auto-generated
 - **Per-combination** data
 - **Bulk combination** edits
 - **Naše verze:** Advanced variant matrix
 
 **7. Multi-store (PrestaShop, Magento)**
+
 - **Independent stores** from one admin
 - **Shared or separate** inventory
 - **Different themes**
 - **Naše verze:** Sales Channels-style
 
 **8. Multi-language (PrestaShop)**
+
 - **65+ languages**
 - **Per-language content**
 - **Community translations**
 - **Naše verze:** 70+ languages, AI-assisted
 
 **9. Tax engine (Magento)**
+
 - **Complex tax rules**
 - **Per-region**
 - **Per-product**
@@ -1279,6 +1412,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Naše verze:** All EU/US/global taxes
 
 **10. Inventory (Multi-Source Inventory - Magento)**
+
 - **Multiple warehouses**
 - **Source priority**
 - **Reservations**
@@ -1287,41 +1421,49 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 12.3 Unikátní "small" features
 
 **1. "Wish you had" price alerts (PrestaShop)**
+
 - Customer signs for price drop
 - Auto-notify
 - Conversion boost
 
 **2. Loyalty points (PrestaShop modules)**
+
 - Points per purchase
 - Redemption
 - Tiers
 
 **3. Store credit (Magento)**
+
 - Customer wallet
 - Refund as credit
 - Gift cards too
 
 **4. Wishlist sharing (WooCommerce, Magento)**
+
 - Email wishlist
 - Social share
 - Gift registry
 
 **5. Product comparison (Magento)**
+
 - Compare 2-4 products side-by-side
 - Feature table
 - Print-friendly
 
 **6. "Check Stock" per store location (Magento MSI)**
+
 - Customer sees stock per location
 - Pick-up in store
 - Reserve online
 
 **7. Downloadable products with access limits (Magento)**
+
 - Digital downloads
 - X downloads allowed
 - Time-limited access
 
 **8. Gift cards engine (Magento, others)**
+
 - Custom amounts
 - Custom designs
 - Email delivery
@@ -1329,40 +1471,47 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - Redemption
 
 **9. Reward programs with complex rules (Magento)**
+
 - Points per purchase
 - Points per review
 - Points per referral
 - Tier benefits
 
 **10. Abandoned cart emails with incentive escalation (WooCommerce Follow-Ups)**
+
 - Email 1: reminder
 - Email 2: 5% off
 - Email 3: 10% off
 - Email 4: final chance
 
 **11. Follow-up emails sequence (WooCommerce)**
+
 - Post-purchase emails
 - Review request
 - Upsell sequences
 - Win-back
 
 **12. Backorders & preorders (Magento, WooCommerce)**
+
 - Allow orders sold out
 - Partial payment
 - Expected delivery
 
 **13. Product questions (Magento Commerce)**
+
 - Customer Q&A per product
 - Admin response
 - FAQ effect
 
 **14. Advanced search with weighting (Magento)**
+
 - Search by multiple attributes
 - Weighted relevance
 - Synonyms
 - Typo tolerance
 
 **15. Customizable URL structure (všechny)**
+
 - `/produkty/kategorie/nazev`
 - Or `/nazev-produktu`
 - Or flat
@@ -1371,16 +1520,19 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 12.4 Compliance & legal vychytávky
 
 **1. German-specific: FireGento MageSetup** (Magento)
+
 - Default tax rates
 - Legal texts
 - **EU compliance** ready
 
 **2. PrestaShop: OSS compliance**
+
 - EU VAT OSS
 - IOSS for imports
 - Auto-generated reports
 
 **3. WooCommerce: WPML for legal** (plugin)
+
 - Legal texts per language
 - Court-required translations
 - GDPR per country
@@ -1388,6 +1540,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 12.5 B2B open source vychytávky
 
 **1. Magento Commerce B2B**
+
 - Corporate accounts
 - Multiple buyers
 - Payment terms
@@ -1395,11 +1548,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Gold standard** in open source
 
 **2. Sylius Plus B2B**
+
 - Multi-source inventory
 - B2B portal
 - Wholesale pricing
 
 **3. WooCommerce B2B Plugins**
+
 - Wholesale Suite
 - B2B King
 - **Fragmented** but functional
@@ -1413,11 +1568,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.1 Plugin pekla
 
 **Problém:**
+
 - WooCommerce: nainstalujete 10 pluginů, stránka pomalá, conflicts
 - Magento: plugin compatibility matrix noční můra
 - PrestaShop: placené moduly různé kvality
 
 **Naše řešení:**
+
 - **Strict sandbox** mezi plugins
 - **Compatibility checks** automatic
 - **Performance budgets** per plugin
@@ -1428,11 +1585,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.2 Upgrade peklo
 
 **Problém:**
+
 - Magento 1 → 2: celé přepisování
 - WooCommerce 3 → 4 → 5: plugin breaks
 - Shopware 5 → 6: migration project
 
 **Naše řešení:**
+
 - **Semantic versioning** strict
 - **Backward compatibility** guarantees
 - **Automated migration** tools
@@ -1442,11 +1601,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.3 Security nightmare
 
 **Problém:**
+
 - WordPress/WooCommerce: **most-attacked** platform (30 % all websites)
 - Magento: **critical CVEs** regularly
 - PrestaShop: **outdated modules** vulnerabilities
 
 **Naše řešení:**
+
 - **SaaS** = we handle security
 - **Auto-updates** mandatory
 - **WAF** built-in
@@ -1457,11 +1618,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.4 Performance problems
 
 **Problém:**
+
 - WooCommerce + 20 plugins = **10-sekundový page load**
 - Magento untuned = **brutal slow**
 - Shared hosting = pain
 
 **Naše řešení:**
+
 - **Edge-first** architecture
 - **Performance budget** per plugin
 - **Lazy loading** defaults
@@ -1472,6 +1635,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.5 Maintenance overhead
 
 **Problém:**
+
 - Self-hosted = **DevOps burden**
 - Security patching
 - Backups
@@ -1479,6 +1643,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - Monitoring
 
 **Naše řešení:**
+
 - **Fully managed** SaaS
 - **Merchant focuses on business**
 - **Infrastructure = us**
@@ -1486,11 +1651,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.6 Fragmentace ekosystému
 
 **Problém:**
+
 - **59 000 WooCommerce plugins** = analysis paralysis
 - **5 000 Magento extensions** = quality varies
 - Merchant nemá jak vybrat
 
 **Naše řešení:**
+
 - **Kurovaný** marketplace
 - **Categorized** by use case
 - **Recommendations** AI-driven
@@ -1500,11 +1667,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.7 Lack of official support
 
 **Problém:**
+
 - "Check the forum" jako odpověď
 - Community help variable quality
 - Enterprise potřebuje SLA
 
 **Naše řešení:**
+
 - **Professional support** from day 1
 - **SLA** for paid tiers
 - **Community** as bonus, not primary
@@ -1513,12 +1682,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.8 Outdated code quality
 
 **Problém:**
+
 - WooCommerce: legacy WP patterns
 - Magento: over-engineered
 - Old PHP practices
 - No types
 
 **Naše řešení:**
+
 - **TypeScript** everywhere
 - **Modern patterns**
 - **Clean architecture**
@@ -1527,11 +1698,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.9 Vendor lock-in (ironicky)
 
 **Problém:**
+
 - Self-host = lock-in to your infrastructure
 - Custom code accumulates
 - Migration to another platform stejně bolestivá
 
 **Naše řešení:**
+
 - **Data export** always
 - **Migration tools** built-in
 - **Open standards** where possible
@@ -1540,11 +1713,13 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 13.10 Documentation quality
 
 **Problém:**
+
 - Open source docs often outdated
 - Tutorials for old versions
 - Stack Overflow = hit or miss
 
 **Naše řešení:**
+
 - **Official docs** maintained
 - **Video tutorials** current
 - **Interactive examples**
@@ -1559,6 +1734,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.1 Data ownership
 
 **Merchant vlastní vše:**
+
 - **Export anything** anytime (CSV, JSON, API)
 - **No hostage** data
 - **Migration-friendly**
@@ -1574,6 +1750,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.3 Transparent development
 
 **Inspired by open source:**
+
 - **Public roadmap** (GitHub projects)
 - **RFC process** for major features
 - **Public changelogs**
@@ -1591,6 +1768,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.5 Community contributions
 
 **Merchants and developers can contribute:**
+
 - **Translation platform** (Crowdin-style)
 - **Theme marketplace** (community themes)
 - **Plugin marketplace** (community plugins)
@@ -1600,6 +1778,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.6 Open source SDKs
 
 **Release open source:**
+
 - **JavaScript SDK** (npm, MIT)
 - **Python SDK**
 - **PHP SDK**
@@ -1611,6 +1790,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.7 Developer-first documentation
 
 **Inspired by Stripe docs:**
+
 - **Beautifully written**
 - **Code examples** in every language
 - **Interactive tutorials**
@@ -1620,12 +1800,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 14.8 Hybrid hosting option (enterprise)
 
 **For enterprise customers:**
+
 - **Self-host option** available
 - **Dedicated cloud** option
 - **On-premise** option
 - **Air-gapped** deployments
 
 **Similar to Shopware, but better:**
+
 - **Same codebase** as SaaS
 - **Same features**
 - **Same updates**
@@ -1640,18 +1822,21 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 15.1 Model struktura
 
 **Tier 1: SaaS Cloud (our main product)**
+
 - Fully managed
 - Latest features
 - Highest velocity
 - **For 95 % merchants**
 
 **Tier 2: Dedicated Cloud (enterprise)**
+
 - Our infrastructure
 - But dedicated instances
 - Custom SLAs
 - **For large enterprise**
 
 **Tier 3: Self-hosted Enterprise (specific needs)**
+
 - Same codebase
 - You host
 - Commercial license
@@ -1660,6 +1845,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 15.2 Open source components
 
 **What's open source:**
+
 - **Storefront starters** (MIT)
 - **SDKs** (MIT)
 - **Admin UI components** (MIT)
@@ -1669,6 +1855,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Themes** (can be open source)
 
 **What's proprietary:**
+
 - **Core platform** (our IP)
 - **Cloud infrastructure**
 - **Commercial features** (AI, agentic, enterprise)
@@ -1677,12 +1864,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 15.3 Why hybrid works
 
 **For merchants:**
+
 - **Choice** of operation model
 - **No lock-in** concerns
 - **Data ownership** guaranteed
 - **Migration path** always
 
 **For us:**
+
 - **SaaS revenue** primary
 - **Enterprise contracts** secondary
 - **Ecosystem growth** from open source
@@ -1691,15 +1880,18 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 15.4 Open core model
 
 **Like GitLab, Mattermost, MongoDB:**
+
 - **Community Edition** = open source (free)
 - **Commercial Edition** = paid features
 - **Same underlying** code
 
 **Not like:**
+
 - **Shopify** (closed)
 - **WooCommerce** (all open, but fragmented)
 
 **Most like:**
+
 - **Shopware** (open + commercial)
 - **Sylius Plus** (open core)
 - **GitLab** (perfect model)
@@ -1707,17 +1899,20 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 15.5 License strategy
 
 **Community code:** **MIT License**
+
 - Permissive
 - Commercial use OK
 - No copyleft
 - **Attractive to developers**
 
 **Commercial features:** **Proprietary license**
+
 - Pay to use
 - Commercial support
 - **Our revenue**
 
 **Avoid:**
+
 - **GPL / AGPL** (copyleft issues)
 - **SSPL** (MongoDB style – controversial)
 - **BUSL** (business source – confusing)
@@ -1847,14 +2042,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 97. **Multi-step checkout** (from all)
 98. **Guest checkout** (from all)
 99. **Block-based checkout** (from WooCommerce)
-100. **Address book** (from all)
-101. **Order status custom** (from all)
-102. **Partial shipments** (from Sylius Plus)
-103. **Split payments** (from all)
-104. **Store pickup** (from Magento)
-105. **Delivery date picker** (from PrestaShop)
-106. **Gift wrapping** (from Magento)
-107. **Gift messages** (from all)
+100.  **Address book** (from all)
+101.  **Order status custom** (from all)
+102.  **Partial shipments** (from Sylius Plus)
+103.  **Split payments** (from all)
+104.  **Store pickup** (from Magento)
+105.  **Delivery date picker** (from PrestaShop)
+106.  **Gift wrapping** (from Magento)
+107.  **Gift messages** (from all)
 
 ### 16.8 Operational
 
@@ -1904,12 +2099,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.1 Plugin/app marketplace
 
 **Model:**
+
 - **Free plugins** (community)
 - **Paid plugins** (developers revenue share)
 - **Certified plugins** (our approval)
 - **Featured plugins** (promoted)
 
 **Quality process:**
+
 - **Automated security scan**
 - **Performance benchmarks**
 - **Code review** (random sample)
@@ -1917,6 +2114,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Deprecation** of unmaintained
 
 **Discoverability:**
+
 - **Categories** clear
 - **Search** powerful
 - **Recommendations** AI-driven
@@ -1925,6 +2123,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.2 Theme marketplace
 
 **Similar to plugin but:**
+
 - **Design focus**
 - **Performance audits** strict
 - **Accessibility audits**
@@ -1933,6 +2132,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.3 Agency directory
 
 **Like Shopify Experts:**
+
 - **Partner tiers** (bronze, silver, gold, platinum)
 - **Verified expertise**
 - **Case studies**
@@ -1944,6 +2144,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.4 Community translation
 
 **Crowdin-style:**
+
 - **Any community member** can translate
 - **Vetted contributions**
 - **Multiple translators** per language
@@ -1953,6 +2154,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.5 GitHub presence
 
 **Open source repositories:**
+
 - **Storefront starters** (Next.js, Nuxt, Astro, Remix, Svelte)
 - **Admin UI components**
 - **SDK for 10+ languages**
@@ -1960,6 +2162,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Plugin templates**
 
 **Contributions:**
+
 - **Public roadmap**
 - **RFC process**
 - **Good first issues** labeled
@@ -1968,6 +2171,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.6 Developer certifications
 
 **Like Shopify Partners:**
+
 - **Certified Developer**
 - **Certified Solutions Architect**
 - **Certified Designer**
@@ -1978,6 +2182,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.7 Annual conference
 
 **Like WordCamp / Shopware Community Day:**
+
 - **Our conference**
 - **Keynotes** about roadmap
 - **Developer workshops**
@@ -1990,6 +2195,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.8 Regional meetups
 
 **Local community building:**
+
 - **Prague, Warsaw, Budapest, Berlin, Amsterdam** meetups
 - **Monthly or quarterly**
 - **Open** to all
@@ -1999,6 +2205,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.9 Documentation hub
 
 **Best-in-class docs:**
+
 - **API reference** (auto-generated)
 - **Guides** (narrative)
 - **Tutorials** (step-by-step)
@@ -2011,12 +2218,14 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 17.10 Support channels
 
 **Paid:**
+
 - **Email ticket** (all tiers)
 - **Phone** (Growth+)
 - **Dedicated manager** (Scale+)
 - **24/7** (Enterprise)
 
 **Community:**
+
 - **Forum** (like Stack Overflow for us)
 - **Discord** / Slack
 - **GitHub discussions**
@@ -2031,6 +2240,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 18.1 Why developers matter
 
 **Statistics:**
+
 - WooCommerce **thousands of agencies** globally
 - Magento **certified developers** prestige
 - Shopware **DACH mindshare**
@@ -2040,6 +2250,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 18.2 Developer attraction tactics
 
 **1. Best-in-class DX**
+
 - Modern stack (TypeScript)
 - Beautiful docs (Stripe-level)
 - Fast setup (5 minutes)
@@ -2047,38 +2258,45 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Developers = happy**
 
 **2. Open source contributions**
+
 - **Storefront starters** (widely used)
 - **Admin UI components**
 - **SDKs**
 - **Open on GitHub**
 
 **3. Developer blog**
+
 - Technical deep-dives
 - Architecture posts
 - Case studies
 - Best practices
 
 **4. Conference talks**
+
 - Speak at: JSConf, React Conf, Symfony Con, PHP conferences, e-commerce conferences
 - **Build mindshare**
 
 **5. Sponsorships**
+
 - Open source projects (Next.js, Symfony, specific libs)
 - Podcasts
 - Newsletters
 
 **6. Hackathons**
+
 - Annual our hackathon
 - Sponsor community hackathons
 - **Developer engagement**
 
 **7. Bounty program**
+
 - **Security bounties**
 - **Feature bounties**
 - **Bug bounties**
 - **Incentivize contributions**
 
 **8. Developer tokens**
+
 - **Free hosting** for non-commercial projects
 - **Dev certifications free**
 - **Reward community** helpers
@@ -2088,6 +2306,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Make it easy to migrate TO us:**
 
 **From WooCommerce:**
+
 - **One-click migration** tool
 - **All data** preserved (products, orders, customers, reviews)
 - **SEO preserved** (301 redirects)
@@ -2095,23 +2314,27 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Plugin equivalents** suggested
 
 **From Magento:**
+
 - **Similar migration tool**
 - **Extension mapping** (Magento extension → our plugin)
 - **Multi-store preserved**
 - **B2B data preserved**
 
 **From Shopify:**
+
 - **Migration tool** (products, orders, customers)
 - **Theme conversion** (Liquid → our templates)
 - **App equivalents**
 - **Data ownership** reminder (Shopify's key pain)
 
 **From Shopware:**
+
 - **Same devs** (Symfony)
 - **Similar concepts**
 - **Migration tool**
 
 **From PrestaShop:**
+
 - **Data migration**
 - **Module equivalents**
 - **Multi-language preserved**
@@ -2119,6 +2342,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 18.4 Incentives for developers
 
 **For agencies:**
+
 - **Revenue share** on marketplace
 - **Partner tier benefits**
 - **Marketing co-op**
@@ -2126,6 +2350,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 - **Early access** to features
 
 **For individual devs:**
+
 - **Free dev accounts** (unlimited)
 - **Sandbox environments**
 - **Beta access**
@@ -2135,9 +2360,10 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 18.5 Open source marketing
 
 **Differentiation:**
-- *"More open than SaaS, more managed than open source."*
-- *"The platform that respects developers AND merchants."*
-- *"Open source soul, SaaS convenience."*
+
+- _"More open than SaaS, more managed than open source."_
+- _"The platform that respects developers AND merchants."_
+- _"Open source soul, SaaS convenience."_
 
 ---
 
@@ -2148,6 +2374,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** Developers vidí SaaS jako "commercial exploitation of open source values."
 
 **Mitigation:**
+
 - **Open source SDKs** (truly open, MIT)
 - **Transparent development** (roadmap, RFCs)
 - **Community contributions** welcomed
@@ -2159,6 +2386,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** Bez pluginů merchants nepřijdou. Bez merchants developers nepřijdou.
 
 **Mitigation:**
+
 - **Build 100 core plugins** ourselves (top used across open source)
 - **Migration paths** from WooCommerce/Shopify (instant equivalents)
 - **Incentivize early developers** heavily
@@ -2169,6 +2397,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** WooCommerce má 15 let vývoje. Nikdy nedosáhneme parity.
 
 **Mitigation:**
+
 - **Parity not the goal** – **better in core areas**
 - **80/20 principle** (covered most-used features)
 - **Fast development** (modern stack)
@@ -2179,6 +2408,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** Enterprise merchants stále preferují self-host.
 
 **Mitigation:**
+
 - **Offer self-host** for enterprise
 - **Data export** always available
 - **No lock-in** messaging
@@ -2189,6 +2419,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** Shopify sees merchants migrating to us, opens up platform.
 
 **Mitigation:**
+
 - **First-mover** advantage
 - **Deep EU localization** (Shopify struggles)
 - **Agentic commerce** lead
@@ -2199,6 +2430,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Concern:** WooCommerce / Shopware improve drastically.
 
 **Mitigation:**
+
 - **We watch them closely**
 - **Feature velocity** faster (modern stack)
 - **SaaS convenience** they can't match
@@ -2228,6 +2460,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 20.2 Hybrid model vítězí
 
 **SaaS primary + open source components + self-host option for enterprise:**
+
 - **SMB:** SaaS, managed, convenient
 - **Mid-market:** SaaS, more features
 - **Enterprise:** Choice of SaaS / Dedicated / Self-host
@@ -2237,6 +2470,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 20.3 135 konkrétních features
 
 **K naší platformě přidáme 135 konkrétních features** inspirovaných open source. Rozprostřené do:
+
 - **15** DX features
 - **25** Admin features
 - **13** B2B features
@@ -2251,6 +2485,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 20.4 Ekosystem strategy
 
 **Kurovaný marketplace** inspirovaný nejlepším z WooCommerce/Magento/Shopware:
+
 - Kvalita nad kvantitou
 - Revenue share pro developers
 - Migration paths z existujících platform
@@ -2259,6 +2494,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 ### 20.5 Developer community
 
 **Open source mindset i v komerční platformě:**
+
 - Open source SDKs, starters, CLI (MIT)
 - Transparent development
 - Community contributions
@@ -2279,6 +2515,7 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 **Jak moc otevřená má být naše platforma?**
 
 **Volby:**
+
 - **A) Closed SaaS** (Shopify model) – lehčí development, meníší ekosystem
 - **B) Hybrid** (Shopware model) – komplexnější, lepší enterprise
 - **C) Open core** (GitLab model) – maximální community, harder monetization
@@ -2289,19 +2526,18 @@ Sebraná sbírka **konkrétních vychytávek**, které SaaS platformy nemají a 
 
 ### Srovnávací tabulka: Co si bereme z každé platformy
 
-| Platforma | Co nejvíce | Proč |
-|---|---|---|
-| **WooCommerce** | Hooks/filters, HPOS, block checkout, WordPress symbióza | Největší komunita, extensibility |
-| **PrestaShop** | Multi-store, překlady, SMB UX, EU compliance | Evropa + SMB fokus |
-| **Magento** | B2B, MSI, multi-website, pricing rules, EAV attributes | Enterprise gold standard |
-| **Sylius** | Code quality, Symfony patterns, tests, open core model | Modern PHP |
-| **Medusa** | TypeScript, workflows, Next.js starter, v2 architecture | Modern JS stack |
-| **OpenCart** | Simplicity, fast onboarding | SMB UX |
-| **Spree** | Convention over configuration, engines | Rails elegance |
-| **Saleor** | GraphQL-only, channels, apps-as-microservices | Modern API-first |
+| Platforma       | Co nejvíce                                                       | Proč                                   |
+| --------------- | ---------------------------------------------------------------- | -------------------------------------- |
+| **WooCommerce** | Hooks/filters, HPOS, block checkout, WordPress symbióza          | Největší komunita, extensibility       |
+| **PrestaShop**  | Multi-store, překlady, SMB UX, EU compliance                     | Evropa + SMB fokus                     |
+| **Magento**     | B2B, MSI, multi-website, pricing rules, EAV attributes           | Enterprise gold standard               |
+| **Sylius**      | Code quality, Symfony patterns, tests, open core model           | Modern PHP                             |
+| **Medusa**      | TypeScript, workflows, Next.js starter, v2 architecture          | Modern JS stack                        |
+| **OpenCart**    | Simplicity, fast onboarding                                      | SMB UX                                 |
+| **Spree**       | Convention over configuration, engines                           | Rails elegance                         |
+| **Saleor**      | GraphQL-only, channels, apps-as-microservices                    | Modern API-first                       |
 | **Shopware CE** | Shopping Experiences, Rule Builder, Flow Builder, B2B Components | Best-in-class B2B UX (rozebráno jinde) |
 
 ---
 
-*Dokument vytvořen na základě analýzy 9 hlavních open source e-commerce platforem (WooCommerce, PrestaShop, Magento/Adobe Commerce, Sylius, Medusa, OpenCart, Spree, Saleor, Shopware CE) a jejich ekosystémů. Cílem je identifikovat nejlepší praktiky, features a filozofie, které můžeme přenést do našeho SaaS systému. Duben 2026.*
-
+_Dokument vytvořen na základě analýzy 9 hlavních open source e-commerce platforem (WooCommerce, PrestaShop, Magento/Adobe Commerce, Sylius, Medusa, OpenCart, Spree, Saleor, Shopware CE) a jejich ekosystémů. Cílem je identifikovat nejlepší praktiky, features a filozofie, které můžeme přenést do našeho SaaS systému. Duben 2026._

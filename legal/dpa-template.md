@@ -10,12 +10,14 @@
 ## Smluvní strany
 
 **Správce** (Controller):
+
 - [Merchant company name]
 - IČO: [_______]
 - Sídlo: [_______]
 - Email: [_______]
 
 **Zpracovatel** (Processor):
+
 - Shopio s.r.o.
 - IČO: TBD
 - Sídlo: TBD
@@ -41,34 +43,34 @@ DPA je nedílnou součástí **Smlouvy o poskytování služeb Shopio platformy*
 
 ## 3. Předmět + doba + povaha zpracování (Art. 28.3)
 
-| Atribut | Detail |
-|---|---|
-| **Předmět** | Poskytování Shopio platformy (e-commerce) Merchantovi |
-| **Doba** | Doba trvání Smlouvy + 90 dní grace period pro export |
-| **Povaha** | Hosting + zpracování dat v rámci platformy |
-| **Účel** | Plnění funkcí e-commerce platformy: catalog, orders, customers, payments, marketing, analytics, support |
+| Atribut     | Detail                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| **Předmět** | Poskytování Shopio platformy (e-commerce) Merchantovi                                                   |
+| **Doba**    | Doba trvání Smlouvy + 90 dní grace period pro export                                                    |
+| **Povaha**  | Hosting + zpracování dat v rámci platformy                                                              |
+| **Účel**    | Plnění funkcí e-commerce platformy: catalog, orders, customers, payments, marketing, analytics, support |
 
 ## 4. Kategorie subjektů údajů
 
-| Kategorie | Příklad |
-|---|---|
-| Koncoví zákazníci Merchanta | Kupující v e-shopu Merchanta |
-| Zaměstnanci Merchanta | Admin uživatelé v Merchant tenantu |
-| Návštěvníci e-shopu | Anonymní (cookies, IP) |
-| Marketing audience | Pokud Merchant používá email marketing features |
+| Kategorie                   | Příklad                                         |
+| --------------------------- | ----------------------------------------------- |
+| Koncoví zákazníci Merchanta | Kupující v e-shopu Merchanta                    |
+| Zaměstnanci Merchanta       | Admin uživatelé v Merchant tenantu              |
+| Návštěvníci e-shopu         | Anonymní (cookies, IP)                          |
+| Marketing audience          | Pokud Merchant používá email marketing features |
 
 ## 5. Kategorie osobních údajů
 
-| Kategorie | Příklad | Citlivost |
-|---|---|---|
-| Identifikační | Jméno, příjmení, email | Běžná |
-| Kontaktní | Telefon, adresy | Běžná |
-| Účetní | Faktury, historie nákupů | Běžná |
-| Komunikační | Zprávy mezi merchantem a koncovým zákazníkem | Běžná |
-| IP / device | IP, browser fingerprint, cookies | Běžná |
-| Authentication | Hash hesel, passkeys, MFA | Důvěrná |
-| Behavioral | Analytika, search history (anonymizováno) | Běžná |
-| Marketing consent | Souhlas s emailem | Běžná |
+| Kategorie         | Příklad                                      | Citlivost |
+| ----------------- | -------------------------------------------- | --------- |
+| Identifikační     | Jméno, příjmení, email                       | Běžná     |
+| Kontaktní         | Telefon, adresy                              | Běžná     |
+| Účetní            | Faktury, historie nákupů                     | Běžná     |
+| Komunikační       | Zprávy mezi merchantem a koncovým zákazníkem | Běžná     |
+| IP / device       | IP, browser fingerprint, cookies             | Běžná     |
+| Authentication    | Hash hesel, passkeys, MFA                    | Důvěrná   |
+| Behavioral        | Analytika, search history (anonymizováno)    | Běžná     |
+| Marketing consent | Souhlas s emailem                            | Běžná     |
 
 **Zvláštní kategorie údajů (Art. 9):** Standardně Shopio nezpracovává. Pokud Merchant prodává kategorií vyžadujících speciální údaje (např. zdravotní pomůcky vyžadující healthcare data), musí se Strany dohodnout zvlášť.
 
@@ -130,6 +132,7 @@ Merchant souhlasí s těmito přenosy podpisem DPA. Pro Enterprise tier možnost
 ## 10. Doba uchování + smazání
 
 Per `Privacy Policy §4`:
+
 - Tenant + customer data: po dobu Smlouvy + 90 dní grace
 - Účetní data: 10 let (CZ zákonná povinnost)
 - Audit log: 5 let (GDPR + security best practice)
@@ -173,6 +176,7 @@ Datum: TBD
 ---
 
 **DRAFT — vyžaduje:**
+
 - [ ] Legal review (GDPR specialist)
 - [ ] Validace sub-processor list (per `sub-processors.md`)
 - [ ] SCC moduly 2 + 3 přiložené jako appendix (po consultation)

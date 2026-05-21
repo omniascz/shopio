@@ -65,7 +65,9 @@ export function AddToCart({ variants }: { variants: ProductVariant[] }) {
           <input
             type="number"
             min={1}
-            max={selected?.stock_on_hand && selected.stock_on_hand > 0 ? selected.stock_on_hand : 99}
+            max={
+              selected?.stock_on_hand && selected.stock_on_hand > 0 ? selected.stock_on_hand : 99
+            }
             value={qty}
             onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
             style={{
@@ -100,9 +102,7 @@ export function AddToCart({ variants }: { variants: ProductVariant[] }) {
         {pending ? 'Přidávám…' : !inStock ? 'Vyprodáno' : 'Přidat do košíku'}
       </button>
 
-      {errorMsg && (
-        <p style={{ color: '#c00', fontSize: '0.875rem', margin: 0 }}>{errorMsg}</p>
-      )}
+      {errorMsg && <p style={{ color: '#c00', fontSize: '0.875rem', margin: 0 }}>{errorMsg}</p>}
     </div>
   );
 }

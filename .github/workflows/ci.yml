@@ -76,7 +76,8 @@ jobs:
     needs: setup
     services:
       postgres:
-        image: postgres:17-alpine
+        # pgvector/pgvector:pg17 — we need pgvector + ltree + citext extensions
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: shopio
           POSTGRES_PASSWORD: shopio_test_password
@@ -148,7 +149,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: npm audit (high+)
         run: pnpm audit --audit-level high
-        continue-on-error: true                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          # log; don't block until established
+        continue-on-error: true # log; don't block until established
 
   all-green:
     name: All checks passed

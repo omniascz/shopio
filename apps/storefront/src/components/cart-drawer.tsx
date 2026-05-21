@@ -100,7 +100,6 @@ export function CartDrawer() {
                   }}
                 >
                   {item.primary_image_url ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={item.primary_image_url}
                       alt=""

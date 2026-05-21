@@ -23,7 +23,8 @@ export function OrdersListPage() {
 
   const query = useQuery({
     queryKey: ['admin', 'orders', { status, q, offset }],
-    queryFn: () => api.listOrders({ status: status || undefined, q: q || undefined, limit, offset }),
+    queryFn: () =>
+      api.listOrders({ status: status || undefined, q: q || undefined, limit, offset }),
   });
 
   const total = query.data?.total ?? 0;
@@ -74,9 +75,7 @@ export function OrdersListPage() {
 
       <div style={cardStyle}>
         {query.isLoading && <p>Načítání…</p>}
-        {query.isError && (
-          <p style={{ color: '#c00' }}>Nepodařilo se načíst objednávky.</p>
-        )}
+        {query.isError && <p style={{ color: '#c00' }}>Nepodařilo se načíst objednávky.</p>}
         {query.data && query.data.orders.length === 0 && (
           <p style={{ color: '#666' }}>Žádné objednávky.</p>
         )}
@@ -102,17 +101,13 @@ export function OrdersListPage() {
                   </td>
                   <td style={tdStyle}>
                     <div>{o.customer_name ?? '—'}</div>
-                    <div style={{ fontSize: '0.8125rem', color: '#666' }}>
-                      {o.customer_email}
-                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: '#666' }}>{o.customer_email}</div>
                   </td>
                   <td style={tdStyle}>
                     <StatusBadge status={o.status} />
                   </td>
                   <td style={tdStyle}>
-                    <span style={{ fontSize: '0.8125rem', color: '#666' }}>
-                      {o.payment_status}
-                    </span>
+                    <span style={{ fontSize: '0.8125rem', color: '#666' }}>{o.payment_status}</span>
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
                     {formatMoney(o.total)}
@@ -128,7 +123,9 @@ export function OrdersListPage() {
       </div>
 
       {total > limit && (
-        <nav style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center' }}>
+        <nav
+          style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center' }}
+        >
           <button
             type="button"
             disabled={offset === 0}

@@ -174,7 +174,9 @@ export async function registerAuthRoutes(
     // Constant-ish-time response on miss (per `30 §RULE-SEC-014`)
     if (!user || !user.passwordHash) {
       // Still hash to make timing roughly constant
-      await hashPassword('dummy-to-make-timing-constant', config.SHOPIO_SESSION_PEPPER).catch(() => {});
+      await hashPassword('dummy-to-make-timing-constant', config.SHOPIO_SESSION_PEPPER).catch(
+        () => {},
+      );
       return reply.code(401).send({
         error: { code: 'INVALID_CREDENTIALS', message: 'Email or password incorrect' },
       });
@@ -321,10 +323,7 @@ export async function registerAuthRoutes(
         .update(schema.sessions)
         .set({ revokedAt: new Date(), revokedReason: 'user_logout' })
         .where(
-          and(
-            eq(schema.sessions.refreshTokenHash, tokenHash),
-            isNull(schema.sessions.revokedAt),
-          ),
+          and(eq(schema.sessions.refreshTokenHash, tokenHash), isNull(schema.sessions.revokedAt)),
         );
     }
     reply.clearCookie(REFRESH_COOKIE_NAME, { path: '/' });
@@ -467,14 +466,18 @@ export async function registerAuthRoutes(
   app.get('/api/2026-05-20/me', async (req, reply) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return reply.code(401).send({ error: { code: 'NO_TOKEN', message: 'Authorization header missing' } });
+      return reply
+        .code(401)
+        .send({ error: { code: 'NO_TOKEN', message: 'Authorization header missing' } });
     }
     const token = authHeader.substring(7);
     let claims: ShopioJwtClaims;
     try {
       claims = await verifyAccessToken(token, config.SHOPIO_JWT_SECRET);
     } catch {
-      return reply.code(401).send({ error: { code: 'INVALID_TOKEN', message: 'Access token invalid' } });
+      return reply
+        .code(401)
+        .send({ error: { code: 'INVALID_TOKEN', message: 'Access token invalid' } });
     }
 
     const [user] = await db
@@ -491,7 +494,9 @@ export async function registerAuthRoutes(
       .limit(1);
 
     if (!user) {
-      return reply.code(401).send({ error: { code: 'USER_NOT_FOUND', message: 'User no longer exists' } });
+      return reply
+        .code(401)
+        .send({ error: { code: 'USER_NOT_FOUND', message: 'User no longer exists' } });
     }
 
     return reply.send({

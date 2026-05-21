@@ -86,7 +86,12 @@ export const PERSONAS: Record<PersonaCode, Persona> = {
     displayName: 'Warehouse Staff',
     description: 'Inventory + fulfillment focused.',
     surface: 'admin',
-    permissions: [PERMISSIONS.ADMIN_ACCESS, PERMISSIONS.PRODUCT_VIEW, PERMISSIONS.ORDER_VIEW, PERMISSIONS.ORDER_FULFILL],
+    permissions: [
+      PERMISSIONS.ADMIN_ACCESS,
+      PERMISSIONS.PRODUCT_VIEW,
+      PERMISSIONS.ORDER_VIEW,
+      PERMISSIONS.ORDER_FULFILL,
+    ],
   },
   'MERCHANT-CUSTOMER-SERVICE': {
     code: 'MERCHANT-CUSTOMER-SERVICE',
@@ -131,7 +136,12 @@ export const PERSONAS: Record<PersonaCode, Persona> = {
     displayName: 'Security Officer',
     description: 'Security settings + audit log + incident management.',
     surface: 'admin',
-    permissions: [PERMISSIONS.ADMIN_ACCESS, PERMISSIONS.SECURITY_VIEW, PERMISSIONS.SECURITY_MANAGE, PERMISSIONS.AUDIT_LOG_VIEW],
+    permissions: [
+      PERMISSIONS.ADMIN_ACCESS,
+      PERMISSIONS.SECURITY_VIEW,
+      PERMISSIONS.SECURITY_MANAGE,
+      PERMISSIONS.AUDIT_LOG_VIEW,
+    ],
   },
   'CUSTOMER-ANONYMOUS': {
     code: 'CUSTOMER-ANONYMOUS',

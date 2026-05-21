@@ -19,8 +19,16 @@ export default function HomePage() {
       <h1 style={{ fontSize: '2.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
         Shopio Storefront
       </h1>
-      <p style={{ color: 'var(--shopio-color-fg-muted)', fontSize: '1.125rem', textAlign: 'center', maxWidth: 600 }}>
-        Multi-tenant storefront. Visit a specific store via <code style={{ fontFamily: 'var(--shopio-font-mono)' }}>/s/&lt;tenant-slug&gt;</code>.
+      <p
+        style={{
+          color: 'var(--shopio-color-fg-muted)',
+          fontSize: '1.125rem',
+          textAlign: 'center',
+          maxWidth: 600,
+        }}
+      >
+        Multi-tenant storefront. Visit a specific store via{' '}
+        <code style={{ fontFamily: 'var(--shopio-font-mono)' }}>/s/&lt;tenant-slug&gt;</code>.
       </p>
       <div style={{ marginTop: '2rem' }}>
         <Link

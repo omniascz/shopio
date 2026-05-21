@@ -163,10 +163,7 @@ export async function registerOrderRoutes(
         .select()
         .from(schema.orders)
         .where(
-          and(
-            eq(schema.orders.tenantId, tenantId),
-            eq(schema.orders.pubId, req.params.orderPubId),
-          ),
+          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
         )
         .limit(1);
       if (!order) {
@@ -226,10 +223,7 @@ export async function registerOrderRoutes(
         })
         .from(schema.orders)
         .where(
-          and(
-            eq(schema.orders.tenantId, tenantId),
-            eq(schema.orders.pubId, req.params.orderPubId),
-          ),
+          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
         )
         .limit(1);
       if (!existing) {

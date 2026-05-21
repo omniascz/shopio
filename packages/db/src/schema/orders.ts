@@ -33,11 +33,13 @@ import { tenants } from './tenants';
 export const orders = pgTable(
   'orders',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
-    pubId: text('pub_id').notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // ord_ NanoID
+    pubId: text('pub_id').notNull(), // ord_ NanoID
     /** Per-tenant sequential — e.g. ORD-2026-00000001. */
     orderNumber: text('order_number').notNull(),
     /** Customer snapshot (no customer table yet — Fáze 1 wave 2). */
@@ -45,15 +47,21 @@ export const orders = pgTable(
     customerName: text('customer_name'),
     customerPhone: text('customer_phone'),
     /** Shipping address snapshot. */
-    shippingAddress: jsonb('shipping_address').notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  // { line1, line2, city, postal_code, country_code, ... }
+    shippingAddress: jsonb('shipping_address').notNull(), // { line1, line2, city, postal_code, country_code, ... }
     /** Billing address snapshot (defaults to shipping). */
     billingAddress: jsonb('billing_address'),
     /** Money totals — minor units. */
     currency: text('currency').notNull(),
-    subtotalAmount: bigint('subtotal_amount', { mode: 'bigint' }).notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  // sum of line subtotals
-    discountAmount: bigint('discount_amount', { mode: 'bigint' }).notNull().default(sql`0`),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // future
-    shippingAmount: bigint('shipping_amount', { mode: 'bigint' }).notNull().default(sql`0`),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // future
-    taxAmount: bigint('tax_amount', { mode: 'bigint' }).notNull().default(sql`0`),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      // future
+    subtotalAmount: bigint('subtotal_amount', { mode: 'bigint' }).notNull(), // sum of line subtotals
+    discountAmount: bigint('discount_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`), // future
+    shippingAmount: bigint('shipping_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`), // future
+    taxAmount: bigint('tax_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`), // future
     totalAmount: bigint('total_amount', { mode: 'bigint' }).notNull(),
     /** Aggregate lifecycle status per `16-order-management.md`. */
     status: text('status', {
@@ -76,7 +84,7 @@ export const orders = pgTable(
     })
       .notNull()
       .default('pending'),
-    paymentMethod: text('payment_method'),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // 'mock', 'stripe', 'gopay', ...
+    paymentMethod: text('payment_method'), // 'mock', 'stripe', 'gopay', ...
     /** Source channel (per `22-multistore-channels.md`). */
     channelKind: text('channel_kind').notNull().default('storefront_web'),
     /** Locale snapshot. */
@@ -89,7 +97,9 @@ export const orders = pgTable(
     fulfilledAt: timestamp('fulfilled_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     pubIdUnique: uniqueIndex('uq_orders_pub_id').on(t.tenantId, t.pubId),
@@ -102,14 +112,16 @@ export const orders = pgTable(
 export const orderItems = pgTable(
   'order_items',
   {
-    id: uuid('id').primaryKey().default(sql`uuidv7()`),
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     orderId: uuid('order_id')
       .notNull()
       .references(() => orders.id, { onDelete: 'cascade' }),
-    pubId: text('pub_id').notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // oit_ NanoID
+    pubId: text('pub_id').notNull(), // oit_ NanoID
     /** Variant + product refs — kept for joins (variants may evolve). */
     variantId: uuid('variant_id').references(() => productVariants.id, { onDelete: 'set null' }),
     productId: uuid('product_id').references(() => products.id, { onDelete: 'set null' }),
@@ -122,17 +134,25 @@ export const orderItems = pgTable(
     unitPriceAmount: bigint('unit_price_amount', { mode: 'bigint' }).notNull(),
     unitPriceCurrency: text('unit_price_currency').notNull(),
     /** Line totals (computed at placement; immutable). */
-    lineSubtotalAmount: bigint('line_subtotal_amount', { mode: 'bigint' }).notNull(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  // unit_price × qty
-    lineDiscountAmount: bigint('line_discount_amount', { mode: 'bigint' }).notNull().default(sql`0`),
-    lineTaxAmount: bigint('line_tax_amount', { mode: 'bigint' }).notNull().default(sql`0`),
+    lineSubtotalAmount: bigint('line_subtotal_amount', { mode: 'bigint' }).notNull(), // unit_price × qty
+    lineDiscountAmount: bigint('line_discount_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
+    lineTaxAmount: bigint('line_tax_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     lineTotalAmount: bigint('line_total_amount', { mode: 'bigint' }).notNull(),
     /** Audit. */
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (t) => ({
     orderIdx: index('idx_order_items_order').on(t.orderId),
-    variantIdx: index('idx_order_items_variant').on(t.variantId).where(sql`variant_id IS NOT NULL`),
+    variantIdx: index('idx_order_items_variant')
+      .on(t.variantId)
+      .where(sql`variant_id IS NOT NULL`),
   }),
 );
 

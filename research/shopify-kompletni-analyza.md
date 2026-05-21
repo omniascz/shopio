@@ -43,6 +43,7 @@
 Shopify je hostovaná (SaaS) e-commerce platforma založená v roce 2006 v kanadské Ottawě. Provozovatelům umožňuje založit, řídit a škálovat online obchod bez nutnosti starat se o servery, aktualizace, zabezpečení nebo PCI-DSS compliance.
 
 **Klíčová čísla (2026):**
+
 - Přes **2,4 milionu** aktivních obchodů ve 175+ zemích
 - Kumulativní GMV přes **1 bilion USD**
 - Shopify GMV za 2024: **292 mld. USD**, v roce 2025 přes **350 mld. USD**
@@ -50,6 +51,7 @@ Shopify je hostovaná (SaaS) e-commerce platforma založená v roce 2006 v kanad
 - Black Friday / Cyber Monday 2025: **14,6 mld. USD** za čtyři dny, špičkový průtok **5,1 mil. USD / min**
 
 **Hlavní výhody:**
+
 - Vše v jednom – hosting, doména, SSL, platby, pokladna, POS, analytika
 - 99,9% uptime, globální CDN (Fastly), edge rendering
 - Největší e-commerce app store na světě (8 000+ aplikací)
@@ -144,19 +146,19 @@ Speciální plán pro kamenné obchody bez klasického e-shopu.
 
 ### 2.7 Srovnávací tabulka hlavních plánů
 
-| Funkce | Basic | Grow | Advanced | Plus |
-|---|---|---|---|---|
-| Cena měsíčně (USD) | 29 | 79 | 299 | 2 300+ |
-| Staff accounts | 2 | 5 | 15 | neomezeně |
-| Inventory locations | 10 | 10 | 10 | 200 |
-| Online kreditní karty (US) | 2,9 % + 0,30 | 2,7 % + 0,30 | 2,5 % + 0,30 | negotiated |
-| Transaction fee mimo SP | 2 % | 1 % | 0,5 % | 0,15 % |
-| Custom reports | ❌ | ✅ | ✅ | ✅ |
-| Shopify Flow | ❌ | ❌ | ✅ | ✅ |
-| Checkout Extensibility | ✅ (omezeně) | ✅ | ✅ | ✅ plné |
-| B2B | ❌ | ✅ (3 katalogy) | ✅ | ✅ neomezeně |
-| Expansion Stores | ❌ | ❌ | ❌ | 9 |
-| Hydrogen + Oxygen | ✅ | ✅ | ✅ | ✅ |
+| Funkce                     | Basic        | Grow            | Advanced     | Plus         |
+| -------------------------- | ------------ | --------------- | ------------ | ------------ |
+| Cena měsíčně (USD)         | 29           | 79              | 299          | 2 300+       |
+| Staff accounts             | 2            | 5               | 15           | neomezeně    |
+| Inventory locations        | 10           | 10              | 10           | 200          |
+| Online kreditní karty (US) | 2,9 % + 0,30 | 2,7 % + 0,30    | 2,5 % + 0,30 | negotiated   |
+| Transaction fee mimo SP    | 2 %          | 1 %             | 0,5 %        | 0,15 %       |
+| Custom reports             | ❌           | ✅              | ✅           | ✅           |
+| Shopify Flow               | ❌           | ❌              | ✅           | ✅           |
+| Checkout Extensibility     | ✅ (omezeně) | ✅              | ✅           | ✅ plné      |
+| B2B                        | ❌           | ✅ (3 katalogy) | ✅           | ✅ neomezeně |
+| Expansion Stores           | ❌           | ❌              | ❌           | 9            |
+| Hydrogen + Oxygen          | ✅           | ✅              | ✅           | ✅           |
 
 ---
 
@@ -329,7 +331,6 @@ Hromadné úpravy lze dělat na stránkách **Orders, Products, Customers, Disco
 - Předvyplněné akce (např. „ukaž mi objednávky za posledních 7 dní")
 - Kontextové nápovědy
 
-
 ---
 
 ## 4. Produkty a katalog
@@ -365,6 +366,7 @@ Každý produkt má následující atributy:
 **Zásadní funkce pro rozšiřitelnost** – přidávání libovolných datových polí k produktům, kolekcím, objednávkám, zákazníkům, stránkám, blogům, variantám, order draftům, shopu, markets, lokacím atd.
 
 **Typy metafields:**
+
 - Text (single/multi-line, rich text)
 - Number (integer, decimal)
 - Date, Date and time
@@ -424,6 +426,7 @@ Marketplace mezi Shopify obchody – umožňuje prodávat produkty jiných Shopi
 ### 5.2 Inventory tracking
 
 Stavy zásob:
+
 - **On hand** – fyzicky dostupné
 - **Committed** – rezervované k již přijatým objednávkám
 - **Available** – skutečně prodejné (On hand – Committed – Unavailable)
@@ -442,6 +445,7 @@ Stavy zásob:
 ### 5.4 Transfers
 
 Přesun zásob mezi vašimi lokacemi:
+
 - Create → Send → Receive workflow
 - Tracking number dopravce
 - Částečné příjmy
@@ -458,6 +462,7 @@ Přesun zásob mezi vašimi lokacemi:
 ### 5.6 Stocky (Shopify's Inventory Management App)
 
 Zahrnuta pro Advanced a Plus:
+
 - Pokročilé forecasting
 - Demand forecasting
 - Stock transfers s barcode skenováním
@@ -469,6 +474,7 @@ Zahrnuta pro Advanced a Plus:
 ### 5.7 Order routing (Plus)
 
 Automatické přiřazení objednávek k optimální lokaci podle:
+
 - Geografické vzdálenosti
 - Stavu zásob
 - Priority lokací
@@ -481,6 +487,7 @@ Automatické přiřazení objednávek k optimální lokaci podle:
 ### 6.1 Order lifecycle
 
 Každá objednávka má:
+
 - **Payment status** (authorized, paid, partially paid, pending, refunded, voided)
 - **Fulfillment status** (unfulfilled, partially fulfilled, fulfilled, restocked)
 - **Financial status** timeline
@@ -512,6 +519,7 @@ Dostupné v USA, Kanadě, UK, Austrálii – snížené sazby s USPS, UPS, DHL E
 ### 6.4 Shopify Fulfillment Network (SFN)
 
 Dříve vlastní síť skladů Shopify (ve 2023 prodána do Flexport, ale stále integrovaná):
+
 - Orders automaticky routing do skladů
 - 2denní doručení v USA
 - Vratky (returns) zpracování
@@ -545,6 +553,7 @@ Dříve vlastní síť skladů Shopify (ve 2023 prodána do Flexport, ale stále
 ### 6.8 Notifications
 
 Předkonfigurované e-mailové a SMS šablony:
+
 - Order confirmation
 - Order cancellation
 - Order edited
@@ -563,6 +572,7 @@ Všechny lze přepsat, překládat, přidávat HTML/Liquid. Na Plus lze napojit 
 ### 6.9 Fraud analysis
 
 Zdarma u všech plánů:
+
 - Automatické skórování každé objednávky
 - Faktory: IP adresa, BIN karty, shodnost adres, velocity, CVV, AVS
 - Manuální kontrola, zamítnutí platby
@@ -575,6 +585,7 @@ Zdarma u všech plánů:
 ### 7.1 Customer profiles
 
 Každý zákazník má:
+
 - Jméno, e-mail, telefon
 - Adresy (více adres)
 - Historie objednávek, celková útrata, průměrná objednávka
@@ -588,10 +599,12 @@ Každý zákazník má:
 ### 7.2 Customer accounts (dvě verze)
 
 **Classic Accounts:**
+
 - Klasické přihlášení přes email a heslo
 - Základní self-service
 
 **New Customer Accounts:**
+
 - Bezheslový login – jednorázový kód e-mailem
 - Pokročilý self-service:
   - Historie objednávek
@@ -604,6 +617,7 @@ Každý zákazník má:
 ### 7.3 Segmenty
 
 Dynamické segmenty postavené na **query language**:
+
 - Filtrace podle útraty, počtu objednávek, lokace, tagů, produktu
 - Poslední objednávka
 - Churned customers
@@ -611,6 +625,7 @@ Dynamické segmenty postavené na **query language**:
 - Custom události (pixel)
 
 Segmenty lze použít v:
+
 - Marketingových e-mailech
 - Automatizacích
 - Discount targeting
@@ -620,6 +635,7 @@ Segmenty lze použít v:
 ### 7.4 Customer events (pixel)
 
 Klientská i serverová událostní architektura:
+
 - Page viewed
 - Product viewed
 - Collection viewed
@@ -659,6 +675,7 @@ Compliance rámec pro GDPR, CCPA, PIPEDA – cookie banner, souhlas, data access
 ### 8.2 Checkout Extensibility
 
 Nová architektura (povinná od srpna 2024):
+
 - **Checkout UI Extensions** – React/Preact komponenty v checkoutu
 - **Checkout Blocks** – no-code vkládání obsahu (Plus i Basic+ v roce 2026)
 - **Post-purchase Extensions**
@@ -736,6 +753,7 @@ Věrnostní měna fungující napříč obchody na Shop app – zákazník získ
 ### 9.3 Shipping profiles
 
 Různé sazby pro různé produkty:
+
 - Custom profile pro fragile items, oversized, frozen goods
 - Origin-based (z různých skladů jiné ceny)
 - Kombinace dopravce pro různé destinace
@@ -816,7 +834,6 @@ Různé sazby pro různé produkty:
 - GDPR compliance
 - CCPA compliance
 
-
 ---
 
 ## 11. Online Store – frontend, témata, Liquid
@@ -835,6 +852,7 @@ Shopify používá vlastní šablonový jazyk **Liquid** (open-source, vytvořen
 ### 11.3 Theme editor
 
 Drag-and-drop visual editor:
+
 - **Sections** – přetahovatelné sekce na stránce
 - **Blocks** – menší komponenty uvnitř sekcí
 - **App blocks** – bloky od nainstalovaných aplikací
@@ -846,6 +864,7 @@ Drag-and-drop visual editor:
 - **Multiple unpublished themes** v knihovně
 
 **Limity:**
+
 - Max. **25 sekcí** na template
 - Max. **1 250 bloků** napříč všemi sekcemi v template
 - Max. **8 úrovní** nested bloků
@@ -853,6 +872,7 @@ Drag-and-drop visual editor:
 ### 11.4 Code editor
 
 Přímá úprava kódu tématu:
+
 - Liquid soubory (.liquid)
 - CSS, SCSS
 - JavaScript
@@ -864,6 +884,7 @@ Přímá úprava kódu tématu:
 ### 11.5 Liquid objects a taggy
 
 Hlavní Liquid objekty:
+
 - `product`, `variant`, `collection`
 - `cart`, `checkout`, `order`
 - `customer`, `shop`, `settings`
@@ -895,6 +916,7 @@ Aplikace třetích stran se integrují jako bloky do libovolné sekce – tj. ne
 ### 11.10 Dawn (referenční téma)
 
 Postavené na:
+
 - Minimalistickém JS (web components, žádný framework)
 - Lazy loading obrázků, SVG sprites
 - Accessibility-first přístupu
@@ -946,6 +968,7 @@ Shopify implementuje CSP hlavičky pro checkout a customer accounts – ochrana 
 ### 12.3 Shop Campaigns
 
 Performance marketing:
+
 - **Pay-per-conversion** model
 - Targeting 100+ M uživatelů Shop app
 - Shopify Audiences (viz níže)
@@ -963,6 +986,7 @@ Performance marketing:
 Kromě online obchodu lze publikovat produkty do:
 
 #### Facebook & Instagram
+
 - Shop tab na FB stránce
 - Instagram Shopping (tagování produktů v postech, reels, stories)
 - Advantage+ shopping campaigns
@@ -970,18 +994,21 @@ Kromě online obchodu lze publikovat produkty do:
 - Live shopping
 
 #### TikTok Shop
+
 - Nativní integrace od února 2026
 - In-feed shopping
 - Live commerce
 - Creator collaboration
 
 #### Google & YouTube
+
 - Google Merchant Center sync
 - Free Google Shopping listings
 - YouTube Shopping (tagování produktů ve videích)
 - Google Ads napojení
 
 #### Amazon
+
 - Přes oficiální aplikaci Amazon
 - Sync produktů do FBA
 - Order import
@@ -989,18 +1016,21 @@ Kromě online obchodu lze publikovat produkty do:
 #### eBay, Walmart, Etsy (přes apps)
 
 #### Shop app
+
 - Shopify Shop mobilní aplikace s 150+ M uživateli
 - Browse, buy, track
 - Personalizované doporučení
 - Shop Cash (věrnostní cashback)
 
 #### Handshake
+
 - B2B marketplace od Shopify
 - Kurátorovaný výběr značek pro retailery
 
 #### Roblox, Spotify (experimentální)
 
 #### AI Commerce Channel (Winter '26)
+
 - Produkty se automaticky zobrazují v **ChatGPT, Perplexity, Microsoft Copilot**
 - Orders from AI searches vzrostly **15×** mezi lednem 2025 a lednem 2026
 - AOV z AI vyšší než z direct trafficu
@@ -1008,6 +1038,7 @@ Kromě online obchodu lze publikovat produkty do:
 ### 12.6 Marketing Automations
 
 Předpřipravené cesty:
+
 - Welcome new customers
 - Abandoned cart (až 3 e-maily)
 - Abandoned checkout
@@ -1062,6 +1093,7 @@ Přes aplikace (Postscript, Attentive, Klaviyo SMS, Yotpo). Shopify má vlastní
 ### 13.3 Discount combinations
 
 Nová funkce – možnost kombinovat více slev najednou:
+
 - Order + Product
 - Shipping + Product
 - Shipping + Order
@@ -1076,6 +1108,7 @@ Nová funkce – možnost kombinovat více slev najednou:
 ### 13.5 Custom discount logic (Functions)
 
 Shopify Functions umožňují jakoukoliv slevovou logiku:
+
 - Multi-tier slevy
 - Bundle discounts
 - Loyalty tier přirážky
@@ -1090,6 +1123,7 @@ Shopify Functions umožňují jakoukoliv slevovou logiku:
 ### 13.7 Loyalty programs
 
 Nativně Shopify nemá loyalty program – řeší se přes aplikace:
+
 - **Smile.io**, **LoyaltyLion**, **Yotpo**, **Rewardify**, **Stamped**
 - Integrace přímo do customer accounts
 - Points, tiers, referrals, VIP rewards
@@ -1164,18 +1198,21 @@ Nativně Shopify nemá loyalty program – řeší se přes aplikace:
 ### 15.2 Reports (podle tarifu)
 
 **Basic:**
+
 - Finance reporty
 - Sales reports
 - Acquisition reports
 - Inventory reports
 
 **Grow přidává:**
+
 - Behavior reports (sessions, devices)
 - Marketing reports
 - Customer reports
 - Profit reports
 
 **Advanced/Plus přidává:**
+
 - Custom report builder (drag-and-drop)
 - Prediktivní hodnoty (LTV forecast, CAC)
 - Cohort analysis
@@ -1234,6 +1271,7 @@ Notebooks umožňují kombinovat texty, dotazy a vizualizace.
 Sada AI nástrojů zabudovaných do adminu (všechny zdarma):
 
 **Produktové:**
+
 - Generátor produktových popisů (tón, délka, keywords)
 - Generátor produktových tagů z obrázků a popisů
 - Generátor alt textů pro obrázky
@@ -1241,12 +1279,14 @@ Sada AI nástrojů zabudovaných do adminu (všechny zdarma):
 - AI variant generator (z popisu vygeneruje varianty)
 
 **E-mailové:**
+
 - Subject line generator
 - Body text writer
 - AI suggested send times
 - A/B variant generation
 
 **Admin:**
+
 - FAQ generator pro Shopify Inbox
 - Response suggestions v Inbox
 - Blog post generator
@@ -1254,6 +1294,7 @@ Sada AI nástrojů zabudovaných do adminu (všechny zdarma):
 - Meta description generator
 
 **Theme editor:**
+
 - Text content generator pro bloky
 - **Theme block generator** – vygeneruje nový Liquid block z popisu
 - Color palette suggestions
@@ -1263,6 +1304,7 @@ Sada AI nástrojů zabudovaných do adminu (všechny zdarma):
 Konverzační AI agent integrovaný do celého adminu:
 
 **Schopnosti (rozšířené Winter '26):**
+
 - Odpovídání na otázky o obchodě („Jak se mi dařilo minulý týden?", „Které produkty nejvíce prodávají v Evropě?")
 - Generování ShopifyQL dotazů
 - Vytváření slev a kampaní („Vytvoř 20% slevu na všechny batohy na Black Friday")
@@ -1280,6 +1322,7 @@ Konverzační AI agent integrovaný do celého adminu:
 ### 16.3 AI Commerce Channel
 
 Nový sales channel od Winter '26:
+
 - Produkty se automaticky zobrazují v **ChatGPT, Perplexity, Microsoft Copilot, Claude**
 - Vlastní schema pro AI crawlery
 - Agentic checkout (zákazník nakupuje přímo v chatu)
@@ -1308,6 +1351,7 @@ Nové: možnost testovat varianty stránek, cen, textů přímo v Shopify – be
 ### 17.1 POS Lite (zdarma, zahrnuto ve všech plánech)
 
 Pro mobile checkout a pop-up prodeje:
+
 - iOS / Android nativní aplikace
 - Základní checkout (karty, hotovost, digital wallets)
 - Inventory sync
@@ -1319,6 +1363,7 @@ Pro mobile checkout a pop-up prodeje:
 ### 17.2 POS Pro – 89 USD/měs. za lokaci
 
 Pokročilé retail funkce:
+
 - **Smart grid** (customizable UI)
 - **Save carts** (uložené nákupy s návratem)
 - **BOPIS** (Buy Online, Pickup In Store)
@@ -1343,6 +1388,7 @@ Pokročilé retail funkce:
 Oficiální hardware od Shopify:
 
 **Card Readers:**
+
 - **Shopify Tap & Chip Reader** (~49 USD) – Bluetooth
 - **WisePad 3** – multi-payment reader
 - **POS Go** – all-in-one handheld device (Android-based)
@@ -1350,6 +1396,7 @@ Oficiální hardware od Shopify:
 - **Shopify POS Terminal Countertop** – Winter '26, s customer display
 
 **Další:**
+
 - Barcode scanners (Socket Mobile)
 - Receipt printers (Star Micronics, Epson)
 - Cash drawers
@@ -1438,6 +1485,7 @@ Oficiální hardware od Shopify:
 ### 18.6 B2B automatizace
 
 Shopify Flow pro B2B:
+
 - Tag high-value companies
 - Auto-approve orders pod prahem
 - Notifikace při nových registracích
@@ -1453,6 +1501,7 @@ Shopify Flow pro B2B:
 ### 18.8 Trade téma
 
 Oficiální Shopify téma optimalizované pro B2B:
+
 - Kompaktní list-style navigace
 - Bulk ordering UI (qty per variant v řádku)
 - Clean reorder-driven layout
@@ -1465,6 +1514,7 @@ Oficiální Shopify téma optimalizované pro B2B:
 ### 19.1 Markets overview
 
 Centrální hub pro cross-border commerce:
+
 - **Primary market** (výchozí země)
 - **Additional markets** (regionální nebo per-country)
 - **International market** (default catch-all)
@@ -1528,6 +1578,7 @@ Centrální hub pro cross-border commerce:
 ### 19.8 Markets Pro
 
 Rozšířená služba (pouze USA):
+
 - Merchant of record (Shopify fakturuje zákazníkovi)
 - Tax, customs, fraud – Shopify přebírá rizika
 - Lokální placení
@@ -1563,6 +1614,7 @@ Rozšířená služba (pouze USA):
 ### 20.4 Shopify Functions
 
 Server-side TypeScript/Rust code, který běží v Shopify infrastruktuře:
+
 - **Product discount function**
 - **Order discount function**
 - **Shipping discount function**
@@ -1581,6 +1633,7 @@ Max. 5 ms CPU time per request. Napsané jako WebAssembly moduly.
 ### 20.5 Launchpad
 
 Plánovač akcí pro časově omezené kampaně:
+
 - Scheduled theme changes
 - Product publishing
 - Discount activation
@@ -1592,6 +1645,7 @@ Plánovač akcí pro časově omezené kampaně:
 ### 20.6 Shopify Flow
 
 Workflow automation:
+
 - **Triggers** (new order, customer created, inventory low, product updated, cart abandoned, refund…)
 - **Conditions** (if/else, multiple branches)
 - **Actions** (add tag, send e-mail, update product, call webhook, run custom code)
@@ -1630,7 +1684,6 @@ Starý B2B kanál, nahrazen nativním B2B od 2022. Plně funkční, postupně de
 ### 20.12 Shopify Plus Partners
 
 Síť agentur, SI a technologických partnerů prověřených Shopify.
-
 
 ---
 
@@ -1676,6 +1729,7 @@ Síť agentur, SI a technologických partnerů prověřených Shopify.
 ### 21.4 Launchpad pro flash sale
 
 Příklad scénáře:
+
 1. 23:59 – theme swap na „Black Friday" téma
 2. 00:00 – aktivace discount code
 3. 00:00 – publish Black Friday kolekce
@@ -1689,17 +1743,20 @@ Příklad scénáře:
 ### 22.1 Admin API (GraphQL + REST)
 
 **GraphQL (doporučeno):**
+
 - Endpoint: `https://{shop}.myshopify.com/admin/api/2026-01/graphql.json`
 - Zdroje: Products, Orders, Customers, Collections, Inventory, Metafields, Discounts, Fulfillments, Locations, Markets, Apps…
 - Rate limits: cost-based (1 000 points / s standard, 20 000 Plus)
 
 **REST:**
+
 - Legacy, postupně deprecovaný
 - Rate limit: 2 calls/s (standard), 20 calls/s (Plus)
 
 ### 22.2 Storefront API
 
 Pro frontend aplikace (Hydrogen, custom React apps, mobile):
+
 - Public token (client-safe)
 - Product data, collections, cart, checkout
 - Search, predictive search
@@ -1708,6 +1765,7 @@ Pro frontend aplikace (Hydrogen, custom React apps, mobile):
 ### 22.3 Customer Account API
 
 Pro customer-facing funkce:
+
 - Přihlášení, registrace
 - Historie objednávek
 - Subscription management
@@ -1716,6 +1774,7 @@ Pro customer-facing funkce:
 ### 22.4 Partner API
 
 Pro tvůrce aplikací:
+
 - App installs statistics
 - Revenue reports
 - Dispute handling
@@ -1723,6 +1782,7 @@ Pro tvůrce aplikací:
 ### 22.5 Shopify Functions
 
 Server-side výpočty v izolovaném WebAssembly sandboxu:
+
 - Jazyky: JavaScript, TypeScript, Rust
 - Max. 5ms CPU / call
 - Běh na Shopify infrastruktuře – milisekundová latence
@@ -1731,6 +1791,7 @@ Server-side výpočty v izolovaném WebAssembly sandboxu:
 ### 22.6 Hydrogen
 
 React-based framework pro headless storefronty:
+
 - Postavený na **React Router** (dříve Remix)
 - **Server Components** (RSC)
 - Optimalizovaný pro Oxygen
@@ -1743,6 +1804,7 @@ React-based framework pro headless storefronty:
 ### 22.7 Oxygen
 
 Hosting platforma pro Hydrogen (zdarma u placených plánů):
+
 - Cloudflare Workers-based (workerd runtime)
 - **V8 isolates** – globální distribuce
 - **Full-page cache**
@@ -1754,6 +1816,7 @@ Hosting platforma pro Hydrogen (zdarma u placených plánů):
 ### 22.8 Shopify CLI
 
 Command-line tool:
+
 - `shopify theme dev` – live preview theme
 - `shopify app dev` – local app development
 - `shopify hydrogen dev`
@@ -1781,6 +1844,7 @@ Způsoby, jak aplikace rozšiřují Shopify:
 ### 22.10 Webhooks
 
 40+ topiků:
+
 - orders/create, orders/updated, orders/paid, orders/cancelled, orders/fulfilled
 - products/create, products/update
 - customers/create, customers/update
@@ -1823,54 +1887,71 @@ HMAC verification, retry logic (19 retries přes 48 hodin).
 ### 23.2 Must-have kategorie aplikací
 
 **Reviews:**
+
 - Judge.me, Loox, Yotpo, Stamped.io, Okendo
 
 **Email & SMS:**
+
 - Klaviyo, Omnisend, Mailchimp, Attentive, Postscript
 
 **Subscriptions:**
+
 - Recharge, Bold Subscriptions, Appstle, Subscripify, Seal Subscriptions
 
 **Věrnostní programy:**
+
 - Smile.io, LoyaltyLion, Yotpo Loyalty, Rise.ai (gift cards & store credit)
 
 **Upsell / Cross-sell:**
+
 - ReConvert, Zipify OCU, Honeycomb, Candy Rack
 
 **Page builders:**
+
 - PageFly, GemPages, Shogun, Zipify Pages
 
 **Search & Filter:**
+
 - Searchanise, Boost AI Search, Algolia, Fast Simon
 
 **Shipping & tracking:**
+
 - AfterShip, ShipStation, ShippingEasy, 17track, ParcelPanel
 
 **Dropshipping:**
+
 - DSers, Spocket, Zendrop, Printful, Printify, Gelato
 
 **Accounting:**
+
 - QuickBooks, Xero, Bench
 
 **SEO:**
+
 - Smart SEO, SearchPie, SEO King, Plug In SEO
 
 **Bundles:**
+
 - Shopify Bundles (nativní), Bundler, Fast Bundle
 
 **Inventory:**
+
 - Stocky, Katana, Cin7, DEAR, Linnworks
 
 **Customer service:**
+
 - Gorgias, Tidio, Zendesk, Re:amaze
 
 **Analytics:**
+
 - Triple Whale, Polar Analytics, Littledata, Glew, Lifetimely
 
 **Checkout:**
+
 - Rebuy, Slide Cart, Checkout Blocks
 
 **B2B:**
+
 - SparkLayer, Wholesale Club, B2B/Wholesale Solution (BSS)
 
 ### 23.3 Shopify-made apps (zdarma)
@@ -1901,6 +1982,7 @@ HMAC verification, retry logic (19 retries přes 48 hodin).
 ### 23.5 App Bridge
 
 React knihovna pro integraci aplikací do adminu:
+
 - Embedded UI (iframe v adminu)
 - Shared session tokens
 - Polaris komponenty
@@ -1976,13 +2058,13 @@ Shopify provozuje veřejný bug bounty program na HackerOne.
 
 ### 25.1 Support tiers
 
-| Plán | Support |
-|---|---|
-| Starter | E-mail, chat (omezený) |
-| Basic | 24/7 chat |
-| Grow | 24/7 chat, e-mail |
-| Advanced | 24/7 chat, e-mail, priority |
-| Plus | Priority phone 24/7, dedicated MSM, Launch Engineer |
+| Plán     | Support                                             |
+| -------- | --------------------------------------------------- |
+| Starter  | E-mail, chat (omezený)                              |
+| Basic    | 24/7 chat                                           |
+| Grow     | 24/7 chat, e-mail                                   |
+| Advanced | 24/7 chat, e-mail, priority                         |
+| Plus     | Priority phone 24/7, dedicated MSM, Launch Engineer |
 
 ### 25.2 Help Center
 
@@ -2038,24 +2120,29 @@ Vývojářská konference Shopify.
 Vydáno 20. ledna 2026 – **150+ novinek**. Nejdůležitější:
 
 **AI a Sidekick:**
+
 - **Sidekick Pulse** – proaktivní insights
 - **Sidekick Agent Mode** – vícekrokové úkoly
 - Sidekick staví aplikace, flows, theme změny
 - AI Commerce Channel (ChatGPT, Perplexity, Copilot)
 
 **Checkout:**
+
 - Checkout Blocks nyní i na Basic+ (dříve jen Plus)
 - Customer Account extensions (40+ partner apps)
 
 **B2B:**
+
 - B2B na Grow plánu (3 katalogy)
 - Rozšířené na Advanced plně
 - 42 B2B funkcí vestavěných
 
 **A/B testing:**
+
 - Nativní A/B testy bez aplikací třetích stran
 
 **Ostatní:**
+
 - Shopify Bundles 2.0
 - Managed Markets v Evropě
 - Hydrogen 3.0
@@ -2071,6 +2158,7 @@ Vydáno 20. ledna 2026 – **150+ novinek**. Nejdůležitější:
 ### 26.3 Co se očekává v Summer '26
 
 Podle Shopify náznaků:
+
 - Rozšířené AI subscriptions
 - Další agentic commerce funkce
 - Rozšíření Managed Markets
@@ -2137,6 +2225,7 @@ Shopify v roce 2026 představuje **nejkompletnější e-commerce platformu na sv
 - Compliance a bezpečnost na úrovni světových standardů
 
 **Pro koho se hodí:**
+
 - Začínající e-shopy (Basic)
 - Rostoucí značky (Grow, Advanced)
 - Enterprise D2C (Plus)
@@ -2145,11 +2234,11 @@ Shopify v roce 2026 představuje **nejkompletnější e-commerce platformu na sv
 - Mezinárodní značky (Markets, Managed Markets)
 
 **Pro koho méně:**
+
 - Extrémně specifické lokální potřeby bez kvalitní aplikace (některé specifikem ČR)
 - Obchody s miliony SKU a komplexní B2B bez standardních vzorců (tam může být Magento / Sylius lepší)
 - Organizace preferující self-hosted open-source řešení
 
 ---
 
-*Dokument sestaven na základě veřejně dostupné dokumentace Shopify, Help Center, Shopify.dev, Shopify Editions a analýz nezávislých partnerů (Ask Phill, On Tap Group, Kensium, Fyresite, BSS Commerce, Elogic, Ecommerce Pro, Latori, Makro Agency, Mobiloud a další) – duben 2026.*
-
+_Dokument sestaven na základě veřejně dostupné dokumentace Shopify, Help Center, Shopify.dev, Shopify Editions a analýz nezávislých partnerů (Ask Phill, On Tap Group, Kensium, Fyresite, BSS Commerce, Elogic, Ecommerce Pro, Latori, Makro Agency, Mobiloud a další) – duben 2026._

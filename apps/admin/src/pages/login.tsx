@@ -40,9 +40,7 @@ export function LoginPage() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         }}
       >
-        <h1 style={{ margin: '0 0 1.5rem', fontSize: '1.5rem', fontWeight: 600 }}>
-          Shopio Admin
-        </h1>
+        <h1 style={{ margin: '0 0 1.5rem', fontSize: '1.5rem', fontWeight: 600 }}>Shopio Admin</h1>
 
         <label style={{ display: 'block', marginBottom: '1rem', fontSize: '0.875rem' }}>
           <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>E-mail</span>

@@ -13,6 +13,7 @@
 **Realita solo + Claude:** postavit **kód** jde pro všechno. **Provozovat** SaaS 24/7, dělat SOC 2/ISO audit, enterprise sales cycle, nebo mít komunitu v 10 jazycích — nejde solo. Proto tyhle části plánu odsouváme do fáze "až přijde tým/partner/investor", ale **kód a architektura pro ně jsou připravené od MVP**.
 
 **Očekávaný časový horizont (full-time, solo + AI):**
+
 - **MVP (CZ/SK self-host):** 12–18 měsíců
 - **v1.0 (+ DE, B2B, MSI, agent-native, plugin marketplace):** 3–4 roky
 - **v2.0+ (CEE, Cloud SaaS aktivace, mobile):** 5–7 let
@@ -24,31 +25,31 @@
 
 Vedoucí princip: **proven nad trendy**. Solo maintainer = nesmím si dovolit chytit nestabilní knihovnu, která za 18 měsíců umře. Žádný framework mladší 2 let v kritické cestě.
 
-| Vrstva | Volba | Proč |
-|---|---|---|
-| Jazyk backendu | **TypeScript (Node.js 22 LTS)** | Jeden jazyk FE+BE, zralý ekosystém, solo-friendly, Medusa/Saleor dokazují produkci |
-| Runtime | **Node.js**, Bun jen pro CLI/scripty | Node 10 let operational track record |
-| Framework BE | **Fastify + tRPC + GraphQL Yoga** | Fastify rychlé, tRPC pro admin, GraphQL Yoga pro storefront/public |
-| API | **REST (OpenAPI 3.1) + GraphQL** obojí | REST canonical, GraphQL convenience nad stejnou doménou |
-| Databáze | **PostgreSQL 17** | Standard, JSONB pro flexibilní atributy, pgvector pro AI, logical replication pro pozdější multi-region |
-| ORM | **Drizzle** | Typed SQL bez magie, rychlejší než Prisma na commerce queries |
-| Cache / session | **Redis 7** | Rate-limit + BullMQ queue + session store |
-| Fronty | **BullMQ** | Redis-based, jednodušší než Kafka. Kafka později jen pokud opravdu potřeba event streaming |
-| Search | **Meilisearch** | Jednoduchý, zdarma, rychlý setup. OpenSearch pozdní fáze |
-| Payments | **Stripe** (global), **GoPay/ComGate/ThePay** (CZ), **Adyen** (enterprise), **Klarna/iDEAL/BLIK/Bizum** (per země) | Pluggable interface, žádná exkluzivita |
-| File storage | **S3-compatible** (MinIO pro self-host, AWS S3 / Cloudflare R2 pro Cloud) | Standard, MinIO drop-in |
-| Media | **imgproxy** (self-host), **Cloudflare** (Cloud) | On-the-fly transformace |
-| Auth | **Lucia Auth** nebo vlastní JWT + session | Lehčí než Keycloak; Keycloak jen jako volitelný SSO provider v v1.0 |
-| Frontend admin | **React 19 + Shadcn/ui + TanStack Query/Router + Vite** | Copy-paste komponenty (ne lock-in), nativní ownership |
-| Storefront (default) | **Next.js 16 (App Router, RSC)** | Proven, self-hostovatelné, SEO + Core Web Vitals |
-| Mobile (v3) | **React Native (Expo)** | Jeden codebase iOS+Android, sdílení s webem |
-| Monorepo | **Turborepo + pnpm workspaces** | Rychlejší než Nx pro JS-only repo |
-| Containerization | **Docker + Docker Compose** (OSS), **Kubernetes + Helm** (Cloud později) | Compose pro self-host, k8s pro škálu |
-| IaC | **Terraform** (Cloud fáze), **Ansible** (self-host hardening) | |
-| Observability | **OpenTelemetry → Grafana/Loki/Tempo/Mimir** | Open standard, self-hostovatelné |
-| CI/CD | **GitHub Actions** | Standard, free pro public repo |
-| Testing | **Vitest + Playwright + k6** | |
-| Email | **React Email + Resend** (Cloud), **SMTP/SES** (self-host) | |
+| Vrstva               | Volba                                                                                                              | Proč                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Jazyk backendu       | **TypeScript (Node.js 22 LTS)**                                                                                    | Jeden jazyk FE+BE, zralý ekosystém, solo-friendly, Medusa/Saleor dokazují produkci                      |
+| Runtime              | **Node.js**, Bun jen pro CLI/scripty                                                                               | Node 10 let operational track record                                                                    |
+| Framework BE         | **Fastify + tRPC + GraphQL Yoga**                                                                                  | Fastify rychlé, tRPC pro admin, GraphQL Yoga pro storefront/public                                      |
+| API                  | **REST (OpenAPI 3.1) + GraphQL** obojí                                                                             | REST canonical, GraphQL convenience nad stejnou doménou                                                 |
+| Databáze             | **PostgreSQL 17**                                                                                                  | Standard, JSONB pro flexibilní atributy, pgvector pro AI, logical replication pro pozdější multi-region |
+| ORM                  | **Drizzle**                                                                                                        | Typed SQL bez magie, rychlejší než Prisma na commerce queries                                           |
+| Cache / session      | **Redis 7**                                                                                                        | Rate-limit + BullMQ queue + session store                                                               |
+| Fronty               | **BullMQ**                                                                                                         | Redis-based, jednodušší než Kafka. Kafka později jen pokud opravdu potřeba event streaming              |
+| Search               | **Meilisearch**                                                                                                    | Jednoduchý, zdarma, rychlý setup. OpenSearch pozdní fáze                                                |
+| Payments             | **Stripe** (global), **GoPay/ComGate/ThePay** (CZ), **Adyen** (enterprise), **Klarna/iDEAL/BLIK/Bizum** (per země) | Pluggable interface, žádná exkluzivita                                                                  |
+| File storage         | **S3-compatible** (MinIO pro self-host, AWS S3 / Cloudflare R2 pro Cloud)                                          | Standard, MinIO drop-in                                                                                 |
+| Media                | **imgproxy** (self-host), **Cloudflare** (Cloud)                                                                   | On-the-fly transformace                                                                                 |
+| Auth                 | **Lucia Auth** nebo vlastní JWT + session                                                                          | Lehčí než Keycloak; Keycloak jen jako volitelný SSO provider v v1.0                                     |
+| Frontend admin       | **React 19 + Shadcn/ui + TanStack Query/Router + Vite**                                                            | Copy-paste komponenty (ne lock-in), nativní ownership                                                   |
+| Storefront (default) | **Next.js 16 (App Router, RSC)**                                                                                   | Proven, self-hostovatelné, SEO + Core Web Vitals                                                        |
+| Mobile (v3)          | **React Native (Expo)**                                                                                            | Jeden codebase iOS+Android, sdílení s webem                                                             |
+| Monorepo             | **Turborepo + pnpm workspaces**                                                                                    | Rychlejší než Nx pro JS-only repo                                                                       |
+| Containerization     | **Docker + Docker Compose** (OSS), **Kubernetes + Helm** (Cloud později)                                           | Compose pro self-host, k8s pro škálu                                                                    |
+| IaC                  | **Terraform** (Cloud fáze), **Ansible** (self-host hardening)                                                      |                                                                                                         |
+| Observability        | **OpenTelemetry → Grafana/Loki/Tempo/Mimir**                                                                       | Open standard, self-hostovatelné                                                                        |
+| CI/CD                | **GitHub Actions**                                                                                                 | Standard, free pro public repo                                                                          |
+| Testing              | **Vitest + Playwright + k6**                                                                                       |                                                                                                         |
+| Email                | **React Email + Resend** (Cloud), **SMTP/SES** (self-host)                                                         |                                                                                                         |
 
 **Odmítnuto:** Prisma (výkon na složitých queries), NestJS (moc magie), Deno (nezralý commerce ekosystém), Elixir/Phoenix (malý hiring pool), Go (druhý jazyk bez jasného benefitu solo), microservices od dne 1.
 
@@ -372,12 +373,12 @@ Každá tabulka má `tenant_id uuid NOT NULL` od MVP. V single-tenant self-host 
 
 #### Doporučené pořadí (full-time)
 
-| Týden | Tasky |
-|---|---|
-| **Týden 1** | 0.1 → 0.2 → 0.3 → 0.15 |
-| **Týden 2** | 0.5 → 0.6 → 0.4 |
-| **Týden 3** | 0.7 → 0.8 → 0.9 |
-| **Týden 4** | 0.10 → 0.11 → 0.12 |
+| Týden       | Tasky                     |
+| ----------- | ------------------------- |
+| **Týden 1** | 0.1 → 0.2 → 0.3 → 0.15    |
+| **Týden 2** | 0.5 → 0.6 → 0.4           |
+| **Týden 3** | 0.7 → 0.8 → 0.9           |
+| **Týden 4** | 0.10 → 0.11 → 0.12        |
 | **Týden 5** | 0.13 → 0.14 → 0.16 → 0.17 |
 
 **První task (Den 1):** **0.1** — GitHub org + repo. Jednorázová formalita, která odblokuje všechno ostatní. Nezávislá.
@@ -778,12 +779,14 @@ Každá tabulka má `tenant_id uuid NOT NULL` od MVP. V single-tenant self-host 
 ## 5. Solo + AI reality check
 
 ### Co solo + Claude **zvládne**:
+
 - Napsat kód pro vše výše (katalog, checkout, multi-tenancy, B2B, MSI, AI, plugins).
 - Vydat releases, psát dokumentaci, reagovat na GitHub issues.
 - Provozovat 1–10 merchantů na managed hostingu (1 VPS per merchant, zero-downtime deploys, business-hours support).
 - Integrovat se s 5–10 platebními branami a dopravci.
 
 ### Co solo **nezvládne**:
+
 - Provozovat multi-tenant SaaS 24/7 (on-call rotace, incident response, SLA 99.99 %).
 - Customer support v 10 jazycích.
 - Enterprise sales cycle (6–18 měsíců per deal, pre-sales engineering, PoC builds).
@@ -793,6 +796,7 @@ Každá tabulka má `tenant_id uuid NOT NULL` od MVP. V single-tenant self-host 
 - 24/7 dohled nad infrastrukturou.
 
 ### Implikace:
+
 - **Fáze 1 a 2** jsou reálné solo.
 - **Fáze 3 Cloud SaaS** vyžaduje minimálně 3–4 lidi (2 eng + 1 ops + 1 support). Do té doby shipujeme jen **managed hosting** (single-tenant VPS per merchant, levnější operations).
 - **Fáze 4 enterprise sales** vyžaduje tým 10+. Dokud nepřijde, odsouváme.
@@ -804,6 +808,7 @@ Každá tabulka má `tenant_id uuid NOT NULL` od MVP. V single-tenant self-host 
 **Fáze 1 (MVP):** Zero revenue. Cíl = adopce, feedback, stability.
 
 **Fáze 2 (v1.0) — konkrétní ceny TBD po pilotní fázi:**
+
 - **Managed hosting** — tiered monthly fee per merchant (traffic/features)
 - **Placená podpora** — prioritní support subscription + one-time setup/migration
 - **Komerční pluginy** — individuální subscription (AI Copilot, B2B Full, MSI, SSO, …)
@@ -812,6 +817,7 @@ Každá tabulka má `tenant_id uuid NOT NULL` od MVP. V single-tenant self-host 
 Ceny se rozhodnou až budou reálná data z pilotní fáze (operational náklady, API provolání, support hours). Benchmark pro kalkulaci: Shopware Rise €600/mo, Shopify Basic $29/mo, Shoptet Standard 890 Kč/mo.
 
 **Fáze 3 (v2.0, pokud přijde tým):**
+
 - **Cloud SaaS** — Starter €29, Growth €99, Scale €299, Enterprise custom
 - **Plugin marketplace revenue share** — 80/20 developer/platforma
 
@@ -882,22 +888,22 @@ Ceny se rozhodnou až budou reálná data z pilotní fáze (operational náklady
 
 ### 9.4. Klíčová rozhodnutí — finalizováno
 
-| # | Rozhodnutí | Finální volba |
-|---|---|---|
-| 1 | Licence core | **Apache 2.0** + komerční moduly pod proprietary EULA |
-| 2 | ORM | **Drizzle** |
-| 3 | Monorepo | **Turborepo + pnpm** |
-| 4 | Storefront default | **Next.js 16 bundled** jako separable package, headless umožněn |
-| 5 | API strategy | **REST + GraphQL** obojí |
-| 6 | MVP pilot vlna | **3 na start + 2 po 2–3 měsících** (CZ/SK) |
-| 7 | Cílová kategorie MVP | **B2C (micro + mid) + B2B-lite** (Company entity, tier pricing, reverse charge VAT). Full B2B ve v1.0 jako komerční modul |
-| 8 | Plugin marketplace | **Fáze 2 (v1.0)** |
-| 9 | 0 % transaction fee | **Napořád** (nejsme payment processor) |
-| 10 | AI modely | **Anthropic primary + OpenAI fallback + BYO-key** pro Enterprise |
-| 11 | Multi-tenancy v kódu | **Shared DB + `tenant_id` + RLS**, schema ready v MVP, aktivace ve Fázi 3 |
-| 12 | Test coverage | **>70 % services, >90 % critical engines** (order/payment/tax/pricing) |
-| 13 | Cenová struktura | **TBD** — po datech z pilotní fáze |
-| 14 | Trademark | **Odloženo** (před public launch MVP) |
+| #   | Rozhodnutí           | Finální volba                                                                                                             |
+| --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Licence core         | **Apache 2.0** + komerční moduly pod proprietary EULA                                                                     |
+| 2   | ORM                  | **Drizzle**                                                                                                               |
+| 3   | Monorepo             | **Turborepo + pnpm**                                                                                                      |
+| 4   | Storefront default   | **Next.js 16 bundled** jako separable package, headless umožněn                                                           |
+| 5   | API strategy         | **REST + GraphQL** obojí                                                                                                  |
+| 6   | MVP pilot vlna       | **3 na start + 2 po 2–3 měsících** (CZ/SK)                                                                                |
+| 7   | Cílová kategorie MVP | **B2C (micro + mid) + B2B-lite** (Company entity, tier pricing, reverse charge VAT). Full B2B ve v1.0 jako komerční modul |
+| 8   | Plugin marketplace   | **Fáze 2 (v1.0)**                                                                                                         |
+| 9   | 0 % transaction fee  | **Napořád** (nejsme payment processor)                                                                                    |
+| 10  | AI modely            | **Anthropic primary + OpenAI fallback + BYO-key** pro Enterprise                                                          |
+| 11  | Multi-tenancy v kódu | **Shared DB + `tenant_id` + RLS**, schema ready v MVP, aktivace ve Fázi 3                                                 |
+| 12  | Test coverage        | **>70 % services, >90 % critical engines** (order/payment/tax/pricing)                                                    |
+| 13  | Cenová struktura     | **TBD** — po datech z pilotní fáze                                                                                        |
+| 14  | Trademark            | **Odloženo** (před public launch MVP)                                                                                     |
 
 ---
 

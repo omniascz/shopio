@@ -50,7 +50,10 @@ export async function buildServer() {
   // Health endpoints (per `31 §RULE-OPS-041`)
   server.get('/health/live', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
   server.get('/health/ready', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
-  server.get('/health/startup', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+  server.get('/health/startup', async () => ({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  }));
 
   // Root marker
   server.get('/', async () => ({

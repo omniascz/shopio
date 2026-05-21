@@ -9,7 +9,7 @@
 
 Shopio je e-commerce platforma provozovaná společností:
 
-**Shopio s.r.o.** *(nebo finální právní entita)*
+**Shopio s.r.o.** _(nebo finální právní entita)_
 Sídlo: TBD
 IČO: TBD
 DIČ: CZ-TBD
@@ -36,14 +36,14 @@ Pro stížnosti se můžete obrátit také na **Úřad pro ochranu osobních úd
 
 Při registraci a používání admin rozhraní zpracováváme:
 
-| Kategorie | Údaje | Důvod |
-|---|---|---|
-| Identifikační | Jméno, příjmení, název firmy, IČO, DIČ | Smluvní vztah, fakturace |
-| Kontaktní | Email, telefon, fakturační adresa | Komunikace, fakturace |
-| Autentizační | Hash hesla, passkey credentials, MFA secret (encrypted) | Bezpečnost přihlášení |
-| Účetní | Platební metoda (tokenizovaná Stripe), historie plateb | Plnění smlouvy |
-| Provozní | IP adresa, browser, log činnosti, audit log | Bezpečnost, ladění |
-| Komunikace | Korespondence se support, ticket history | Plnění smlouvy + zlepšování služby |
+| Kategorie     | Údaje                                                   | Důvod                              |
+| ------------- | ------------------------------------------------------- | ---------------------------------- |
+| Identifikační | Jméno, příjmení, název firmy, IČO, DIČ                  | Smluvní vztah, fakturace           |
+| Kontaktní     | Email, telefon, fakturační adresa                       | Komunikace, fakturace              |
+| Autentizační  | Hash hesla, passkey credentials, MFA secret (encrypted) | Bezpečnost přihlášení              |
+| Účetní        | Platební metoda (tokenizovaná Stripe), historie plateb  | Plnění smlouvy                     |
+| Provozní      | IP adresa, browser, log činnosti, audit log             | Bezpečnost, ladění                 |
+| Komunikace    | Korespondence se support, ticket history                | Plnění smlouvy + zlepšování služby |
 
 ### 3.2 Cookies + analytika
 
@@ -55,20 +55,21 @@ Když je Shopio platforma použita konkrétním merchantem, jeho zákazníci pos
 
 ## 4. Účel a právní základ zpracování
 
-| Účel | Právní základ (GDPR Art. 6) | Doba uchování |
-|---|---|---|
-| Plnění smlouvy (poskytování platformy) | Smlouva (6.1.b) | Po dobu trvání + retenční periody |
-| Fakturace + účetnictví | Právní povinnost (6.1.c — Zákon č. 563/1991 Sb.) | 10 let (CZ zákon o účetnictví) |
-| Bezpečnost (audit log, anomalie) | Oprávněný zájem (6.1.f) | 2 roky hot, 5 let cold |
-| Marketing (jen pokud souhlas) | Souhlas (6.1.a) | Do odvolání souhlasu |
-| Komunikace se zákazníkem | Smlouva + oprávněný zájem | 5 let po posledním kontaktu |
-| Vývoj produktu (anonymizované analytiky) | Oprávněný zájem | 2 roky |
+| Účel                                     | Právní základ (GDPR Art. 6)                      | Doba uchování                     |
+| ---------------------------------------- | ------------------------------------------------ | --------------------------------- |
+| Plnění smlouvy (poskytování platformy)   | Smlouva (6.1.b)                                  | Po dobu trvání + retenční periody |
+| Fakturace + účetnictví                   | Právní povinnost (6.1.c — Zákon č. 563/1991 Sb.) | 10 let (CZ zákon o účetnictví)    |
+| Bezpečnost (audit log, anomalie)         | Oprávněný zájem (6.1.f)                          | 2 roky hot, 5 let cold            |
+| Marketing (jen pokud souhlas)            | Souhlas (6.1.a)                                  | Do odvolání souhlasu              |
+| Komunikace se zákazníkem                 | Smlouva + oprávněný zájem                        | 5 let po posledním kontaktu       |
+| Vývoj produktu (anonymizované analytiky) | Oprávněný zájem                                  | 2 roky                            |
 
 ## 5. Komu data sdílíme
 
 Pouze **sub-processorům** (zpracovatelům s námi smluvně vázaným) — kompletní [seznam zde](./sub-processors.md).
 
 Hlavní kategorie:
+
 - AWS (hosting EU)
 - Stripe (platby)
 - Anthropic / OpenAI (AI features — s PII scrubbing)
@@ -76,6 +77,7 @@ Hlavní kategorie:
 - Doprava (jen pro vyřízení dopravy: Zásilkovna, ČP, PPL, DPD)
 
 **Nikdy** neposíláme údaje:
+
 - Třetím stranám pro marketing bez souhlasu
 - Mimo EU bez Standard Contractual Clauses (kde to platí)
 - Pro AI training (zero-retention enterprise tier u providers)
@@ -92,15 +94,15 @@ Většina dat zůstává v EU (Frankfurt + Paris). Některé sub-processory (Ant
 
 Jako subjekt údajů máte právo na:
 
-| Právo | Jak uplatnit |
-|---|---|
-| Přístup (Art. 15) | Email privacy@shopio.com nebo self-service v admin |
-| Opravu (Art. 16) | Self-service v admin profilu |
-| Vymazání (Art. 17) | Email dpo@shopio.com nebo "Smazat účet" v admin |
-| Omezení zpracování (Art. 18) | Email dpo@shopio.com |
-| Přenositelnost (Art. 20) | Export v admin (Settings → Data Export) |
-| Námitka (Art. 21) | Email dpo@shopio.com |
-| Stížnost u dozorového úřadu | ÚOOÚ (uoou.cz) |
+| Právo                        | Jak uplatnit                                       |
+| ---------------------------- | -------------------------------------------------- |
+| Přístup (Art. 15)            | Email privacy@shopio.com nebo self-service v admin |
+| Opravu (Art. 16)             | Self-service v admin profilu                       |
+| Vymazání (Art. 17)           | Email dpo@shopio.com nebo "Smazat účet" v admin    |
+| Omezení zpracování (Art. 18) | Email dpo@shopio.com                               |
+| Přenositelnost (Art. 20)     | Export v admin (Settings → Data Export)            |
+| Námitka (Art. 21)            | Email dpo@shopio.com                               |
+| Stížnost u dozorového úřadu  | ÚOOÚ (uoou.cz)                                     |
 
 **Reakční doba:** do 30 dnů od žádosti (GDPR Art. 12.3). První žádost zdarma.
 
@@ -132,6 +134,7 @@ Aktualizace zveřejníme zde + notifikujeme registrované merchanty emailem **30
 ## 12. AI features + EU AI Act
 
 Některé funkce platformy používají AI (AI Copilot, content generation, recommendations). Per EU AI Act:
+
 - Při interakci s AI vás transparentně informujeme (badge "AI-generated" / "AI assistant")
 - Vysokorizikové AI rozhodování (fraud scoring) má human review
 - Máte právo požádat o lidský přezkum jakéhokoliv AI rozhodnutí
@@ -142,6 +145,7 @@ Detail: [Trust Center](https://shopio.com/trust) (po launchi).
 ---
 
 **DRAFT — Pro publikaci vyžaduje:**
+
 - [ ] Právní review (CZ + GDPR specialist)
 - [ ] Finalizace firma IČO/DIČ/sídlo
 - [ ] Datum účinnosti

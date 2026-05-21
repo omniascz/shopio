@@ -105,7 +105,6 @@ export default async function TenantCatalogPage({ params }: Props) {
                   }}
                 >
                   {p.primary_image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.primary_image.url}
                       alt={p.primary_image.alt ?? p.title}

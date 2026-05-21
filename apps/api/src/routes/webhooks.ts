@@ -36,30 +36,26 @@ export async function registerWebhookRoutes(
 
   // Raw body parser scoped to webhook route only.
   // (Fastify content-type parsers are global; we filter inside the handler.)
-  app.addContentTypeParser(
-    'application/json',
-    { parseAs: 'buffer' },
-    (req, body, done) => {
-      if (req.url === WEBHOOK_PATH) {
-        // Keep raw buffer for signature verification
-        (req as unknown as { rawBody: Buffer }).rawBody = body as Buffer;
-        try {
-          const json = JSON.parse((body as Buffer).toString('utf8'));
-          done(null, json);
-        } catch (err) {
-          done(err as Error, undefined);
-        }
-        return;
-      }
-      // Default JSON parsing for other routes
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    if (req.url === WEBHOOK_PATH) {
+      // Keep raw buffer for signature verification
+      (req as unknown as { rawBody: Buffer }).rawBody = body as Buffer;
       try {
         const json = JSON.parse((body as Buffer).toString('utf8'));
         done(null, json);
       } catch (err) {
         done(err as Error, undefined);
       }
-    },
-  );
+      return;
+    }
+    // Default JSON parsing for other routes
+    try {
+      const json = JSON.parse((body as Buffer).toString('utf8'));
+      done(null, json);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
 
   app.post(WEBHOOK_PATH, async (req, reply) => {
     if (!isStripeEnabled(config)) {
@@ -78,7 +74,10 @@ export async function registerWebhookRoutes(
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {
       return reply.code(400).send({
-        error: { code: 'MISSING_RAW_BODY', message: 'Raw body required for signature verification' },
+        error: {
+          code: 'MISSING_RAW_BODY',
+          message: 'Raw body required for signature verification',
+        },
       });
     }
 
@@ -92,16 +91,17 @@ export async function registerWebhookRoutes(
       });
     }
 
-    app.log.info(
-      { eventId: event.id, eventType: event.type },
-      'stripe.webhook.received',
-    );
+    app.log.info({ eventId: event.id, eventType: event.type }, 'stripe.webhook.received');
 
     // Handle event
     try {
       switch (event.type) {
         case 'checkout.session.completed':
-          await handleCheckoutSessionCompleted(app, db, event.data.object as Stripe.Checkout.Session);
+          await handleCheckoutSessionCompleted(
+            app,
+            db,
+            event.data.object as Stripe.Checkout.Session,
+          );
           break;
         case 'checkout.session.expired':
           await handleCheckoutSessionExpired(app, db, event.data.object as Stripe.Checkout.Session);

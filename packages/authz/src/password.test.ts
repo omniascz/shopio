@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { assertPasswordPolicy, hashPassword, PasswordPolicyError, verifyPassword } from './password';
+import {
+  assertPasswordPolicy,
+  hashPassword,
+  PasswordPolicyError,
+  verifyPassword,
+} from './password';
 
 describe('password', () => {
   describe('assertPasswordPolicy', () => {

@@ -11,6 +11,7 @@
 Czech version is the canonical draft. English will follow legal review.
 
 For interim reference:
+
 1. [Czech ToS (canonical draft)](./terms-of-service-cs.md)
 2. [`zadani/37-build-execution-plan.md`](../zadani/37-build-execution-plan.md) §9 (pricing tiers)
 3. [`zadani/30-security.md`](../zadani/30-security.md) (security commitments)

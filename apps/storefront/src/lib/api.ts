@@ -232,7 +232,7 @@ export interface OrderDetail {
 /** Browser-side API base. Falls back to relative path so Next.js rewrites can proxy. */
 export const STOREFRONT_API_BASE =
   typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040'
+    ? (process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040')
     : API_BASE;
 
 async function cartFetch<T>(path: string, init?: RequestInit): Promise<T> {

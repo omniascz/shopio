@@ -59,8 +59,9 @@ Week 8-10: Compliance + business tooling
 - [ ] Hostname verification záznamy pro SaaS účty
 
 **Zaznamenat tady:**
-- Registrar account ID: ___________
-- Date acquired: ___________
+
+- Registrar account ID: \***\*\_\_\_\*\***
+- Date acquired: \***\*\_\_\_\*\***
 
 ---
 
@@ -71,6 +72,7 @@ Week 8-10: Compliance + business tooling
 **Doporučení:** **Google Workspace Business Starter** (€6/user/month) NEBO **Proton Business** (€7/user/month — EU + E2E encrypted).
 
 Founder-only Fáze 0 → 1-2 emaily:
+
 - [ ] `hello@shopio.com` (public)
 - [ ] `support@shopio.com` (forwarding alias initially)
 - [ ] `privacy@shopio.com` (forwarding to founder)
@@ -87,9 +89,10 @@ Founder-only Fáze 0 → 1-2 emaily:
 **Doporučuji:** Shopio Workspace Day 1. Founder personal email pro registraci pak migrate.
 
 **Zaznamenat:**
-- Email provider: ___________
-- Admin account: ___________
-- Date: ___________
+
+- Email provider: \***\*\_\_\_\*\***
+- Admin account: \***\*\_\_\_\*\***
+- Date: \***\*\_\_\_\*\***
 
 ---
 
@@ -127,6 +130,7 @@ Founder-only Fáze 0 → 1-2 emaily:
 **Initial costs:** prakticky €0 dokud nezačneš provisionovat resources. Fáze 0 setup nemá production load.
 
 **Service quota requests** (Fáze 1 pre-requisite):
+
 - [ ] EKS cluster quota: 2-3 clusters
 - [ ] EC2 vCPU quota: 50+ vCPUs
 - [ ] RDS instance class: db.m6g.large
@@ -157,12 +161,14 @@ Founder-only Fáze 0 → 1-2 emaily:
 Per `30 §7.2`.
 
 **Option A: AWS KMS** (recommended pro AWS-aligned)
+
 - [ ] KMS master key vytvořen (alias `alias/shopio/dev/master`)
 - [ ] Per-tenant KEK provisioning automation (via Terraform Fáze 1)
 - [ ] Cross-region replication for DR
 - [ ] **Cost**: ~$1/key/month + $0.03/10k API calls
 
 **Option B: HashiCorp Vault** (recommended self-host + air-gap)
+
 - [ ] HCP Vault free tier OR self-hosted on AWS EC2
 - [ ] Transit secrets engine enabled
 - [ ] Kubernetes auth method (Fáze 1)
@@ -184,6 +190,7 @@ Per `30 §7.2`.
 - [ ] Usage budget alert: €50/month dev, €500/month Fáze 1
 
 **Models používané:**
+
 - `claude-opus-4-7[1m]` — flagship (analytics, complex reasoning)
 - `claude-sonnet-4-6` — balanced (most use cases)
 - `claude-haiku-4-5-20251001` — fast (translation, classify)
@@ -236,18 +243,21 @@ Per `30 §7.2`.
 Per `01 DEC-EMAIL-001` (TBD finalize):
 
 **Option A: SendGrid** (global popular)
+
 - [ ] Account + DKIM verified
 - [ ] **EU region** selected
 - [ ] DPA signed
 - [ ] Plan: Free 100/day → Essentials €19.95/month (50k emails)
 
 **Option B: Postmark** (EU-friendly, transactional focus)
+
 - [ ] Account + DKIM
 - [ ] EU server selected
 - [ ] DPA
 - [ ] Cost: $10/month 10k emails
 
 **Option C: Brevo (Sendinblue)** (EU-native + transactional + marketing combined)
+
 - [ ] Account
 - [ ] DKIM + IP warmup
 - [ ] DPA (already EU-based)
@@ -308,20 +318,20 @@ Per `01 DEC-EMAIL-001` (TBD finalize):
 
 ## 💰 Estimated Fáze 0 costs
 
-| Category | Monthly | One-time |
-|---|---|---|
-| Domains (Cloudflare) | €0 | €80 (4-5 domains × 1 year) |
-| Google/Proton Workspace (1 user) | €6-7 | — |
-| GitHub | €0 (free tier) | — |
-| AWS (no resources yet) | €0-10 | — |
-| Cloudflare | €0 (free tier) | — |
-| Anthropic dev usage | €0-30 | — |
-| OpenAI dev usage | €0-20 | — |
-| Stripe (no production) | €0 | — |
-| Sentry team | €0-26 | — |
-| Brevo (test send) | €0 (free tier) | — |
-| Linear | €0 (free tier) | — |
-| **Subtotal Fáze 0** | **€10-100/month** | **€100-200** |
+| Category                         | Monthly           | One-time                   |
+| -------------------------------- | ----------------- | -------------------------- |
+| Domains (Cloudflare)             | €0                | €80 (4-5 domains × 1 year) |
+| Google/Proton Workspace (1 user) | €6-7              | —                          |
+| GitHub                           | €0 (free tier)    | —                          |
+| AWS (no resources yet)           | €0-10             | —                          |
+| Cloudflare                       | €0 (free tier)    | —                          |
+| Anthropic dev usage              | €0-30             | —                          |
+| OpenAI dev usage                 | €0-20             | —                          |
+| Stripe (no production)           | €0                | —                          |
+| Sentry team                      | €0-26             | —                          |
+| Brevo (test send)                | €0 (free tier)    | —                          |
+| Linear                           | €0 (free tier)    | —                          |
+| **Subtotal Fáze 0**              | **€10-100/month** | **€100-200**               |
 
 **Účetní + DPO** přijde až Fáze 1 (post-launch), takže Fáze 0 burn rate je velmi nízký.
 
@@ -344,6 +354,7 @@ Před Fáze 1 launch musíš mít:
 ## 📞 Doporučení k onboardingu
 
 Pro každý service:
+
 1. Použij **Shopio Workspace email** (ne osobní) pro account registration
 2. **MFA okamžitě** (Authy nebo Bitwarden TOTP)
 3. **Password manager** (1Password, Bitwarden) pro všechna credentials
@@ -353,6 +364,7 @@ Pro každý service:
 ---
 
 **DRAFT — vyžaduje:**
+
 - [ ] Customer feedback po Fáze 0 walk-through
 - [ ] Actual cost tracking
 - [ ] Sequence adjustment based on dependencies

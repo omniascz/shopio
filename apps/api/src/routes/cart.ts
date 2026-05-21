@@ -33,12 +33,12 @@ const CART_COOKIE_TTL_DAYS = 30;
 const CART_EXPIRY_DAYS = 30;
 
 const AddItemBody = z.object({
-  variantId: z.string(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // pub_id "prv_..." or UUID
+  variantId: z.string(), // pub_id "prv_..." or UUID
   quantity: z.number().int().min(1).max(99).default(1),
 });
 
 const UpdateItemBody = z.object({
-  quantity: z.number().int().min(0).max(99),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // 0 = remove
+  quantity: z.number().int().min(0).max(99), // 0 = remove
 });
 
 const CheckoutBody = z.object({
@@ -61,10 +61,7 @@ interface PluginOptions {
   db: AppDb;
 }
 
-export async function registerCartRoutes(
-  app: FastifyInstance,
-  opts: PluginOptions,
-): Promise<void> {
+export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptions): Promise<void> {
   const { db, config } = opts;
   const isProd = config.NODE_ENV === 'production';
 
@@ -122,10 +119,7 @@ export async function registerCartRoutes(
         })
         .from(schema.cartItems)
         .where(
-          and(
-            eq(schema.cartItems.cartId, cart.id),
-            eq(schema.cartItems.variantId, variant.id),
-          ),
+          and(eq(schema.cartItems.cartId, cart.id), eq(schema.cartItems.variantId, variant.id)),
         )
         .limit(1);
 
@@ -331,7 +325,10 @@ export async function registerCartRoutes(
           for (const it of items) {
             const v = variantMap.get(it.variantId);
             if (!v) {
-              throw new CheckoutError('VARIANT_GONE', `Variant ${it.variantId} no longer available`);
+              throw new CheckoutError(
+                'VARIANT_GONE',
+                `Variant ${it.variantId} no longer available`,
+              );
             }
             if (v.stockOnHand < it.quantity && !v.allowBackorder) {
               throw new CheckoutError(
@@ -653,7 +650,9 @@ async function resolveVariant(
     .where(
       and(
         eq(schema.productVariants.tenantId, tenantId),
-        isPubId ? eq(schema.productVariants.pubId, variantId) : eq(schema.productVariants.id, variantId),
+        isPubId
+          ? eq(schema.productVariants.pubId, variantId)
+          : eq(schema.productVariants.id, variantId),
       ),
     )
     .limit(1);
@@ -734,10 +733,7 @@ async function listCartItems(db: AppDb, cartId: string) {
       )`,
     })
     .from(schema.cartItems)
-    .innerJoin(
-      schema.productVariants,
-      eq(schema.productVariants.id, schema.cartItems.variantId),
-    )
+    .innerJoin(schema.productVariants, eq(schema.productVariants.id, schema.cartItems.variantId))
     .innerJoin(schema.products, eq(schema.products.id, schema.cartItems.productId))
     .where(eq(schema.cartItems.cartId, cartId))
     .orderBy(asc(schema.cartItems.addedAt));

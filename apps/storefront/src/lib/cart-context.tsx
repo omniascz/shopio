@@ -5,14 +5,7 @@
  * Per `26-themes-storefront.md §6` (cart UX) + `11-cart.md §RULE-CART-009` (cookie session).
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   addToCart as apiAdd,
   fetchCart,

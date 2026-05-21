@@ -14,7 +14,7 @@ async function seed() {
     process.exit(1);
   }
 
-  const db = createDbClient(url);
+  const _db = createDbClient(url); // reserved for Fáze 1 seed implementation
 
   console.log('🌱 Seeding Shopio dev database...');
 

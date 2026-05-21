@@ -14,6 +14,7 @@
 **Personality:** Helpful expert + honest builder + EU craftsman.
 
 **Tone:**
+
 - Confident but calm
 - Jargon-aware (skip when unnecessary)
 - Czech-first localized; English primary global
@@ -25,30 +26,30 @@
 
 ### Primary brand
 
-| Token | Hex | Use |
-|---|---|---|
-| `brand-primary` | `#0066FF` | Primary CTAs, links |
-| `brand-primary-pressed` | `#0052CC` | Pressed/active state |
-| `brand-primary-soft` | `#E5F0FF` | Background tints |
-| `brand-accent` | `#FF6B35` | Highlights, badges (sparingly) |
+| Token                   | Hex       | Use                            |
+| ----------------------- | --------- | ------------------------------ |
+| `brand-primary`         | `#0066FF` | Primary CTAs, links            |
+| `brand-primary-pressed` | `#0052CC` | Pressed/active state           |
+| `brand-primary-soft`    | `#E5F0FF` | Background tints               |
+| `brand-accent`          | `#FF6B35` | Highlights, badges (sparingly) |
 
 ### Neutrals
 
-| Token | Hex | Use |
-|---|---|---|
-| `brand-ink` | `#0A0A0A` | Primary text on light |
-| `brand-paper` | `#FAFAFA` | Background on light |
-| `brand-ink-dark` | `#F4F4F5` | Text on dark mode |
-| `brand-paper-dark` | `#0A0A0A` | Background dark |
+| Token              | Hex       | Use                   |
+| ------------------ | --------- | --------------------- |
+| `brand-ink`        | `#0A0A0A` | Primary text on light |
+| `brand-paper`      | `#FAFAFA` | Background on light   |
+| `brand-ink-dark`   | `#F4F4F5` | Text on dark mode     |
+| `brand-paper-dark` | `#0A0A0A` | Background dark       |
 
 ### Semantic
 
-| Token | Hex | Use |
-|---|---|---|
+| Token     | Hex       | Use           |
+| --------- | --------- | ------------- |
 | `success` | `#10B981` | Success state |
 | `warning` | `#F59E0B` | Warning state |
-| `danger` | `#EF4444` | Error state |
-| `info` | `#3B82F6` | Informational |
+| `danger`  | `#EF4444` | Error state   |
+| `info`    | `#3B82F6` | Informational |
 
 ### Contrast requirements
 
@@ -64,9 +65,9 @@
 ### Font stack
 
 ```css
---brand-font-sans:  'Inter', 'Inter Variable', system-ui, -apple-system, sans-serif;
---brand-font-serif: 'Source Serif 4', 'Iowan Old Style', serif;  /* editorial only */
---brand-font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+--brand-font-sans: 'Inter', 'Inter Variable', system-ui, -apple-system, sans-serif;
+--brand-font-serif: 'Source Serif 4', 'Iowan Old Style', serif; /* editorial only */
+--brand-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 ```
 
 ### Weights
@@ -80,15 +81,15 @@
 
 8pt rhythm, mobile-first:
 
-| Token | Mobile | Desktop |
-|---|---|---|
-| h1-hero | 36px | 60px |
-| h1-page | 28px | 36px |
-| h2-section | 24px | 30px |
-| h3-block | 20px | 24px |
-| body-lead | 18px | 18px |
-| body-default | 16px | 16px |
-| body-small | 14px | 14px |
+| Token        | Mobile | Desktop |
+| ------------ | ------ | ------- |
+| h1-hero      | 36px   | 60px    |
+| h1-page      | 28px   | 36px    |
+| h2-section   | 24px   | 30px    |
+| h3-block     | 20px   | 24px    |
+| body-lead    | 18px   | 18px    |
+| body-default | 16px   | 16px    |
+| body-small   | 14px   | 14px    |
 
 ---
 
@@ -97,6 +98,7 @@
 ### Status
 
 **TODO Fáze 0 týden 2-4:**
+
 - [ ] Final wordmark design (Inter SemiBold + custom tuning)
 - [ ] Symbol design ("S" within rounded square, 8px radius @ 64px)
 - [ ] Variants: light bg / dark bg / single-color / monochrome
@@ -137,6 +139,7 @@
 ### Photography
 
 Per `35 §8`:
+
 - **Product**: neutral background (white #FFFFFF or soft gray #F4F4F5)
 - **Lifestyle**: real photography (no AI-generated humans for marketing)
 - **Aspect ratios**: 1:1 default, 3:4 fashion, 4:3 lifestyle, 16:9 hero
@@ -191,6 +194,7 @@ Per `35 §8`:
 ## 📐 Layout principles
 
 Per `35 §6`:
+
 - 4pt-based spacing scale
 - Container widths: narrow 768px / default 1280px / wide 1440px / full
 - Responsive breakpoints: 640/768/1024/1280/1536
@@ -201,6 +205,7 @@ Per `35 §6`:
 ## 🔧 Implementation
 
 Brand tokens live in:
+
 - **Code:** [`packages/ui/src/tokens/index.ts`](../packages/ui/src/tokens/index.ts) + [`packages/ui/src/styles/globals.css`](../packages/ui/src/styles/globals.css)
 - **Figma:** [Tokens Studio plugin](https://tokens.studio/) sync (Fáze 0 setup TODO)
 - **Tailwind:** `tailwind.config.ts` reads from tokens
@@ -254,6 +259,7 @@ brand/
 ---
 
 **DRAFT — vyžaduje:**
+
 - [ ] Final logo design
 - [ ] Trademark registrace
 - [ ] Photography style audit po prvních fotkách

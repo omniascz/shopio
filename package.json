@@ -2,6 +2,7 @@
   "name": "shopio",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "description": "Shopio — EU-first open-source e-commerce platform",
   "license": "Apache-2.0",
   "engines": {
@@ -25,15 +26,24 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.0",
+    "eslint": "^10.4.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.0",
     "prettier": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "turbo": "^2.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.59.4"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": ["prettier --write"],
-    "*.{json,md,yaml,yml}": ["prettier --write"]
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
   }
 }

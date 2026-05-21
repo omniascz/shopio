@@ -47,6 +47,7 @@
 Squarespace, Inc. je americká SaaS platforma pro tvorbu webů, online obchodů, portfolií a rezervačních systémů. Založena v roce 2003 Anthony Casaliem v jeho studentském pokoji na University of Maryland.
 
 **Klíčová čísla (2026):**
+
 - Přes **4,6 milionu** aktivních předplatitelů
 - Cca **2% podíl ze všech webů** na internetu
 - **~14–15 % podíl ve světové e-commerce** (třetí za Shopify a WooCommerce)
@@ -56,12 +57,14 @@ Squarespace, Inc. je americká SaaS platforma pro tvorbu webů, online obchodů,
 - Byla public do 2024, poté privatizována (Permira acquisition, ~$6.9B)
 
 **Klíčové akvizice:**
+
 - **Acuity Scheduling** (2019) – rezervační systém
 - **Unfold** (2019) – mobilní app pro stories/reels content
 - **Tock** (2021) – restaurant reservations (prodáno 2024 American Express)
 - **Google Domains** (2023) – miliony domén migrovány na Squarespace
 
 **Pozicování:**
+
 - Design-first platforma – nejlepší šablony v oboru
 - Orientovaná na kreativce, umělce, fotografy, restaurace, malé značky
 - Silná v USA, rostoucí v UK, Austrálii, západní Evropě
@@ -69,6 +72,7 @@ Squarespace, Inc. je americká SaaS platforma pro tvorbu webů, online obchodů,
 - Oproti Shopify jednodušší, méně pokročilé e-commerce, ale krásnější vzhled
 
 **Česko / střední Evropa:**
+
 - Méně rozšířený než Wix, podíl jednotek procent
 - Čeština v UI není plně lokalizovaná
 - Chybí napojení na lokální brány a dopravce
@@ -130,6 +134,7 @@ Původní Personal plan. Nejjednodušší profesionální web.
 - **Transaction fee: 3%** na prodeje (přes Stripe)
 
 **Omezení:**
+
 - Bez pop-ups
 - Bez advanced analytics
 - Bez custom CSS/JS
@@ -160,6 +165,7 @@ Původní Business plan. Nejlepší poměr cena/výkon pro malé obchody.
 - Processing fees: 2,9% + 0,30 USD
 
 **Omezení:**
+
 - Stále 3% transaction fee
 - Bez abandoned cart recovery
 - Bez advanced shipping
@@ -205,6 +211,7 @@ Původní Commerce Advanced. Plnohodnotný e-commerce.
 ### 3.6 Enterprise – od 500 USD/měs.
 
 Dedikovaný plán pro velké organizace:
+
 - Dedicated account manager
 - Custom SLA
 - SSO (SAML 2.0)
@@ -216,26 +223,31 @@ Dedikovaný plán pro velké organizace:
 ### 3.7 Add-ons (platí se zvlášť)
 
 **Acuity Scheduling:**
+
 - Emerging: 16 USD/měs.
 - Growing: 27 USD/měs.
 - Powerhouse: 49 USD/měs.
 
 **Email Campaigns:**
+
 - Start: zdarma (3 kampaně, 250 e-mailů/měs.)
 - Core: 7 USD/měs. (3 kampaně, 500 e-mailů/měs.)
 - Pro: 14 USD/měs. (unlimited kampaně, 5 000 e-mailů/měs.)
 - Max: 48 USD/měs. (50 000 e-mailů/měs.)
 
 **Digital Products (Member areas):**
+
 - Starter: 10 USD/měs. (+9% transaction fee)
 - Core: 20 USD/měs. (+5% TF)
 - Pro: 40 USD/měs. (0% TF)
 
 **Google Workspace:**
+
 - 6 USD/uživatel/měs. (custom e-mail)
 - První rok zdarma s ročním plánem
 
 **Unfold:**
+
 - Unfold+: 19,99 USD/rok
 
 ### 3.8 Skryté náklady
@@ -250,23 +262,23 @@ Dedikovaný plán pro velké organizace:
 
 ### 3.9 Srovnávací tabulka plánů
 
-| Funkce | Basic | Core | Plus | Advanced |
-|---|---|---|---|---|
-| Cena (roční) USD | 16 | 23 | 39 | 65 |
-| Contributors | 2 | ∞ | ∞ | ∞ |
-| Transaction fee | 3% | 3% | 0% | 0% |
-| Processing fee | 2,9%+0,30 | 2,9%+0,30 | 2,7%+0,30 | 2,5%+0,30 |
-| Neomezené produkty | ✅ | ✅ | ✅ | ✅ |
-| Digital products | ❌ | ✅ | ✅ | ✅ |
-| Subscriptions | ❌ | ✅ | ✅ | ✅ |
-| Customer accounts | ❌ | ❌ | ✅ | ✅ |
-| POS integration | ❌ | ❌ | ✅ | ✅ |
-| Abandoned cart | ❌ | ❌ | ❌ | ✅ |
-| Carrier-calc. shipping | ❌ | ❌ | ❌ | ✅ |
-| Product subscriptions | ❌ | ❌ | ❌ | ✅ |
-| Custom CSS/JS | ❌ | ✅ | ✅ | ✅ |
-| Advanced analytics | ❌ | ✅ | ✅ | ✅ |
-| Pop-ups | ❌ | ✅ | ✅ | ✅ |
+| Funkce                 | Basic     | Core      | Plus      | Advanced  |
+| ---------------------- | --------- | --------- | --------- | --------- |
+| Cena (roční) USD       | 16        | 23        | 39        | 65        |
+| Contributors           | 2         | ∞         | ∞         | ∞         |
+| Transaction fee        | 3%        | 3%        | 0%        | 0%        |
+| Processing fee         | 2,9%+0,30 | 2,9%+0,30 | 2,7%+0,30 | 2,5%+0,30 |
+| Neomezené produkty     | ✅        | ✅        | ✅        | ✅        |
+| Digital products       | ❌        | ✅        | ✅        | ✅        |
+| Subscriptions          | ❌        | ✅        | ✅        | ✅        |
+| Customer accounts      | ❌        | ❌        | ✅        | ✅        |
+| POS integration        | ❌        | ❌        | ✅        | ✅        |
+| Abandoned cart         | ❌        | ❌        | ❌        | ✅        |
+| Carrier-calc. shipping | ❌        | ❌        | ❌        | ✅        |
+| Product subscriptions  | ❌        | ❌        | ❌        | ✅        |
+| Custom CSS/JS          | ❌        | ✅        | ✅        | ✅        |
+| Advanced analytics     | ❌        | ✅        | ✅        | ✅        |
+| Pop-ups                | ❌        | ✅        | ✅        | ✅        |
 
 ---
 
@@ -279,6 +291,7 @@ Squarespace má **dva paralelní editory** – klasický (původní) a Fluid Eng
 **Revoluční grid-based drag-and-drop editor** pro Squarespace 7.1.
 
 **Klíčové vlastnosti:**
+
 - **24-column grid** (oproti 12 sloupcům v Classic)
 - **Drag & snap** – prvky se přichytí ke gridu
 - **Nezávislé mobilní layouty** – desktop a mobile editujete zvlášť
@@ -293,6 +306,7 @@ Squarespace má **dva paralelní editory** – klasický (původní) a Fluid Eng
 - **Vertical alignment** v containerech
 
 **Co Fluid Engine přinesl jako change:**
+
 - Konec "spacer blocks" v Classic Editoru
 - Skutečná designová volnost (podobně jako Wix)
 - Kombinovatelné: FE sekce + Classic sekce na jednom webu
@@ -309,6 +323,7 @@ Squarespace má **dva paralelní editory** – klasický (původní) a Fluid Eng
   - Block sections přidané před FE release
 
 **Doporučení Squarespace Designers:**
+
 - Fluid Engine – pro složitější koláže a kreativní layouty
 - Classic Editor – pro jednoduché sekce a image galerie (ušetří čas)
 
@@ -317,6 +332,7 @@ Squarespace má **dva paralelní editory** – klasický (původní) a Fluid Eng
 Squarespace má přes 30 typů bloků:
 
 **Text:**
+
 - Text block (H1-H6, paragraphs)
 - Markdown block
 - Quote
@@ -324,6 +340,7 @@ Squarespace má přes 30 typů bloků:
 - Spacer
 
 **Media:**
+
 - Image (s hover effects ve FE)
 - Gallery (grid, slideshow, masonry, thumbnails)
 - Video (hosted, YouTube, Vimeo)
@@ -331,6 +348,7 @@ Squarespace má přes 30 typů bloků:
 - 3D models (limited)
 
 **Commerce:**
+
 - Product (zobrazuje produkt)
 - Products (kolekce produktů)
 - Add to Cart button
@@ -338,6 +356,7 @@ Squarespace má přes 30 typů bloků:
 - Gift Cards
 
 **Interaction:**
+
 - Button
 - Form
 - Newsletter
@@ -347,12 +366,14 @@ Squarespace má přes 30 typů bloků:
 - Countdown clock
 
 **Navigation:**
+
 - Button
 - Menu navigation
 - Social links
 - Social media icons
 
 **Content:**
+
 - Blog (latest posts)
 - Events
 - Calendar block
@@ -362,6 +383,7 @@ Squarespace má přes 30 typů bloků:
 - Twitter/X timeline (limitně)
 
 **Utility:**
+
 - Embed (iframe, other embeds)
 - Search
 - Accordion
@@ -369,6 +391,7 @@ Squarespace má přes 30 typů bloků:
 - Sitemap
 
 **Dynamic:**
+
 - Summary block (zobrazuje blog/events/products v layoutu)
 - Archive
 - Tag cloud
@@ -376,6 +399,7 @@ Squarespace má přes 30 typů bloků:
 ### 4.4 Sections
 
 Sekce jsou horizontální pásy obsahu na stránce:
+
 - Background color / image / video / gradient
 - Full-bleed option
 - Custom padding
@@ -385,6 +409,7 @@ Sekce jsou horizontální pásy obsahu na stránce:
 ### 4.5 Site Styles
 
 Globální designový systém:
+
 - **Colors** – paleta (primary, secondary, background, text, accent)
 - **Fonts** – až 500+ Google Fonts + Adobe Fonts + custom upload
 - **Typography** – base size, line-height, letter-spacing
@@ -412,6 +437,7 @@ Globální designový systém:
 ### 4.8 Custom code
 
 Na Core+ plánech:
+
 - **CSS injection** (site-wide nebo per-page)
 - **JavaScript injection**
 - **Header/footer/body code injection**
@@ -583,6 +609,7 @@ Hlavní administrativní rozhraní, oddělené od visuálního editoru.
 MARKDOWN_EOF
 echo "Part 1 saved"
 wc -l /home/claude/squarespace/squarespace-kompletni-analyza.md
+
 ---
 
 ## 7. Commerce – produkty a katalog
@@ -791,6 +818,7 @@ Každý produkt obsahuje:
 ⚠️ **Squarespace nepodporuje nativně multi-location inventory.** Veškerý stock je sjednocený v jednom "virtual warehouse".
 
 Pro multi-location je nutná:
+
 - Externí inventory management (Stitch Labs, Brightpearl)
 - API integrace
 
@@ -842,6 +870,7 @@ Pro multi-location je nutná:
 ### 9.4 Shipping labels
 
 **Via Shipping Extensions:**
+
 - **Shippo** (USA)
 - **ShipStation**
 - **ShippingEasy**
@@ -853,6 +882,7 @@ Tisk labels, batch printing, discount rates.
 ### 9.5 Email notifications
 
 Pre-built šablony:
+
 - Order confirmation
 - Order shipped (s tracking)
 - Order refunded
@@ -863,6 +893,7 @@ Pre-built šablony:
 - New order (internal)
 
 Šablony lze:
+
 - Přepsat text
 - Přidat logo, barvy (brand consistency)
 - Preview před odesláním
@@ -930,6 +961,7 @@ Pre-built šablony:
 ⚠️ **Základní Basic a Core plány nemají customer accounts.** Zákazníci nakupují jako guests.
 
 **Na Plus+:**
+
 - Customer registration (email + password)
 - Order history
 - Saved addresses
@@ -941,6 +973,7 @@ Pre-built šablony:
 ### 10.2 Squarespace CRM (Contacts)
 
 Unified contact list:
+
 - Z e-shopu (zákazníci, abandoned carts)
 - Z formulářů (inquiries, subscribers)
 - Z newsletteru
@@ -1036,11 +1069,13 @@ Nativní platební brána Squarespace – konkurence Stripe/Square jako primárn
 ### 11.5 Omezení platebních metod
 
 ⚠️ **Squarespace podporuje pouze 3 hlavní gateway:**
+
 - Stripe
 - Square
 - PayPal
 
 **Nepodporuje:**
+
 - ComGate, GoPay, ThePay, PayU (pro ČR)
 - Amazon Pay
 - Alipay (jen přes Stripe)
@@ -1050,6 +1085,7 @@ Nativní platební brána Squarespace – konkurence Stripe/Square jako primárn
 ### 11.6 Pro ČR
 
 V Česku je Squarespace relativně slabý na platby:
+
 - **Hlavní možnost: Stripe** (karty, Apple Pay, Google Pay, Klarna)
 - **PayPal** (jen některé země)
 - **Dobírka** – jen přes custom code injection nebo aplikace
@@ -1103,6 +1139,7 @@ V Česku je Squarespace relativně slabý na platby:
 ### 12.3 Carrier-calculated rates (Advanced)
 
 Real-time kalkulace od:
+
 - **USPS**
 - **UPS**
 - **FedEx**
@@ -1113,6 +1150,7 @@ Real-time kalkulace od:
 ### 12.4 Shipping labels
 
 Přes extension integrace:
+
 - Shippo (USA, EU)
 - ShipStation
 - Sendcloud (EU, incl. Zásilkovna)
@@ -1149,6 +1187,7 @@ Přes extension integrace:
 ### 12.9 Omezení pro ČR
 
 Squarespace pro české obchody:
+
 - **Žádná nativní integrace Zásilkovna / Česká pošta / PPL / DPD / GLS**
 - Řešení přes **Sendcloud extension**
 - Nebo manual fixed rates + vlastní podání
@@ -1199,6 +1238,7 @@ Squarespace pro české obchody:
 ### 13.6 ČR specifika
 
 ⚠️ Pro ČR omezené:
+
 - Žádné **EET** napojení (nepovinné, ale...)
 - Žádná **ARES** validace
 - DPH nastavitelné manuálně (21%, 15%, 10%, 0%)
@@ -1213,6 +1253,7 @@ Squarespace pro české obchody:
 ⚠️ **Squarespace nemá nativní multi-language** jako Wix nebo Shopify.
 
 **Řešení:**
+
 - **Weglot** extension (nejčastější)
 - **GTranslate**
 - **Manual subdomains/subfolders** + duplicate content (ne-ideální pro SEO)
@@ -1250,6 +1291,7 @@ Squarespace pro české obchody:
 ### 14.7 Mezinárodní omezení
 
 Squarespace je primárně **US-first** platforma. Mezinárodní e-commerce funkce jsou výrazně slabší než u Shopify:
+
 - Chybí **Shopify Markets ekvivalent**
 - Chybí **multi-currency checkout**
 - Chybí **automatic duties**
@@ -1262,6 +1304,7 @@ Squarespace je primárně **US-first** platforma. Mezinárodní e-commerce funkc
 ### 15.1 Squarespace Email Campaigns
 
 Add-on s vlastní cenou. Features:
+
 - **Drag-and-drop email editor** (stejný jazyk jako Fluid Engine)
 - **Pre-built templates** (stovky)
 - **Automations** (welcome, birthday, reengagement)
@@ -1293,20 +1336,24 @@ Price tiers viz sekce 3.7.
 ### 15.4 Social Media integration
 
 **Facebook & Instagram:**
+
 - Meta Catalog sync
 - Instagram Shop tags
 - Facebook Shop
 - Pixel auto
 
 **Pinterest:**
+
 - Rich Pins
 - Pinterest Pixel
 
 **Twitter/X, TikTok, LinkedIn:**
+
 - Social share buttons
 - Pixels přes code injection
 
 **Social Sharing:**
+
 - Auto-share new blog posts
 - Auto-share new products
 - Scheduled sharing
@@ -1339,6 +1386,7 @@ Price tiers viz sekce 3.7.
 ### 15.8 Marketing Automations
 
 Mimo Email Campaigns:
+
 - **Contact labels automation**
 - **Product launch automation** (trigger na new product)
 - Integrace Zapier / Make pro pokročilé
@@ -1372,6 +1420,7 @@ Mimo Email Campaigns:
 ### 16.1 Discount types
 
 **Discount codes:**
+
 - Percentage off
 - Fixed amount off
 - Free shipping
@@ -1382,6 +1431,7 @@ Mimo Email Campaigns:
 - Expiration date
 
 **Automatic discounts (Advanced):**
+
 - Bez kódu aplikované
 - Tiered (buy 2 get 10% off)
 - Minimum cart amount
@@ -1426,6 +1476,7 @@ Pricing Plans = platby za gated content přístup.
 ### 16.6 Loyalty program
 
 ⚠️ **Bez nativního loyalty programu**. Přes extensions:
+
 - Smile.io
 - LoyaltyLion
 - Yotpo Loyalty
@@ -1526,6 +1577,7 @@ Pricing Plans = platby za gated content přístup.
 ### 17.9 AI SEO Assistant (2026)
 
 Nové v rámci Design Intelligence:
+
 - Page-level optimization tips
 - Content suggestions
 - Meta auto-generate
@@ -1546,6 +1598,7 @@ Nové v rámci Design Intelligence:
 ### 18.1 Squarespace Analytics (nativní)
 
 **Website Analytics:**
+
 - **Traffic Overview** – visitors, unique visitors, pageviews
 - **Traffic Sources** – direct, organic, referral, social, campaigns
 - **Geography** – countries, cities
@@ -1596,6 +1649,7 @@ Nové v rámci Design Intelligence:
 ### 18.8 Beacon AI Insights (2026)
 
 Nová AI analytics feature:
+
 - Proactive insights
 - Trend detection
 - Anomaly alerts
@@ -1687,6 +1741,7 @@ Popsané v sekci 17.5.
 ### 19.10 Beacon AI (2026)
 
 Nová analytics AI:
+
 - Proactive business insights
 - Revenue anomaly detection
 - Trend identification
@@ -1717,7 +1772,6 @@ Nová analytics AI:
 - Méně konverzační než Shopify Sidekick
 - Lepší v oblasti designu, slabší v analýze a business operations
 
-
 ---
 
 ## 20. Point of Sale (POS)
@@ -1734,6 +1788,7 @@ Nová analytics AI:
 ### 20.3 POS hardware
 
 Squarespace nemá vlastní hardware, ale integruje s:
+
 - **Square hardware** (primary partner)
 - **Square Terminal**
 - **Square Reader**
@@ -1785,6 +1840,7 @@ Squarespace má **silnou pozici v prodeji digitálních produktů a gated conten
 ### 21.1 Digital Products (add-on)
 
 Samostatný product typ s vlastním pricing modelem:
+
 - **Starter:** 10 USD/měs. (+9% transaction fee)
 - **Core:** 20 USD/měs. (+5% TF)
 - **Pro:** 40 USD/měs. (0% TF)
@@ -1792,6 +1848,7 @@ Samostatný product typ s vlastním pricing modelem:
 **Co zahrnuje:**
 
 #### Courses
+
 - Multi-lesson courses
 - Video lessons
 - Text content
@@ -1802,6 +1859,7 @@ Samostatný product typ s vlastním pricing modelem:
 - Certificate of completion (limited)
 
 #### Digital Content / Gated Content
+
 - PDFs, eBooks
 - Video library
 - Audio content
@@ -1809,6 +1867,7 @@ Samostatný product typ s vlastním pricing modelem:
 - Exclusive pages
 
 #### Member Newsletters
+
 - Paid newsletter subscriptions
 - Content for subscribers only
 - Free preview posts
@@ -1817,6 +1876,7 @@ Samostatný product typ s vlastním pricing modelem:
 ### 21.2 Membership Areas
 
 **Content types:**
+
 - Text pages
 - Video content
 - Downloadable files
@@ -1825,6 +1885,7 @@ Samostatný product typ s vlastním pricing modelem:
 - Community (limited)
 
 **Access control:**
+
 - **Free** (open to all)
 - **Paid** (subscription or one-time)
 - **Invite-only**
@@ -2191,6 +2252,7 @@ Squarespace má **jeden z nejlepších blog enginů** mezi website buildery.
 ### 25.1 Blog features
 
 **Content creation:**
+
 - Rich text editor (Classic Editor default v blog postech)
 - Inline images, videos, galleries
 - Embed blocks (Twitter, YouTube, Instagram)
@@ -2201,6 +2263,7 @@ Squarespace má **jeden z nejlepších blog enginů** mezi website buildery.
 - Product embeds
 
 **Organization:**
+
 - **Unlimited posts**
 - **Categories** (hierarchical)
 - **Tags**
@@ -2210,6 +2273,7 @@ Squarespace má **jeden z nejlepších blog enginů** mezi website buildery.
 - **Scheduled publishing**
 
 **Display:**
+
 - **Multiple blog layouts** (grid, sidebar, masonry, single column)
 - **Archive pages**
 - **Category/tag filtering**
@@ -2369,6 +2433,7 @@ Squarespace má developer platformu, ale **mnohem omezenější než Wix Velo ne
 ### 27.1 Code Injection
 
 Na Core+ plánech:
+
 - **Site-wide CSS**
 - **Header, footer, lock page, order confirmation custom code**
 - **Per-page code injection**
@@ -2387,6 +2452,7 @@ Na Core+ plánech:
 Oficiální REST APIs:
 
 **Commerce APIs:**
+
 - **Products API** – create, read, update, delete
 - **Orders API** (read)
 - **Orders Writes API** – import from 3rd parties
@@ -2395,10 +2461,12 @@ Oficiální REST APIs:
 - **Webhooks API** – event subscriptions
 
 **Content APIs:**
+
 - ❌ Bez API pro pages, blog posts (private API only)
 - Limited content management
 
 **Marketing APIs:**
+
 - Limited
 
 ### 27.4 API omezení
@@ -2429,6 +2497,7 @@ Oficiální REST APIs:
 Squarespace má **Extensions** – něco jako apps, ale **menší ekosystém než Shopify nebo Wix**:
 
 **Populární Extensions:**
+
 - **Shipping & Fulfillment:**
   - Printful, Printify (print-on-demand)
   - Shippo, ShipStation (labels)
@@ -2460,12 +2529,14 @@ Total Extensions: **~50–80** (vs. 8 000+ Shopify, 500+ Wix)
 ### 27.8 Custom development
 
 **Možnosti:**
+
 - Code Injection (CSS, JS)
 - Iframe embeds
 - Third-party widget embeds
 - REST API integrations (external)
 
 **Limitace:**
+
 - **Žádné server-side code** execution (jako Wix Velo Web Modules)
 - **Žádná custom database** (jako Wix Data Collections)
 - **Žádné custom apps** pro admin
@@ -2481,12 +2552,14 @@ Total Extensions: **~50–80** (vs. 8 000+ Shopify, 500+ Wix)
 ### 27.10 Migrace in/out
 
 **Import do Squarespace:**
+
 - WordPress (blog)
 - Tumblr, Blogger
 - Shopify products
 - Etsy products
 
 **Export ze Squarespace:**
+
 - ❌ Omezené
 - Pages: XML export (limited, do WordPress)
 - Products: CSV
@@ -2511,6 +2584,7 @@ Squarespace Circle je **komunitní program pro web designers**, freelancery a ag
 ### 28.2 Tiers
 
 **Circle Silver (0–999 bodů):**
+
 - **Immediate benefits** pro nové designéry
 - **3-month extended free trial** pro nové weby
 - **10% discount** na first annual payment
@@ -2518,6 +2592,7 @@ Squarespace Circle je **komunitní program pro web designers**, freelancery a ag
 - Silver Partner badge
 
 **Circle Gold (1 000+ bodů):**
+
 - **6-month extended free trial**
 - **20% discount** on annual payments
 - **Priority support**
@@ -2525,6 +2600,7 @@ Squarespace Circle je **komunitní program pro web designers**, freelancery a ag
 - **Gold Partner badge**
 
 **Circle Platinum (top tier):**
+
 - **Dedicated partner manager**
 - **Highest discounts**
 - **Partner events access** (Circle Day)
@@ -2659,12 +2735,12 @@ Squarespace Circle je **komunitní program pro web designers**, freelancery a ag
 
 ### 30.1 Support tiers
 
-| Plán | Support |
-|---|---|
-| Basic | 24/7 email + chat |
-| Core | 24/7 chat + email, faster response |
-| Plus | Priority chat + email |
-| Advanced | Priority chat, phone on request |
+| Plán       | Support                               |
+| ---------- | ------------------------------------- |
+| Basic      | 24/7 email + chat                     |
+| Core       | 24/7 chat + email, faster response    |
+| Plus       | Priority chat + email                 |
+| Advanced   | Priority chat, phone on request       |
 | Enterprise | Dedicated account manager, phone 24/7 |
 
 ### 30.2 Knowledge Base
@@ -2861,6 +2937,7 @@ Squarespace v roce 2026 zůstává **designově nejkrásnější platformou** v 
 ### Pro koho se Squarespace hodí
 
 ✅ **Ideální pro:**
+
 - Kreativce, fotografy, designéry, umělce
 - Restaurace a kavárny (s Acuity Scheduling)
 - Terapeuti, kouči, fitness trenéři (Acuity + Digital Products)
@@ -2873,6 +2950,7 @@ Squarespace v roce 2026 zůstává **designově nejkrásnější platformou** v 
 ### Pro koho méně
 
 ❌ **Méně vhodné:**
+
 - Vysokoobjemové e-shopy (Shopify výrazně lepší)
 - B2B / wholesale (Shopify Plus, Shopware, Magento)
 - Enterprise (Adobe Commerce, Salesforce Commerce)
@@ -2884,11 +2962,13 @@ Squarespace v roce 2026 zůstává **designově nejkrásnější platformou** v 
 ### Shrnutí v kontextu ČR
 
 V České republice má Squarespace jen malý podíl (jednotky procent), protože chybí:
+
 - Nativní integrace na české dopravce a platební brány
 - Napojení na účetní systémy
 - Plná lokalizace
 
 Nicméně je populární mezi:
+
 - **Českými kreativci a fotografy** (pro portfolia)
 - **Menšími značkami** s US/EU ambicemi
 - **Osobními weby a blogery**
@@ -2899,25 +2979,24 @@ Pro klasický český e-shop jsou lepší volby **Shoptet, Upgates nebo Shopify*
 
 ### Srovnání Wix vs. Squarespace vs. Shopify (rychlý přehled)
 
-| Kritérium | Wix | Squarespace | Shopify |
-|---|---|---|---|
-| **Design freedom** | ⭐⭐⭐⭐⭐ (volný pixel) | ⭐⭐⭐⭐ (Fluid grid) | ⭐⭐⭐ (tématický) |
-| **Templates quality** | ⭐⭐⭐⭐ (2 500+) | ⭐⭐⭐⭐⭐ (nejkrásnější) | ⭐⭐⭐⭐ |
-| **E-commerce pokročilost** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **App ecosystem** | ⭐⭐⭐ (500+) | ⭐⭐ (50–80) | ⭐⭐⭐⭐⭐ (8 000+) |
-| **AI integrace** | ⭐⭐⭐⭐⭐ (Astro, Harmony) | ⭐⭐⭐⭐ (Design Intelligence) | ⭐⭐⭐⭐ (Sidekick) |
-| **Ease of use** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Developer platforma** | ⭐⭐⭐⭐ (Velo) | ⭐⭐ (limited) | ⭐⭐⭐⭐⭐ (Functions, Hydrogen) |
-| **Multi-language** | ⭐⭐⭐⭐ | ⭐⭐ (přes extension) | ⭐⭐⭐⭐⭐ |
-| **Digital products** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Rezervace/booking** | ⭐⭐⭐⭐ (Wix Bookings) | ⭐⭐⭐⭐⭐ (Acuity) | ⭐⭐ (přes apps) |
-| **POS** | ⭐⭐⭐ (USA/CA) | ⭐⭐ (USA only) | ⭐⭐⭐⭐⭐ (globální) |
-| **B2B / Wholesale** | ⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ |
-| **ČR lokalizace** | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **Cena (entry)** | od 17 USD | od 16 USD | od 29 USD |
-| **Celkové hodnocení** | All-in-one univerzál | Design-first creative | Commerce-first enterprise |
+| Kritérium                  | Wix                         | Squarespace                    | Shopify                          |
+| -------------------------- | --------------------------- | ------------------------------ | -------------------------------- |
+| **Design freedom**         | ⭐⭐⭐⭐⭐ (volný pixel)    | ⭐⭐⭐⭐ (Fluid grid)          | ⭐⭐⭐ (tématický)               |
+| **Templates quality**      | ⭐⭐⭐⭐ (2 500+)           | ⭐⭐⭐⭐⭐ (nejkrásnější)      | ⭐⭐⭐⭐                         |
+| **E-commerce pokročilost** | ⭐⭐⭐                      | ⭐⭐⭐                         | ⭐⭐⭐⭐⭐                       |
+| **App ecosystem**          | ⭐⭐⭐ (500+)               | ⭐⭐ (50–80)                   | ⭐⭐⭐⭐⭐ (8 000+)              |
+| **AI integrace**           | ⭐⭐⭐⭐⭐ (Astro, Harmony) | ⭐⭐⭐⭐ (Design Intelligence) | ⭐⭐⭐⭐ (Sidekick)              |
+| **Ease of use**            | ⭐⭐⭐⭐                    | ⭐⭐⭐⭐⭐                     | ⭐⭐⭐                           |
+| **Developer platforma**    | ⭐⭐⭐⭐ (Velo)             | ⭐⭐ (limited)                 | ⭐⭐⭐⭐⭐ (Functions, Hydrogen) |
+| **Multi-language**         | ⭐⭐⭐⭐                    | ⭐⭐ (přes extension)          | ⭐⭐⭐⭐⭐                       |
+| **Digital products**       | ⭐⭐⭐⭐                    | ⭐⭐⭐⭐⭐                     | ⭐⭐⭐                           |
+| **Rezervace/booking**      | ⭐⭐⭐⭐ (Wix Bookings)     | ⭐⭐⭐⭐⭐ (Acuity)            | ⭐⭐ (přes apps)                 |
+| **POS**                    | ⭐⭐⭐ (USA/CA)             | ⭐⭐ (USA only)                | ⭐⭐⭐⭐⭐ (globální)            |
+| **B2B / Wholesale**        | ⭐⭐                        | ⭐                             | ⭐⭐⭐⭐⭐                       |
+| **ČR lokalizace**          | ⭐⭐⭐                      | ⭐⭐                           | ⭐⭐⭐                           |
+| **Cena (entry)**           | od 17 USD                   | od 16 USD                      | od 29 USD                        |
+| **Celkové hodnocení**      | All-in-one univerzál        | Design-first creative          | Commerce-first enterprise        |
 
 ---
 
-*Dokument sestaven na základě oficiální dokumentace Squarespace (support.squarespace.com, developers.squarespace.com, www.squarespace.com/blog), Help Center článků, nezávislých analýz (Tooltester, WebsiteBuilderExpert, Ecommerce Paradise, TechRadar, EcommerceGold, Sonary, SquarePros, Vendr) a Squarespace Refresh 2025/2026 oznámení – duben 2026.*
-
+_Dokument sestaven na základě oficiální dokumentace Squarespace (support.squarespace.com, developers.squarespace.com, www.squarespace.com/blog), Help Center článků, nezávislých analýz (Tooltester, WebsiteBuilderExpert, Ecommerce Paradise, TechRadar, EcommerceGold, Sonary, SquarePros, Vendr) a Squarespace Refresh 2025/2026 oznámení – duben 2026._

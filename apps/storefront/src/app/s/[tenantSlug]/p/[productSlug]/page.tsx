@@ -81,7 +81,6 @@ export default async function ProductPage({ params }: Props) {
               }}
             >
               {primaryMedia ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={primaryMedia.url}
                   alt={primaryMedia.alt ?? product.title}
@@ -119,7 +118,6 @@ export default async function ProductPage({ params }: Props) {
                       overflow: 'hidden',
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={m.url}
                       alt={m.alt ?? ''}

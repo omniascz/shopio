@@ -71,17 +71,17 @@ pnpm dev
 
 ### Access points
 
-| Service | URL |
-|---|---|
-| Storefront | http://localhost:3030 |
-| Admin | http://localhost:3031 |
-| API | http://localhost:4040 |
-| Postgres | localhost:5435 (user `shopio` / db `shopio_dev`) |
-| Redis | localhost:6385 |
-| Meilisearch | http://localhost:7700 |
-| MinIO S3 API | http://localhost:9100 |
-| MinIO console | http://localhost:9101 |
-| Mailpit (email preview) | http://localhost:8027 |
+| Service                 | URL                                              |
+| ----------------------- | ------------------------------------------------ |
+| Storefront              | http://localhost:3030                            |
+| Admin                   | http://localhost:3031                            |
+| API                     | http://localhost:4040                            |
+| Postgres                | localhost:5435 (user `shopio` / db `shopio_dev`) |
+| Redis                   | localhost:6385                                   |
+| Meilisearch             | http://localhost:7700                            |
+| MinIO S3 API            | http://localhost:9100                            |
+| MinIO console           | http://localhost:9101                            |
+| Mailpit (email preview) | http://localhost:8027                            |
 
 Všechny porty jsou Shopio-specific (`30xx`/`40xx`/`5435`/`6385`/...) aby nekonfliktovaly s jinými lokálními projekty.
 
