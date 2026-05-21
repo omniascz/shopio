@@ -9,6 +9,7 @@ import { registerAuthRoutes } from './routes/auth';
 import { registerTenantRoutes } from './routes/tenants';
 import { registerProductRoutes } from './routes/products';
 import { registerStorefrontRoutes } from './routes/storefront';
+import { registerCartRoutes } from './routes/cart';
 
 export async function buildServer() {
   const config = getConfig();
@@ -63,6 +64,7 @@ export async function buildServer() {
   await registerTenantRoutes(server, { config, db });
   await registerProductRoutes(server, { config, db });
   await registerStorefrontRoutes(server, { config, db });
+  await registerCartRoutes(server, { config, db });
 
   return server;
 }

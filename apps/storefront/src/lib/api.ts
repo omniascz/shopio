@@ -139,6 +139,179 @@ export async function getProduct(
 
 export { StorefrontApiError };
 
+// =============================================================================
+// Cart / Checkout types
+// =============================================================================
+
+export interface CartItem {
+  id: string;
+  variant_id: string;
+  product_id: string;
+  product_slug: string;
+  sku: string | null;
+  title: string;
+  quantity: number;
+  unit_price: Money;
+  line_total: Money;
+  primary_image_url: string | null;
+}
+
+export interface Cart {
+  id: string;
+  status: string;
+  currency: string;
+  item_count: number;
+  subtotal: Money;
+  items: CartItem[];
+}
+
+export interface ShippingAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  postalCode: string;
+  countryCode: string;
+  state?: string;
+}
+
+export interface CheckoutInput {
+  customerEmail: string;
+  customerName: string;
+  customerPhone?: string;
+  shippingAddress: ShippingAddress;
+  customerNote?: string;
+}
+
+export interface OrderConfirmation {
+  order: {
+    id: string;
+    number: string;
+    status: string;
+    payment_status: string;
+    total: Money;
+    placed_at: string;
+    customer_email: string;
+    confirmation_url: string;
+  };
+  next_step: string;
+}
+
+export interface OrderDetail {
+  id: string;
+  number: string;
+  customer_email: string;
+  customer_name: string;
+  shipping_address: ShippingAddress;
+  status: string;
+  payment_status: string;
+  payment_method: string;
+  totals: {
+    subtotal: Money;
+    shipping: Money;
+    tax: Money;
+    total: Money;
+  };
+  placed_at: string;
+  items: {
+    id: string;
+    product_title: string;
+    variant_title: string;
+    sku: string | null;
+    quantity: number;
+    unit_price: Money;
+    line_total: Money;
+  }[];
+}
+
+// =============================================================================
+// Cart / Checkout API (client-side, cookie-based)
+// =============================================================================
+
+/** Browser-side API base. Falls back to relative path so Next.js rewrites can proxy. */
+export const STOREFRONT_API_BASE =
+  typeof window !== 'undefined'
+    ? process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040'
+    : API_BASE;
+
+async function cartFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${STOREFRONT_API_BASE}/api/${API_VERSION}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new StorefrontApiError(
+      json?.error?.message ?? `API ${res.status}`,
+      res.status,
+      json?.error?.code,
+    );
+  }
+  return json.data as T;
+}
+
+export async function fetchCart(tenantSlug: string): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart`);
+}
+
+export async function addToCart(
+  tenantSlug: string,
+  variantId: string,
+  quantity = 1,
+): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/items`, {
+    method: 'POST',
+    body: JSON.stringify({ variantId, quantity }),
+  });
+}
+
+export async function updateCartItem(
+  tenantSlug: string,
+  itemId: string,
+  quantity: number,
+): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ quantity }),
+  });
+}
+
+export async function removeCartItem(tenantSlug: string, itemId: string): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/items/${itemId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function checkout(
+  tenantSlug: string,
+  input: CheckoutInput,
+): Promise<OrderConfirmation> {
+  return cartFetch<OrderConfirmation>(`/storefront/${tenantSlug}/checkout`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getOrder(
+  tenantSlug: string,
+  orderNumber: string,
+  email: string,
+): Promise<OrderDetail | null> {
+  try {
+    return await cartFetch<OrderDetail>(
+      `/storefront/${tenantSlug}/orders/${orderNumber}?email=${encodeURIComponent(email)}`,
+    );
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
 /** Format Money for display per locale. */
 export function formatMoney(money: Money | null | undefined, locale = 'cs-CZ'): string {
   if (!money) return '—';

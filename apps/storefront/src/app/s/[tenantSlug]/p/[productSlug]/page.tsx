@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct } from '@/lib/api';
+import { AddToCart } from '@/components/add-to-cart';
 
 interface Props {
   params: Promise<{ tenantSlug: string; productSlug: string }>;
@@ -180,61 +181,9 @@ export default async function ProductPage({ params }: Props) {
               </div>
             )}
 
-            {product.variants.length > 1 && (
-              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                <div
-                  style={{
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    marginBottom: '0.75rem',
-                    color: 'var(--shopio-color-fg-default)',
-                  }}
-                >
-                  Velikost
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {product.variants.map((v) => (
-                    <div
-                      key={v.id}
-                      style={{
-                        padding: '0.625rem 1rem',
-                        border: '1px solid var(--shopio-color-border-strong)',
-                        borderRadius: 'var(--shopio-radius-md)',
-                        fontSize: '0.875rem',
-                        color: 'var(--shopio-color-fg-default)',
-                        cursor: v.in_stock ? 'pointer' : 'not-allowed',
-                        opacity: v.in_stock ? 1 : 0.5,
-                        background: 'var(--shopio-color-surface-2)',
-                      }}
-                    >
-                      {v.title}
-                      {!v.in_stock && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>(vyprodáno)</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              disabled={!product.variants.some((v) => v.in_stock)}
-              style={{
-                marginTop: '1rem',
-                padding: '1rem 2rem',
-                background: 'var(--shopio-color-primary)',
-                color: 'var(--shopio-color-fg-on-primary)',
-                border: 'none',
-                borderRadius: 'var(--shopio-radius-md)',
-                fontSize: '1rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                width: '100%',
-              }}
-            >
-              Přidat do košíku — TODO Wave 1 krok 5
-            </button>
+            <div style={{ marginTop: '1.5rem' }}>
+              <AddToCart variants={product.variants} />
+            </div>
 
             {product.description_html && (
               <div

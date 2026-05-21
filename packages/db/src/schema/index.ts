@@ -10,4 +10,7 @@ export * from './products';
 export * from './product-variants';
 export * from './product-media';
 export * from './product-categories';
-// Future: orders, customers, inventory, ...
+// Commerce (Wave 1 step 5 — `11-cart.md` + `12-checkout.md` + `16-order-management.md`)
+export * from './carts';
+export * from './orders';
+// Future: customers, inventory, payments, ...
