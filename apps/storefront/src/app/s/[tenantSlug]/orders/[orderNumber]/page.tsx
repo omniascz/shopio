@@ -114,23 +114,38 @@ export default function OrderConfirmationPage({ params }: Props) {
 
         <div style={{ marginTop: '1rem', borderTop: '2px solid #111', paddingTop: '0.75rem' }}>
           <Row
-            label={order.tax_included ? 'Základ daně (bez DPH)' : 'Mezisoučet'}
+            label={`Mezisoučet${order.tax_included ? ' (vč. DPH)' : ''}`}
             value={formatMoney(order.totals.subtotal)}
           />
+          <Row
+            label={order.shipping_method ? `Doprava — ${order.shipping_method.display_name}` : 'Doprava'}
+            value={
+              order.totals.shipping.amount === '0'
+                ? 'Zdarma'
+                : formatMoney(order.totals.shipping)
+            }
+          />
+          <Row label="Celkem" value={formatMoney(order.totals.total)} bold />
           {order.tax_breakdown.map((b) => (
             <Row
               key={b.rate_basis_points}
-              label={`DPH ${formatVatRate(b.rate_basis_points)}`}
+              label={`z toho DPH ${formatVatRate(b.rate_basis_points)}`}
               value={formatMoney({ amount: b.tax_amount, currency: order.totals.total.currency })}
               muted
             />
           ))}
-          {order.tax_breakdown.length === 0 && (
-            <Row label="Daň" value={formatMoney(order.totals.tax)} />
+          {order.tax_breakdown.length === 0 && order.totals.tax.amount !== '0' && (
+            <Row label="z toho DPH" value={formatMoney(order.totals.tax)} muted />
           )}
-          <Row label="Doprava" value={formatMoney(order.totals.shipping)} />
-          <Row label="Celkem" value={formatMoney(order.totals.total)} bold />
         </div>
+
+        {order.pickup_point && (
+          <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#444' }}>
+            <strong>Výdejní místo:</strong> {order.pickup_point.name}
+            {order.pickup_point.street && `, ${order.pickup_point.street}`}
+            {`, ${order.pickup_point.postal_code} ${order.pickup_point.city}`}
+          </div>
+        )}
       </section>
 
       <section style={sectionStyle}>

@@ -92,6 +92,113 @@ async function seed() {
   console.log(`  ✓ CZ VAT rates ensured (21 / 12 / 0 %)`);
 
   // ---------------------------------------------------------------------------
+  // Shipping: CZ zone + Zásilkovna rates + sample pickup points (per `14`).
+  // ---------------------------------------------------------------------------
+  let [czZone] = await db
+    .select({ id: schema.shippingZones.id })
+    .from(schema.shippingZones)
+    .where(sql`${schema.shippingZones.tenantId} = ${tenant.id} AND ${schema.shippingZones.name} = 'CZ'`)
+    .limit(1);
+  if (!czZone) {
+    [czZone] = await db
+      .insert(schema.shippingZones)
+      .values({
+        tenantId: tenant.id,
+        name: 'CZ',
+        countryCodes: ['CZ'],
+        priority: 100,
+      })
+      .returning({ id: schema.shippingZones.id });
+  }
+
+  await db
+    .insert(schema.shippingRates)
+    .values([
+      {
+        tenantId: tenant.id,
+        shippingZoneId: czZone!.id,
+        carrierCode: 'zasilkovna',
+        serviceCode: 'pickup_point',
+        displayName: 'Zásilkovna — výdejní místo',
+        description: 'Doručení na výdejní místo nebo Z-BOX. Doprava zdarma nad 1 500 Kč.',
+        kind: 'free_above_threshold',
+        amount: 7900n, // 79 Kč incl. VAT
+        currency: 'CZK',
+        freeAboveAmount: 150000n, // 1 500 Kč
+        pickupOnly: true,
+        supportsCod: true,
+        estimatedDaysMin: 1,
+        estimatedDaysMax: 2,
+        priority: 10,
+      },
+      {
+        tenantId: tenant.id,
+        shippingZoneId: czZone!.id,
+        carrierCode: 'zasilkovna',
+        serviceCode: 'home_delivery',
+        displayName: 'Zásilkovna — doručení domů',
+        description: 'Kurýr na adresu.',
+        kind: 'flat',
+        amount: 11900n, // 119 Kč incl. VAT
+        currency: 'CZK',
+        pickupOnly: false,
+        supportsCod: true,
+        estimatedDaysMin: 1,
+        estimatedDaysMax: 3,
+        priority: 5,
+      },
+    ])
+    .onConflictDoNothing();
+
+  await db
+    .insert(schema.pickupPoints)
+    .values([
+      {
+        carrierCode: 'zasilkovna',
+        externalId: '1071',
+        name: 'Z-BOX Praha 5 — Anděl',
+        street: 'Nádražní 32',
+        city: 'Praha',
+        postalCode: '15000',
+        countryCode: 'CZ',
+        syncSource: 'manual',
+      },
+      {
+        carrierCode: 'zasilkovna',
+        externalId: '2842',
+        name: 'Výdejní místo Brno — Veveří',
+        street: 'Veveří 125',
+        city: 'Brno',
+        postalCode: '61600',
+        countryCode: 'CZ',
+        syncSource: 'manual',
+      },
+      {
+        carrierCode: 'zasilkovna',
+        externalId: '3310',
+        name: 'Z-BOX Ostrava — Centrum',
+        street: 'Nádražní 100',
+        city: 'Ostrava',
+        postalCode: '70200',
+        countryCode: 'CZ',
+        syncSource: 'manual',
+      },
+    ])
+    .onConflictDoNothing();
+
+  await db
+    .insert(schema.shippingProviderConfigs)
+    .values({
+      tenantId: tenant.id,
+      carrierCode: 'zasilkovna',
+      isEnabled: true,
+      isTestMode: true,
+      displayName: 'Zásilkovna',
+    })
+    .onConflictDoNothing();
+  console.log(`  ✓ Shipping ensured (CZ zone + Zásilkovna rates + 3 pickup points)`);
+
+  // ---------------------------------------------------------------------------
   // Categories: pottery, stoneware
   // ---------------------------------------------------------------------------
   const potteryId = await upsertCategory(db, tenant.id, 'pottery', 'Pottery', 'pottery', null, 0);

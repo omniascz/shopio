@@ -84,6 +84,11 @@ export interface OrderEmailContext {
   }[];
   currency: string;
   totalMinor: bigint;
+  /** Gross shipping fee + label (optional — omitted = no shipping line). */
+  shippingMinor?: bigint;
+  shippingLabel?: string;
+  /** Selected pickup point name, if any. */
+  pickupPointName?: string | null;
   placedAt: Date;
 }
 
@@ -129,6 +134,12 @@ export function renderOrderPlacedEmail(ctx: OrderEmailContext): {
       (it) =>
         `  • ${it.productTitle} — ${it.variantTitle} (${it.sku ?? '—'}) × ${it.quantity} — ${fmtMoney(it.lineTotalMinor, ctx.currency)}`,
     ),
+    ...(ctx.shippingMinor !== undefined
+      ? [
+          `Doprava${ctx.shippingLabel ? ` (${ctx.shippingLabel})` : ''}: ${ctx.shippingMinor === 0n ? 'Zdarma' : fmtMoney(ctx.shippingMinor, ctx.currency)}`,
+        ]
+      : []),
+    ...(ctx.pickupPointName ? [`Výdejní místo: ${ctx.pickupPointName}`] : []),
     '',
     'Doručovací adresa:',
     `  ${ctx.shippingAddress.line1}`,
@@ -175,11 +186,24 @@ export function renderOrderPlacedEmail(ctx: OrderEmailContext): {
 
       <table style="width:100%;border-collapse:collapse;margin:24px 0;">
         ${itemRows}
+        ${
+          ctx.shippingMinor !== undefined
+            ? `<tr>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;color:#444;">Doprava${ctx.shippingLabel ? ` <span style="color:#888;font-size:13px;">· ${escapeHtml(ctx.shippingLabel)}</span>` : ''}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">${ctx.shippingMinor === 0n ? 'Zdarma' : fmtMoney(ctx.shippingMinor, ctx.currency)}</td>
+        </tr>`
+            : ''
+        }
         <tr>
           <td style="padding:12px 0 0;font-weight:600;">Celkem</td>
           <td style="padding:12px 0 0;text-align:right;font-weight:600;font-size:18px;">${totalStr}</td>
         </tr>
       </table>
+      ${
+        ctx.pickupPointName
+          ? `<p style="margin:0 0 8px;font-size:14px;"><strong>Výdejní místo:</strong> ${escapeHtml(ctx.pickupPointName)}</p>`
+          : ''
+      }
 
       <h2 style="font-size:14px;color:#666;text-transform:uppercase;letter-spacing:0.04em;margin:24px 0 8px;">Doručovací adresa</h2>
       <p style="margin:0;line-height:1.5;font-size:14px;">

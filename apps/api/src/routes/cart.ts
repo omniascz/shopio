@@ -30,6 +30,13 @@ import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
 import { computeTax, serializeBreakdown, type TaxResult } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
+import type { CartShippingMetrics } from '../lib/shipping';
+import {
+  resolveShippingOptions,
+  resolveOptionById,
+  searchPickupPoints,
+  getPickupPoint,
+} from '../lib/shipping-resolver';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -57,6 +64,22 @@ const CheckoutBody = z.object({
     state: z.string().max(100).optional(),
   }),
   customerNote: z.string().max(2000).optional(),
+  /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
+  shippingRateId: z.string().optional(),
+  /** Selected pickup point for pickup_point services. The full address fields are
+   * optional — present when chosen via the Packeta widget (point not in our cache),
+   * absent when chosen from the seeded fallback picker (looked up server-side). */
+  pickupPoint: z
+    .object({
+      carrierCode: z.string().min(1).max(40).default('zasilkovna'),
+      externalId: z.string().min(1).max(120),
+      name: z.string().max(200).optional(),
+      street: z.string().max(200).optional(),
+      city: z.string().max(120).optional(),
+      postalCode: z.string().max(20).optional(),
+      countryCode: z.string().length(2).optional(),
+    })
+    .optional(),
 });
 
 interface PluginOptions {
@@ -274,6 +297,53 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
   );
 
   // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/shipping/rates
+  // Priced shipping options for the current cart + ship-to country.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string }; Querystring: { country?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/shipping/rates',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+
+      const country = (req.query.country ?? tenant.countryCode).toUpperCase();
+      const sessionId = ensureSession(req, reply, isProd);
+      const cart = await getActiveCart(db, tenant.id, sessionId);
+      const items = cart ? await listCartItems(db, cart.id) : [];
+      const metrics = cartMetrics(items);
+
+      const options = await resolveShippingOptions(db, tenant.id, country, metrics);
+      return reply.send({
+        data: {
+          country,
+          options,
+          // Packeta widget when configured; otherwise storefront uses the
+          // seeded pickup-point picker (see /shipping/pickup-points).
+          pickup_widget: config.PACKETA_API_KEY
+            ? { provider: 'packeta', api_key: config.PACKETA_API_KEY }
+            : null,
+        },
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/shipping/pickup-points?carrier=&q=&country=
+  // Fallback pickup-point search from the cached number book.
+  // ---------------------------------------------------------------------------
+  app.get<{
+    Params: { tenantSlug: string };
+    Querystring: { carrier?: string; q?: string; country?: string };
+  }>('/api/2026-05-20/storefront/:tenantSlug/shipping/pickup-points', async (req, reply) => {
+    const tenant = await resolveTenant(db, req.params.tenantSlug);
+    if (!tenant) return notFound(reply, 'tenant');
+    const carrier = req.query.carrier ?? 'zasilkovna';
+    const country = (req.query.country ?? tenant.countryCode).toUpperCase();
+    const points = await searchPickupPoints(db, carrier, country, req.query.q);
+    return reply.send({ data: { points } });
+  });
+
+  // ---------------------------------------------------------------------------
   // POST /storefront/{tenantSlug}/checkout
   // ---------------------------------------------------------------------------
   app.post<{ Params: { tenantSlug: string } }>(
@@ -301,25 +371,81 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         });
       }
 
+      // Shipping selection — resolve + price the chosen rate against the cart
+      // metrics + ship-to country (per `14 §5`). Validate pickup point if required.
+      const country = input.shippingAddress.countryCode.toUpperCase();
+      const metrics = cartMetrics(items);
+      let shippingOption = null;
+      let pickupSnapshot: Record<string, unknown> | null = null;
+      if (input.shippingRateId) {
+        shippingOption = await resolveOptionById(
+          db,
+          tenant.id,
+          country,
+          input.shippingRateId,
+          metrics,
+        );
+        if (!shippingOption) {
+          return reply.code(422).send({
+            error: { code: 'SHIPPING_RATE_INVALID', message: 'Selected shipping is unavailable' },
+          });
+        }
+        if (shippingOption.requires_pickup_point) {
+          if (!input.pickupPoint) {
+            return reply.code(422).send({
+              error: {
+                code: 'PICKUP_POINT_REQUIRED',
+                message: 'This shipping method requires a pickup point',
+              },
+            });
+          }
+          // Prefer the cached number book; fall back to the widget-provided
+          // snapshot for real points not in our cache.
+          const cached = await getPickupPoint(
+            db,
+            input.pickupPoint.carrierCode,
+            input.pickupPoint.externalId,
+          );
+          if (cached) {
+            pickupSnapshot = { carrier_code: input.pickupPoint.carrierCode, ...cached };
+          } else if (input.pickupPoint.name && input.pickupPoint.city) {
+            pickupSnapshot = {
+              carrier_code: input.pickupPoint.carrierCode,
+              external_id: input.pickupPoint.externalId,
+              name: input.pickupPoint.name,
+              street: input.pickupPoint.street ?? null,
+              city: input.pickupPoint.city,
+              postal_code: input.pickupPoint.postalCode ?? null,
+              country_code: input.pickupPoint.countryCode ?? country,
+            };
+          } else {
+            return notFound(reply, 'pickup_point');
+          }
+        }
+      }
+      const shippingGross = shippingOption ? BigInt(shippingOption.amount) : 0n;
+
       // VAT computation — place of supply = ship-to country (per `15 §4` STAGE 1),
-      // falling back to the tenant home country. Pure; rate lookup is read-only so
-      // it runs before the placement transaction.
-      const rates = await resolveRates(
-        db,
-        tenant.id,
-        input.shippingAddress.countryCode,
-        tenant.countryCode,
-      );
+      // falling back to the tenant home country. Shipping is taxed as a line via the
+      // tenant's shipping_tax_class. Pure; rate lookup is read-only so it runs before
+      // the placement transaction.
+      const rates = await resolveRates(db, tenant.id, country, tenant.countryCode);
       const tax = computeTax({
         lines: items.map((it) => ({
           ref: it.pubId,
           amount: it.unitPriceAmount * BigInt(it.quantity),
           taxClassCode: it.taxClassCode,
         })),
+        shippingAmount: shippingGross,
+        shippingTaxClass: tenant.shippingTaxClass,
         rates,
         priceIncludesTax: tenant.priceIncludesTax,
       });
       const taxByRef = new Map(tax.lines.map((l) => [l.ref, l]));
+      const grossGoods = items.reduce(
+        (sum, it) => sum + it.unitPriceAmount * BigInt(it.quantity),
+        0n,
+      );
 
       // Atomic: revalidate stock + decrement + create order + clear cart
       try {
@@ -372,10 +498,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           // Generate order number (sequential per tenant per year)
           const orderNumber = await generateOrderNumber(tx, tenant.id);
 
-          // Totals from the tax engine. Prices are VAT-inclusive (CZ B2C):
-          // subtotal = net base, total = gross (what the customer pays).
-          const subtotal = tax.totals.taxableAmount;
-          const total = tax.totals.grossAmount;
+          // Totals — VAT-inclusive B2C model: subtotal + shipping are gross line
+          // items, tax is the VAT *contained* (shown "z toho DPH"), total = sum.
+          const total = grossGoods + shippingGross; // == tax.totals.grossAmount
 
           // Insert order
           const [order] = await tx
@@ -390,7 +515,18 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               shippingAddress: input.shippingAddress,
               billingAddress: input.shippingAddress,
               currency: cart.currency,
-              subtotalAmount: subtotal,
+              subtotalAmount: grossGoods,
+              shippingAmount: shippingGross,
+              shippingMethod: shippingOption
+                ? {
+                    rate_id: shippingOption.rate_id,
+                    carrier_code: shippingOption.carrier_code,
+                    service_code: shippingOption.service_code,
+                    display_name: shippingOption.display_name,
+                    amount: shippingOption.amount,
+                  }
+                : null,
+              pickupPoint: pickupSnapshot,
               taxAmount: tax.totals.taxAmount,
               priceIncludesTax: tenant.priceIncludesTax,
               taxBreakdown: serializeBreakdown(tax.breakdown),
@@ -479,6 +615,13 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               })),
               currency: result.currency,
               totalMinor: result.totalAmount,
+              ...(shippingOption && {
+                shippingMinor: shippingGross,
+                shippingLabel: shippingOption.display_name,
+              }),
+              ...(pickupSnapshot?.name
+                ? { pickupPointName: String(pickupSnapshot.name) }
+                : {}),
               placedAt: result.placedAt,
             };
             const { subject, text, html } = renderOrderPlacedEmail(emailCtx);
@@ -509,6 +652,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 quantity: it.quantity,
                 unitAmountMinor: it.unitPriceAmount,
               })),
+              shippingAmountMinor: shippingGross,
+              shippingLabel: shippingOption?.display_name ?? 'Doprava',
               successUrl: `${storefrontBase}/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}&session_id={CHECKOUT_SESSION_ID}`,
               cancelUrl: `${storefrontBase}/s/${tenant.slug}/checkout?cancelled=1`,
             });
@@ -629,6 +774,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           },
           tax_included: order.priceIncludesTax,
           tax_breakdown: order.taxBreakdown,
+          shipping_method: order.shippingMethod,
+          pickup_point: order.pickupPoint,
           placed_at: order.placedAt,
           items: items.map((it) => ({
             id: it.pubId,
@@ -779,6 +926,17 @@ async function getActiveCart(
   return cart ?? null;
 }
 
+/** Cart weight + gross subtotal for the shipping rate calculator. */
+function cartMetrics(items: Awaited<ReturnType<typeof listCartItems>>): CartShippingMetrics {
+  let weight = 0;
+  let subtotal = 0n;
+  for (const it of items) {
+    weight += (it.weightGrams ?? 0) * it.quantity;
+    subtotal += it.unitPriceAmount * BigInt(it.quantity);
+  }
+  return { totalWeightGrams: weight, subtotalAmount: subtotal };
+}
+
 async function listCartItems(db: AppDb, cartId: string) {
   return db
     .select({
@@ -791,6 +949,7 @@ async function listCartItems(db: AppDb, cartId: string) {
       unitPriceCurrency: schema.cartItems.unitPriceCurrency,
       titleSnapshot: schema.cartItems.titleSnapshot,
       taxClassCode: schema.products.taxClassCode,
+      weightGrams: schema.productVariants.weightGrams,
       variantPubId: schema.productVariants.pubId,
       variantSku: schema.productVariants.sku,
       productPubId: schema.products.pubId,

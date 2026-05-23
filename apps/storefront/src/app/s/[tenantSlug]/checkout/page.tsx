@@ -1,13 +1,58 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
-import { checkout, formatMoney, formatVatRate } from '@/lib/api';
+import {
+  checkout,
+  fetchPickupPoints,
+  fetchShippingRates,
+  formatMoney,
+  formatVatRate,
+  type Money,
+  type PickupPoint,
+  type ShippingOption,
+} from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
+}
+
+// --- Packeta widget (loaded only when an API key is configured) -------------
+interface PacketaPoint {
+  id: number | string;
+  name: string;
+  street?: string;
+  city?: string;
+  zip?: string;
+  country?: string;
+}
+interface PacketaWidgetApi {
+  Widget: {
+    pick: (
+      apiKey: string,
+      callback: (point: PacketaPoint | null) => void,
+      options?: Record<string, unknown>,
+    ) => void;
+  };
+}
+declare global {
+  interface Window {
+    Packeta?: PacketaWidgetApi;
+  }
+}
+
+function loadPacketaWidget(): Promise<PacketaWidgetApi> {
+  if (window.Packeta) return Promise.resolve(window.Packeta);
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://widget.packeta.com/v6/www/js/library.js';
+    s.async = true;
+    s.onload = () => (window.Packeta ? resolve(window.Packeta) : reject(new Error('Packeta load')));
+    s.onerror = () => reject(new Error('Packeta script failed'));
+    document.head.appendChild(s);
+  });
 }
 
 export default function CheckoutPage({ params }: Props) {
@@ -29,13 +74,96 @@ export default function CheckoutPage({ params }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Shipping
+  const [options, setOptions] = useState<ShippingOption[]>([]);
+  const [packetaKey, setPacketaKey] = useState<string | null>(null);
+  const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
+  const [pickup, setPickup] = useState<PickupPoint | null>(null);
+  // Fallback picker
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerResults, setPickerResults] = useState<PickupPoint[]>([]);
+
+  const country = form.countryCode.trim().toUpperCase();
+
+  // Load shipping rates for the ship-to country.
+  useEffect(() => {
+    if (country.length !== 2) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchShippingRates(tenantSlug, country);
+        if (cancelled) return;
+        setOptions(res.options);
+        setPacketaKey(res.pickup_widget?.api_key ?? null);
+        // Auto-select the first (highest-priority) option.
+        setSelectedRateId((prev) =>
+          prev && res.options.some((o) => o.rate_id === prev)
+            ? prev
+            : (res.options[0]?.rate_id ?? null),
+        );
+      } catch {
+        if (!cancelled) setOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantSlug, country]);
+
+  const selectedOption = options.find((o) => o.rate_id === selectedRateId) ?? null;
+
+  // Reset chosen pickup point when switching methods.
+  useEffect(() => {
+    setPickup(null);
+    setPickerOpen(false);
+  }, [selectedRateId]);
+
+  const openPacketaWidget = useCallback(async () => {
+    if (!packetaKey) return;
+    try {
+      const Packeta = await loadPacketaWidget();
+      Packeta.Widget.pick(
+        packetaKey,
+        (point) => {
+          if (!point) return;
+          setPickup({
+            external_id: String(point.id),
+            name: point.name,
+            street: point.street ?? null,
+            city: point.city ?? '',
+            postal_code: point.zip ?? '',
+            country_code: (point.country ?? country).toUpperCase(),
+          });
+        },
+        { language: 'cs', country: country.toLowerCase() },
+      );
+    } catch {
+      setPickerOpen(true); // fall back to the seeded picker on widget failure
+    }
+  }, [packetaKey, country]);
+
+  async function runPickerSearch(q: string) {
+    setPickerQuery(q);
+    const carrier = selectedOption?.carrier_code ?? 'zasilkovna';
+    const points = await fetchPickupPoints(tenantSlug, { carrier, q, country });
+    setPickerResults(points);
+  }
+
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const needsPickup = Boolean(selectedOption?.requires_pickup_point);
+  const canSubmit = Boolean(selectedOption) && (!needsPickup || pickup);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!cart || cart.items.length === 0) return;
+    if (!canSubmit) {
+      setError(needsPickup ? 'Vyberte prosím výdejní místo.' : 'Vyberte způsob dopravy.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -48,13 +176,24 @@ export default function CheckoutPage({ params }: Props) {
           ...(form.line2.trim() && { line2: form.line2.trim() }),
           city: form.city.trim(),
           postalCode: form.postalCode.trim(),
-          countryCode: form.countryCode.trim().toUpperCase(),
+          countryCode: country,
         },
         ...(form.customerNote.trim() && { customerNote: form.customerNote.trim() }),
+        ...(selectedOption && { shippingRateId: selectedOption.rate_id }),
+        ...(pickup && {
+          pickupPoint: {
+            carrierCode: selectedOption?.carrier_code ?? 'zasilkovna',
+            externalId: pickup.external_id,
+            name: pickup.name,
+            ...(pickup.street && { street: pickup.street }),
+            city: pickup.city,
+            postalCode: pickup.postal_code,
+            countryCode: pickup.country_code,
+          },
+        }),
       });
 
       if (result.payment_url) {
-        // Stripe (or other provider) — redirect to hosted checkout
         window.location.href = result.payment_url;
         return;
       }
@@ -86,6 +225,13 @@ export default function CheckoutPage({ params }: Props) {
     );
   }
 
+  const goodsGross = BigInt(cart.subtotal.amount);
+  const shippingGross = selectedOption ? BigInt(selectedOption.amount) : 0n;
+  const totalMoney: Money = {
+    amount: (goodsGross + shippingGross).toString(),
+    currency: cart.currency,
+  };
+
   return (
     <main style={pageStyle}>
       <Link
@@ -96,13 +242,7 @@ export default function CheckoutPage({ params }: Props) {
       </Link>
       <h1 style={{ margin: '1rem 0 2rem' }}>Pokladna</h1>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 380px',
-          gap: '3rem',
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '3rem' }}>
         <form
           onSubmit={handleSubmit}
           style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
@@ -184,6 +324,132 @@ export default function CheckoutPage({ params }: Props) {
             />
           </Field>
 
+          <h2 style={{ fontSize: '1.125rem', margin: '1.5rem 0 0.5rem' }}>Doprava</h2>
+          {options.length === 0 && (
+            <p style={{ fontSize: '0.875rem', color: '#666', margin: 0 }}>
+              Pro zadanou zemi není dostupná žádná doprava.
+            </p>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {options.map((opt) => (
+              <ShippingMethodRow
+                key={opt.rate_id}
+                option={opt}
+                selected={opt.rate_id === selectedRateId}
+                currency={cart.currency}
+                onSelect={() => setSelectedRateId(opt.rate_id)}
+              />
+            ))}
+          </div>
+
+          {needsPickup && (
+            <div
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: 6,
+                padding: '0.875rem',
+                background: '#fafafa',
+              }}
+            >
+              {pickup ? (
+                <div style={{ fontSize: '0.875rem' }}>
+                  <strong>✓ Výdejní místo:</strong> {pickup.name}
+                  {pickup.city && `, ${pickup.city}`}
+                  <button
+                    type="button"
+                    onClick={() => setPickup(null)}
+                    style={{
+                      marginLeft: '0.5rem',
+                      background: 'none',
+                      border: 'none',
+                      color: '#0066cc',
+                      cursor: 'pointer',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    Změnit
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {packetaKey && (
+                      <button type="button" onClick={() => void openPacketaWidget()} style={pickBtn}>
+                        Vybrat na mapě (Zásilkovna)
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerOpen((v) => !v);
+                        if (pickerResults.length === 0) void runPickerSearch('');
+                      }}
+                      style={{ ...pickBtn, background: '#fff', color: '#111', border: '1px solid #111' }}
+                    >
+                      {packetaKey ? 'Hledat v seznamu' : 'Vybrat výdejní místo'}
+                    </button>
+                  </div>
+                  {pickerOpen && (
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Hledat dle města, názvu nebo PSČ…"
+                        value={pickerQuery}
+                        onChange={(e) => void runPickerSearch(e.target.value)}
+                        style={inputStyle}
+                      />
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          padding: 0,
+                          margin: '0.5rem 0 0',
+                          maxHeight: 200,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {pickerResults.map((p) => (
+                          <li key={p.external_id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPickup(p);
+                                setPickerOpen(false);
+                              }}
+                              style={{
+                                display: 'block',
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '0.5rem',
+                                border: '1px solid #eee',
+                                borderRadius: 4,
+                                background: '#fff',
+                                cursor: 'pointer',
+                                marginBottom: 4,
+                                fontSize: '0.8125rem',
+                              }}
+                            >
+                              <strong>{p.name}</strong>
+                              <br />
+                              <span style={{ color: '#666' }}>
+                                {p.street && `${p.street}, `}
+                                {p.postal_code} {p.city}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                        {pickerResults.length === 0 && (
+                          <li style={{ fontSize: '0.8125rem', color: '#666', padding: '0.5rem' }}>
+                            Žádné výdejní místo nenalezeno.
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <Field label="Poznámka k objednávce (volitelné)">
             <textarea
               value={form.customerNote}
@@ -197,7 +463,7 @@ export default function CheckoutPage({ params }: Props) {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !canSubmit}
             style={{
               marginTop: '1rem',
               padding: '1rem',
@@ -207,11 +473,11 @@ export default function CheckoutPage({ params }: Props) {
               borderRadius: 4,
               fontSize: '1rem',
               fontWeight: 500,
-              cursor: submitting ? 'wait' : 'pointer',
-              opacity: submitting ? 0.7 : 1,
+              cursor: submitting || !canSubmit ? 'not-allowed' : 'pointer',
+              opacity: submitting || !canSubmit ? 0.6 : 1,
             }}
           >
-            {submitting ? 'Odesílám…' : `Odeslat objednávku — ${formatMoney(cart.subtotal)}`}
+            {submitting ? 'Odesílám…' : `Odeslat objednávku — ${formatMoney(totalMoney)}`}
           </button>
           <p style={{ fontSize: '0.75rem', color: '#666', margin: 0 }}>
             MVP režim: platba je mock (status pending_payment). Brzy: Stripe a další.
@@ -219,12 +485,7 @@ export default function CheckoutPage({ params }: Props) {
         </form>
 
         <aside
-          style={{
-            background: '#f8f8f8',
-            padding: '1.5rem',
-            borderRadius: 8,
-            height: 'fit-content',
-          }}
+          style={{ background: '#f8f8f8', padding: '1.5rem', borderRadius: 8, height: 'fit-content' }}
         >
           <h2 style={{ fontSize: '1rem', margin: '0 0 1rem' }}>Shrnutí objednávky</h2>
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem' }}>
@@ -247,6 +508,17 @@ export default function CheckoutPage({ params }: Props) {
               </li>
             ))}
           </ul>
+          <SummaryRow label={`Mezisoučet${cart.tax_included ? ' (vč. DPH)' : ''}`} value={formatMoney(cart.subtotal)} />
+          <SummaryRow
+            label="Doprava"
+            value={
+              !selectedOption
+                ? '—'
+                : shippingGross === 0n
+                  ? 'Zdarma'
+                  : formatMoney({ amount: selectedOption.amount, currency: cart.currency })
+            }
+          />
           <div
             style={{
               display: 'flex',
@@ -254,10 +526,12 @@ export default function CheckoutPage({ params }: Props) {
               fontWeight: 600,
               fontSize: '1rem',
               paddingTop: '0.5rem',
+              marginTop: '0.25rem',
+              borderTop: '1px solid #ddd',
             }}
           >
             <span>Celkem{cart.tax_included ? ' (vč. DPH)' : ''}</span>
-            <span>{formatMoney(cart.subtotal)}</span>
+            <span>{formatMoney(totalMoney)}</span>
           </div>
           {cart.tax_breakdown.map((b) => (
             <div
@@ -270,13 +544,83 @@ export default function CheckoutPage({ params }: Props) {
                 marginTop: '0.25rem',
               }}
             >
-              <span>z toho DPH {formatVatRate(b.rate_basis_points)}</span>
+              <span>z toho DPH {formatVatRate(b.rate_basis_points)} (zboží)</span>
               <span>{formatMoney({ amount: b.tax_amount, currency: cart.currency })}</span>
             </div>
           ))}
         </aside>
       </div>
     </main>
+  );
+}
+
+function ShippingMethodRow({
+  option,
+  selected,
+  currency,
+  onSelect,
+}: {
+  option: ShippingOption;
+  selected: boolean;
+  currency: string;
+  onSelect: () => void;
+}) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.625rem',
+        padding: '0.75rem',
+        border: `1px solid ${selected ? '#111' : '#ddd'}`,
+        borderRadius: 6,
+        cursor: 'pointer',
+        background: selected ? '#fafafa' : '#fff',
+      }}
+    >
+      <input
+        type="radio"
+        name="shipping"
+        checked={selected}
+        onChange={onSelect}
+        style={{ marginTop: 3 }}
+      />
+      <span style={{ flex: 1 }}>
+        <span style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 500 }}>
+          <span>{option.display_name}</span>
+          <span>
+            {option.free ? 'Zdarma' : formatMoney({ amount: option.amount, currency })}
+          </span>
+        </span>
+        {option.description && (
+          <span style={{ display: 'block', fontSize: '0.75rem', color: '#666', marginTop: 2 }}>
+            {option.description}
+          </span>
+        )}
+        {option.estimated_days_min !== null && (
+          <span style={{ display: 'block', fontSize: '0.75rem', color: '#888', marginTop: 2 }}>
+            Doručení {option.estimated_days_min}–{option.estimated_days_max ?? option.estimated_days_min}{' '}
+            prac. dní
+          </span>
+        )}
+      </span>
+    </label>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '0.875rem',
+        padding: '0.25rem 0',
+      }}
+    >
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
   );
 }
 
@@ -314,4 +658,14 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.9375rem',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
+};
+
+const pickBtn: React.CSSProperties = {
+  padding: '0.5rem 0.875rem',
+  background: '#111',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 4,
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
 };

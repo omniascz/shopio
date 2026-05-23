@@ -59,7 +59,13 @@ export const orders = pgTable(
       .default(sql`0`), // future
     shippingAmount: bigint('shipping_amount', { mode: 'bigint' })
       .notNull()
-      .default(sql`0`), // future
+      .default(sql`0`),
+    /** Chosen shipping method snapshot (per `14-shipping.md`):
+     * { carrier_code, service_code, display_name, rate_id }. */
+    shippingMethod: jsonb('shipping_method'),
+    /** Selected pickup point snapshot (Zásilkovna výdejna / Z-BOX), if any:
+     * { external_id, name, street, city, postal_code, country_code }. */
+    pickupPoint: jsonb('pickup_point'),
     taxAmount: bigint('tax_amount', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),

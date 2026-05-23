@@ -188,12 +188,52 @@ export interface ShippingAddress {
   state?: string;
 }
 
+export interface ShippingOption {
+  rate_id: string;
+  carrier_code: string;
+  service_code: string;
+  display_name: string;
+  description: string | null;
+  amount: string;
+  currency: string;
+  free: boolean;
+  requires_pickup_point: boolean;
+  supports_cod: boolean;
+  estimated_days_min: number | null;
+  estimated_days_max: number | null;
+}
+
+export interface ShippingRatesResponse {
+  country: string;
+  options: ShippingOption[];
+  pickup_widget: { provider: string; api_key: string } | null;
+}
+
+export interface PickupPoint {
+  external_id: string;
+  name: string;
+  street: string | null;
+  city: string;
+  postal_code: string;
+  country_code: string;
+}
+
 export interface CheckoutInput {
   customerEmail: string;
   customerName: string;
   customerPhone?: string;
   shippingAddress: ShippingAddress;
   customerNote?: string;
+  shippingRateId?: string;
+  pickupPoint?: {
+    carrierCode: string;
+    externalId: string;
+    name?: string;
+    street?: string;
+    city?: string;
+    postalCode?: string;
+    countryCode?: string;
+  };
 }
 
 export interface OrderConfirmation {
@@ -229,6 +269,8 @@ export interface OrderDetail {
   };
   tax_included: boolean;
   tax_breakdown: TaxBreakdownEntry[];
+  shipping_method: { display_name: string; carrier_code: string; service_code: string } | null;
+  pickup_point: PickupPoint | null;
   placed_at: string;
   items: {
     id: string;
@@ -303,6 +345,29 @@ export async function removeCartItem(tenantSlug: string, itemId: string): Promis
   return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/items/${itemId}`, {
     method: 'DELETE',
   });
+}
+
+export async function fetchShippingRates(
+  tenantSlug: string,
+  country?: string,
+): Promise<ShippingRatesResponse> {
+  const qs = country ? `?country=${encodeURIComponent(country)}` : '';
+  return cartFetch<ShippingRatesResponse>(`/storefront/${tenantSlug}/shipping/rates${qs}`);
+}
+
+export async function fetchPickupPoints(
+  tenantSlug: string,
+  opts: { carrier?: string; q?: string; country?: string } = {},
+): Promise<PickupPoint[]> {
+  const params = new URLSearchParams();
+  if (opts.carrier) params.set('carrier', opts.carrier);
+  if (opts.q) params.set('q', opts.q);
+  if (opts.country) params.set('country', opts.country);
+  const qs = params.toString();
+  const data = await cartFetch<{ points: PickupPoint[] }>(
+    `/storefront/${tenantSlug}/shipping/pickup-points${qs ? '?' + qs : ''}`,
+  );
+  return data.points;
 }
 
 export async function checkout(

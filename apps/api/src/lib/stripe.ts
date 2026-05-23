@@ -46,6 +46,9 @@ export interface CreateCheckoutSessionInput {
     quantity: number;
     unitAmountMinor: bigint;
   }[];
+  /** Gross shipping fee as a separate line item (0/absent = none). */
+  shippingAmountMinor?: bigint;
+  shippingLabel?: string;
   successUrl: string;
   cancelUrl: string;
 }
@@ -65,18 +68,30 @@ export async function createCheckoutSession(
   const stripe = getStripe(config);
   if (!stripe) throw new Error('Stripe not configured');
 
+  const lineItems = input.items.map((it) => ({
+    price_data: {
+      currency: input.currency.toLowerCase(),
+      unit_amount: Number(it.unitAmountMinor),
+      product_data: { name: it.title },
+    },
+    quantity: it.quantity,
+  }));
+  if (input.shippingAmountMinor && input.shippingAmountMinor > 0n) {
+    lineItems.push({
+      price_data: {
+        currency: input.currency.toLowerCase(),
+        unit_amount: Number(input.shippingAmountMinor),
+        product_data: { name: input.shippingLabel ?? 'Doprava' },
+      },
+      quantity: 1,
+    });
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     customer_email: input.customerEmail,
     payment_method_types: ['card'],
-    line_items: input.items.map((it) => ({
-      price_data: {
-        currency: input.currency.toLowerCase(),
-        unit_amount: Number(it.unitAmountMinor),
-        product_data: { name: it.title },
-      },
-      quantity: it.quantity,
-    })),
+    line_items: lineItems,
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     client_reference_id: input.orderId,

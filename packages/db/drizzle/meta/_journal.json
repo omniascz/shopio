@@ -29,6 +29,13 @@
       "when": 1779528222413,
       "tag": "0003_cz_vat",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779530405505,
+      "tag": "0004_shipping",
+      "breakpoints": true
     }
   ]
 }

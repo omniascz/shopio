@@ -49,6 +49,10 @@ const ConfigSchema = z.object({
   STRIPE_WEBHOOK_SECRET: stripeKeySchema('whsec_'),
   STRIPE_PUBLISHABLE_KEY: stripeKeySchema('pk_'),
 
+  // Zásilkovna / Packeta (optional — when absent the storefront falls back to the
+  // seeded pickup-point picker instead of the Packeta JS widget).
+  PACKETA_API_KEY: z.string().min(8).optional(),
+
   // SMTP (Mailpit in dev; Postmark/SendGrid in prod via SMTP relay)
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1027),

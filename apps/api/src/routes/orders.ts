@@ -331,6 +331,8 @@ function serializeOrder(
     },
     tax_included: order.priceIncludesTax,
     tax_breakdown: order.taxBreakdown,
+    shipping_method: order.shippingMethod,
+    pickup_point: order.pickupPoint,
     customer_note: order.customerNote,
     placed_at: order.placedAt,
     paid_at: order.paidAt,
