@@ -156,12 +156,26 @@ export interface CartItem {
   primary_image_url: string | null;
 }
 
+export interface TaxBreakdownEntry {
+  tax_class: string;
+  rate_basis_points: number;
+  base_amount: string;
+  tax_amount: string;
+}
+
 export interface Cart {
   id: string;
   status: string;
   currency: string;
   item_count: number;
   subtotal: Money;
+  /** Whether prices already include VAT (CZ B2C default). */
+  tax_included: boolean;
+  /** VAT contained in the subtotal (estimate at tenant's home country). */
+  tax: Money;
+  /** Subtotal net of VAT. */
+  net_subtotal: Money;
+  tax_breakdown: TaxBreakdownEntry[];
   items: CartItem[];
 }
 
@@ -213,6 +227,8 @@ export interface OrderDetail {
     tax: Money;
     total: Money;
   };
+  tax_included: boolean;
+  tax_breakdown: TaxBreakdownEntry[];
   placed_at: string;
   items: {
     id: string;
@@ -312,6 +328,11 @@ export async function getOrder(
     if (err instanceof StorefrontApiError && err.status === 404) return null;
     throw err;
   }
+}
+
+/** Format a VAT rate in basis points as a percent label, e.g. 2100 → "21 %". */
+export function formatVatRate(basisPoints: number): string {
+  return `${(basisPoints / 100).toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} %`;
 }
 
 /** Format Money for display per locale. */

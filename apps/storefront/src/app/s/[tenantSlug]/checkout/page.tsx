@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
-import { checkout, formatMoney } from '@/lib/api';
+import { checkout, formatMoney, formatVatRate } from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
@@ -256,9 +256,24 @@ export default function CheckoutPage({ params }: Props) {
               paddingTop: '0.5rem',
             }}
           >
-            <span>Celkem</span>
+            <span>Celkem{cart.tax_included ? ' (vč. DPH)' : ''}</span>
             <span>{formatMoney(cart.subtotal)}</span>
           </div>
+          {cart.tax_breakdown.map((b) => (
+            <div
+              key={b.rate_basis_points}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.75rem',
+                color: '#666',
+                marginTop: '0.25rem',
+              }}
+            >
+              <span>z toho DPH {formatVatRate(b.rate_basis_points)}</span>
+              <span>{formatMoney({ amount: b.tax_amount, currency: cart.currency })}</span>
+            </div>
+          ))}
         </aside>
       </div>
     </main>

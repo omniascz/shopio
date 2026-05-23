@@ -17,6 +17,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -61,7 +62,14 @@ export const orders = pgTable(
       .default(sql`0`), // future
     taxAmount: bigint('tax_amount', { mode: 'bigint' })
       .notNull()
-      .default(sql`0`), // future
+      .default(sql`0`),
+    /** Whether line prices were gross (VAT-inclusive) at placement — snapshot. */
+    priceIncludesTax: boolean('price_includes_tax').notNull().default(true),
+    /** VAT breakdown grouped by rate, snapshot per `15 §4` STAGE 7.
+     * [{ tax_class, rate_basis_points, base_amount, tax_amount }] */
+    taxBreakdown: jsonb('tax_breakdown')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     totalAmount: bigint('total_amount', { mode: 'bigint' }).notNull(),
     /** Aggregate lifecycle status per `16-order-management.md`. */
     status: text('status', {
@@ -138,6 +146,9 @@ export const orderItems = pgTable(
     lineDiscountAmount: bigint('line_discount_amount', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),
+    /** VAT snapshot per `15 §3.6` — class + rate frozen at placement. */
+    taxClassCode: text('tax_class_code').notNull().default('standard'),
+    taxRateBasisPoints: integer('tax_rate_basis_points').notNull().default(0),
     lineTaxAmount: bigint('line_tax_amount', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),

@@ -13,4 +13,6 @@ export * from './product-categories';
 // Commerce (Wave 1 step 5 — `11-cart.md` + `12-checkout.md` + `16-order-management.md`)
 export * from './carts';
 export * from './orders';
+// Tax (Wave 1 — `15-tax-compliance.md`)
+export * from './tax-rates';
 // Future: customers, inventory, payments, ...

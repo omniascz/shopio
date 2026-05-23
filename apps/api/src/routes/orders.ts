@@ -329,6 +329,8 @@ function serializeOrder(
       discount: { amount: order.discountAmount.toString(), currency: order.currency },
       total: { amount: order.totalAmount.toString(), currency: order.currency },
     },
+    tax_included: order.priceIncludesTax,
+    tax_breakdown: order.taxBreakdown,
     customer_note: order.customerNote,
     placed_at: order.placedAt,
     paid_at: order.paidAt,
@@ -346,6 +348,12 @@ function serializeOrder(
       },
       line_subtotal: {
         amount: it.lineSubtotalAmount.toString(),
+        currency: it.unitPriceCurrency,
+      },
+      tax_class: it.taxClassCode,
+      tax_rate_basis_points: it.taxRateBasisPoints,
+      line_tax: {
+        amount: it.lineTaxAmount.toString(),
         currency: it.unitPriceCurrency,
       },
       line_total: {

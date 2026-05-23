@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getOrder, formatMoney, type OrderDetail } from '@/lib/api';
+import { getOrder, formatMoney, formatVatRate, type OrderDetail } from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string; orderNumber: string }>;
@@ -113,9 +113,22 @@ export default function OrderConfirmationPage({ params }: Props) {
         </ul>
 
         <div style={{ marginTop: '1rem', borderTop: '2px solid #111', paddingTop: '0.75rem' }}>
-          <Row label="Mezisoučet" value={formatMoney(order.totals.subtotal)} />
+          <Row
+            label={order.tax_included ? 'Základ daně (bez DPH)' : 'Mezisoučet'}
+            value={formatMoney(order.totals.subtotal)}
+          />
+          {order.tax_breakdown.map((b) => (
+            <Row
+              key={b.rate_basis_points}
+              label={`DPH ${formatVatRate(b.rate_basis_points)}`}
+              value={formatMoney({ amount: b.tax_amount, currency: order.totals.total.currency })}
+              muted
+            />
+          ))}
+          {order.tax_breakdown.length === 0 && (
+            <Row label="Daň" value={formatMoney(order.totals.tax)} />
+          )}
           <Row label="Doprava" value={formatMoney(order.totals.shipping)} />
-          <Row label="Daň" value={formatMoney(order.totals.tax)} />
           <Row label="Celkem" value={formatMoney(order.totals.total)} bold />
         </div>
       </section>
@@ -174,7 +187,17 @@ export default function OrderConfirmationPage({ params }: Props) {
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function Row({
+  label,
+  value,
+  bold,
+  muted,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  muted?: boolean;
+}) {
   return (
     <div
       style={{
@@ -182,7 +205,8 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
         justifyContent: 'space-between',
         padding: '0.375rem 0',
         fontWeight: bold ? 600 : 400,
-        fontSize: bold ? '1.0625rem' : '0.9375rem',
+        fontSize: bold ? '1.0625rem' : muted ? '0.8125rem' : '0.9375rem',
+        color: muted ? '#666' : 'inherit',
       }}
     >
       <span>{label}</span>

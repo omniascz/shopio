@@ -58,6 +58,40 @@ async function seed() {
   }
 
   // ---------------------------------------------------------------------------
+  // CZ VAT rates (per `15-tax-compliance.md`) — 2024 reform: 21 / 12 / 0 %.
+  // ---------------------------------------------------------------------------
+  await db
+    .insert(schema.taxRates)
+    .values([
+      {
+        tenantId: tenant.id,
+        countryCode: 'CZ',
+        taxClassCode: 'standard',
+        rateBasisPoints: 2100,
+        name: 'DPH 21 %',
+        validFrom: '2024-01-01',
+      },
+      {
+        tenantId: tenant.id,
+        countryCode: 'CZ',
+        taxClassCode: 'reduced',
+        rateBasisPoints: 1200,
+        name: 'DPH 12 %',
+        validFrom: '2024-01-01',
+      },
+      {
+        tenantId: tenant.id,
+        countryCode: 'CZ',
+        taxClassCode: 'zero',
+        rateBasisPoints: 0,
+        name: 'DPH 0 %',
+        validFrom: '2024-01-01',
+      },
+    ])
+    .onConflictDoNothing();
+  console.log(`  ✓ CZ VAT rates ensured (21 / 12 / 0 %)`);
+
+  // ---------------------------------------------------------------------------
   // Categories: pottery, stoneware
   // ---------------------------------------------------------------------------
   const potteryId = await upsertCategory(db, tenant.id, 'pottery', 'Pottery', 'pottery', null, 0);

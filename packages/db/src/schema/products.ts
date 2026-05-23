@@ -35,6 +35,8 @@ export const products = pgTable(
     basePriceAmount: bigint('base_price_amount', { mode: 'bigint' }), // minor units (e.g. haléře)
     basePriceCurrency: text('base_price_currency'), // ISO 4217
     compareAtAmount: bigint('compare_at_amount', { mode: 'bigint' }), // strikethrough
+    // Tax (per `15-tax-compliance.md` §4 — tax class drives VAT rate at checkout)
+    taxClassCode: text('tax_class_code').notNull().default('standard'),
     // SEO
     seoTitle: text('seo_title'),
     seoDescription: text('seo_description'),

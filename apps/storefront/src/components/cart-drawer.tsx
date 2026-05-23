@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCart } from '../lib/cart-context';
-import { formatMoney } from '../lib/api';
+import { formatMoney, formatVatRate } from '../lib/api';
 
 export function CartDrawer() {
   const { cart, loading, error, drawerOpen, closeDrawer, update, remove, tenantSlug } = useCart();
@@ -180,16 +180,30 @@ export function CartDrawer() {
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                marginBottom: '0.75rem',
+                marginBottom: '0.25rem',
                 fontSize: '1rem',
                 fontWeight: 600,
               }}
             >
-              <span>Mezisoučet</span>
+              <span>Mezisoučet{cart.tax_included ? ' (vč. DPH)' : ''}</span>
               <span>{formatMoney(cart.subtotal)}</span>
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#666', margin: '0 0 0.75rem' }}>
-              Doprava a daně se vypočítají při dokončení objednávky.
+            {cart.tax_breakdown.map((b) => (
+              <div
+                key={b.rate_basis_points}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '0.75rem',
+                  color: '#666',
+                }}
+              >
+                <span>z toho DPH {formatVatRate(b.rate_basis_points)}</span>
+                <span>{formatMoney({ amount: b.tax_amount, currency: cart.currency })}</span>
+              </div>
+            ))}
+            <p style={{ fontSize: '0.75rem', color: '#666', margin: '0.5rem 0 0.75rem' }}>
+              Doprava se vypočítá při dokončení objednávky.
             </p>
             <Link
               href={`/s/${tenantSlug}/checkout`}

@@ -20,6 +20,7 @@ export default defineConfig({
     './src/schema/product-categories.ts',
     './src/schema/carts.ts',
     './src/schema/orders.ts',
+    './src/schema/tax-rates.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

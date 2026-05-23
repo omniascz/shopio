@@ -4,7 +4,16 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, uuid, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  jsonb,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 export const tenants = pgTable(
   'tenants',
@@ -24,6 +33,11 @@ export const tenants = pgTable(
     // Identification (CZ tax)
     registrationNumber: text('registration_number'), // IČO
     vatId: text('vat_id'), // DIČ / VAT
+    // Tax engine config (per `15-tax-compliance.md`)
+    /** CZ B2C convention: catalog prices are gross (VAT-inclusive). Engine extracts VAT. */
+    priceIncludesTax: boolean('price_includes_tax').notNull().default(true),
+    /** Tax class applied to shipping fees. */
+    shippingTaxClass: text('shipping_tax_class').notNull().default('standard'),
     // Status
     status: text('status', { enum: ['provisioning', 'active', 'suspended', 'closing', 'closed'] })
       .notNull()

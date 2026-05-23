@@ -28,6 +28,8 @@ import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
+import { computeTax, serializeBreakdown, type TaxResult } from '../lib/tax';
+import { resolveRates } from '../lib/tax-resolver';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -78,7 +80,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const sessionId = ensureSession(req, reply, isProd);
       const cart = await getOrCreateCart(db, tenant.id, sessionId, tenant.defaultCurrency);
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: serializeCart(cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
     },
   );
 
@@ -168,7 +170,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
       const items = await listCartItems(db, cart.id);
       return reply.code(201).send({
-        data: { ...serializeCart(cart, items), added_item_id: resultItemId },
+        data: { ...(await buildCartPayload(db, tenant, cart, items)), added_item_id: resultItemId },
       });
     },
   );
@@ -232,7 +234,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         .where(eq(schema.carts.id, cart.id));
 
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: serializeCart(cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
     },
   );
 
@@ -267,7 +269,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         .where(eq(schema.carts.id, cart.id));
 
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: serializeCart(cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
     },
   );
 
@@ -298,6 +300,26 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           error: { code: 'CART_EMPTY', message: 'Cannot checkout empty cart' },
         });
       }
+
+      // VAT computation — place of supply = ship-to country (per `15 §4` STAGE 1),
+      // falling back to the tenant home country. Pure; rate lookup is read-only so
+      // it runs before the placement transaction.
+      const rates = await resolveRates(
+        db,
+        tenant.id,
+        input.shippingAddress.countryCode,
+        tenant.countryCode,
+      );
+      const tax = computeTax({
+        lines: items.map((it) => ({
+          ref: it.pubId,
+          amount: it.unitPriceAmount * BigInt(it.quantity),
+          taxClassCode: it.taxClassCode,
+        })),
+        rates,
+        priceIncludesTax: tenant.priceIncludesTax,
+      });
+      const taxByRef = new Map(tax.lines.map((l) => [l.ref, l]));
 
       // Atomic: revalidate stock + decrement + create order + clear cart
       try {
@@ -350,12 +372,10 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           // Generate order number (sequential per tenant per year)
           const orderNumber = await generateOrderNumber(tx, tenant.id);
 
-          // Compute totals
-          let subtotal = 0n;
-          for (const it of items) {
-            subtotal += it.unitPriceAmount * BigInt(it.quantity);
-          }
-          const total = subtotal; // MVP: no tax/shipping/discount
+          // Totals from the tax engine. Prices are VAT-inclusive (CZ B2C):
+          // subtotal = net base, total = gross (what the customer pays).
+          const subtotal = tax.totals.taxableAmount;
+          const total = tax.totals.grossAmount;
 
           // Insert order
           const [order] = await tx
@@ -371,6 +391,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               billingAddress: input.shippingAddress,
               currency: cart.currency,
               subtotalAmount: subtotal,
+              taxAmount: tax.totals.taxAmount,
+              priceIncludesTax: tenant.priceIncludesTax,
+              taxBreakdown: serializeBreakdown(tax.breakdown),
               totalAmount: total,
               status: 'pending_payment',
               paymentStatus: 'pending',
@@ -387,7 +410,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           await tx.insert(schema.orderItems).values(
             items.map((it) => {
               const v = variantMap.get(it.variantId)!;
-              const lineSubtotal = it.unitPriceAmount * BigInt(it.quantity);
+              const lineGross = it.unitPriceAmount * BigInt(it.quantity);
+              const lt = taxByRef.get(it.pubId);
               return {
                 tenantId: tenant.id,
                 orderId: order.id,
@@ -400,8 +424,12 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 quantity: it.quantity,
                 unitPriceAmount: it.unitPriceAmount,
                 unitPriceCurrency: it.unitPriceCurrency,
-                lineSubtotalAmount: lineSubtotal,
-                lineTotalAmount: lineSubtotal,
+                // net base; tax + gross snapshot from the engine
+                lineSubtotalAmount: lt?.baseAmount ?? lineGross,
+                taxClassCode: lt?.taxClassCode ?? it.taxClassCode,
+                taxRateBasisPoints: lt?.taxRateBasisPoints ?? 0,
+                lineTaxAmount: lt?.taxAmount ?? 0n,
+                lineTotalAmount: lineGross,
               };
             }),
           );
@@ -599,6 +627,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             tax: { amount: order.taxAmount.toString(), currency: order.currency },
             total: { amount: order.totalAmount.toString(), currency: order.currency },
           },
+          tax_included: order.priceIncludesTax,
+          tax_breakdown: order.taxBreakdown,
           placed_at: order.placedAt,
           items: items.map((it) => ({
             id: it.pubId,
@@ -643,6 +673,9 @@ async function resolveTenant(db: AppDb, slug: string) {
       displayName: schema.tenants.displayName,
       defaultLocale: schema.tenants.defaultLocale,
       defaultCurrency: schema.tenants.defaultCurrency,
+      countryCode: schema.tenants.countryCode,
+      priceIncludesTax: schema.tenants.priceIncludesTax,
+      shippingTaxClass: schema.tenants.shippingTaxClass,
       status: schema.tenants.status,
     })
     .from(schema.tenants)
@@ -757,6 +790,7 @@ async function listCartItems(db: AppDb, cartId: string) {
       unitPriceAmount: schema.cartItems.unitPriceAmount,
       unitPriceCurrency: schema.cartItems.unitPriceCurrency,
       titleSnapshot: schema.cartItems.titleSnapshot,
+      taxClassCode: schema.products.taxClassCode,
       variantPubId: schema.productVariants.pubId,
       variantSku: schema.productVariants.sku,
       productPubId: schema.products.pubId,
@@ -775,9 +809,38 @@ async function listCartItems(db: AppDb, cartId: string) {
     .orderBy(asc(schema.cartItems.addedAt));
 }
 
+/**
+ * Resolve VAT rates for the tenant's home country and serialize the cart with a
+ * tax estimate. The real place of supply (ship-to country) is only known at
+ * checkout — the cart shows the domestic estimate.
+ */
+async function buildCartPayload(
+  db: AppDb,
+  tenant: { id: string; countryCode: string; priceIncludesTax: boolean },
+  cart: typeof schema.carts.$inferSelect,
+  items: Awaited<ReturnType<typeof listCartItems>>,
+) {
+  let tax: TaxResult | null = null;
+  if (items.length > 0) {
+    const rates = await resolveRates(db, tenant.id, tenant.countryCode, tenant.countryCode);
+    tax = computeTax({
+      lines: items.map((it) => ({
+        ref: it.pubId,
+        amount: it.unitPriceAmount * BigInt(it.quantity),
+        taxClassCode: it.taxClassCode,
+      })),
+      rates,
+      priceIncludesTax: tenant.priceIncludesTax,
+    });
+  }
+  return serializeCart(cart, items, tax, tenant.priceIncludesTax);
+}
+
 function serializeCart(
   cart: typeof schema.carts.$inferSelect,
   items: Awaited<ReturnType<typeof listCartItems>>,
+  tax: TaxResult | null,
+  priceIncludesTax: boolean,
 ) {
   let subtotal = 0n;
   for (const it of items) {
@@ -788,7 +851,15 @@ function serializeCart(
     status: cart.status,
     currency: cart.currency,
     item_count: items.reduce((sum, i) => sum + i.quantity, 0),
+    // subtotal = gross sum (what the customer pays when prices are VAT-inclusive)
     subtotal: { amount: subtotal.toString(), currency: cart.currency },
+    tax_included: priceIncludesTax,
+    tax: { amount: (tax?.totals.taxAmount ?? 0n).toString(), currency: cart.currency },
+    net_subtotal: {
+      amount: (tax?.totals.taxableAmount ?? subtotal).toString(),
+      currency: cart.currency,
+    },
+    tax_breakdown: tax ? serializeBreakdown(tax.breakdown) : [],
     items: items.map((it) => ({
       id: it.pubId,
       variant_id: it.variantPubId,
