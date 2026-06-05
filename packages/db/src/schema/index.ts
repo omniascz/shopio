@@ -19,4 +19,6 @@ export * from './tax-rates';
 export * from './shipping';
 // Invoicing (Wave 1 — `15-tax-compliance.md` §3.5)
 export * from './invoices';
+// Returns (Wave 1 — `17-returns-refunds.md` MVP)
+export * from './returns';
 // Future: customers, inventory, payments, ...

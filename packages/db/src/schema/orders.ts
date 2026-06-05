@@ -77,6 +77,10 @@ export const orders = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     totalAmount: bigint('total_amount', { mode: 'bigint' }).notNull(),
+    /** Cumulative amount refunded via returns (per `17-returns-refunds.md` RULE-RTN-015). */
+    refundedAmount: bigint('refunded_amount', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     /** Aggregate lifecycle status per `16-order-management.md`. */
     status: text('status', {
       enum: [

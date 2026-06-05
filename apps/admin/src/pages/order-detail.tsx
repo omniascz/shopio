@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, formatMoney } from '../lib/api';
+import { api, formatMoney, type OrderDetail, type ReturnDetail } from '../lib/api';
 import { StatusBadge } from './dashboard';
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -163,6 +164,8 @@ export function OrderDetailPage() {
               <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{order.customer_note}</p>
             </section>
           )}
+
+          <ReturnsPanel orderId={orderId} order={order} />
         </div>
 
         <aside>
@@ -246,6 +249,252 @@ export function OrderDetailPage() {
     </div>
   );
 }
+
+const RETURN_STATUS_LABELS: Record<string, string> = {
+  requested: 'Požadováno',
+  approved: 'Schváleno',
+  received: 'Přijato',
+  refunded: 'Refundováno',
+  rejected: 'Zamítnuto',
+  cancelled: 'Zrušeno',
+};
+
+function ReturnsPanel({ orderId, order }: { orderId: string; order: OrderDetail }) {
+  const queryClient = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [reasonCode, setReasonCode] = useState('other');
+  const [refundShipping, setRefundShipping] = useState(false);
+  const [restock, setRestock] = useState(true);
+
+  const returnsQuery = useQuery({
+    queryKey: ['admin', 'order', orderId, 'returns'],
+    queryFn: () => api.listOrderReturns(orderId),
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'order', orderId] });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createReturn(orderId, {
+        items: Object.entries(quantities)
+          .filter(([, q]) => q > 0)
+          .map(([orderItemId, quantity]) => ({ orderItemId, quantity })),
+        reasonCode,
+      }),
+    onSuccess: () => {
+      setCreating(false);
+      setQuantities({});
+      invalidate();
+    },
+  });
+
+  const transitionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' | 'receive' | 'cancel' }) =>
+      api.transitionReturn(id, action),
+    onSuccess: invalidate,
+  });
+
+  const refundMutation = useMutation({
+    mutationFn: (id: string) => api.refundReturn(id, { refundShipping, restock }),
+    onSuccess: invalidate,
+  });
+
+  const returns = returnsQuery.data?.returns ?? [];
+  const canCreate = order.payment_status === 'paid' || order.payment_status === 'refunded';
+  const anySelected = Object.values(quantities).some((q) => q > 0);
+  const busy = createMutation.isPending || transitionMutation.isPending || refundMutation.isPending;
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Vratky a refundace</h2>
+
+      {returnsQuery.isLoading ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Načítání…</p>
+      ) : returns.length === 0 ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Žádné vratky.</p>
+      ) : (
+        returns.map((ret: ReturnDetail) => (
+          <div
+            key={ret.id}
+            style={{
+              border: '1px solid #e9ecef',
+              borderRadius: 6,
+              padding: '0.75rem',
+              marginBottom: '0.75rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '0.9375rem' }}>{ret.number}</strong>
+              <span style={{ fontSize: '0.8125rem', color: '#444' }}>
+                {RETURN_STATUS_LABELS[ret.status] ?? ret.status}
+              </span>
+            </div>
+            <ul style={{ margin: '0.5rem 0', paddingLeft: '1.25rem', fontSize: '0.8125rem' }}>
+              {ret.items.map((it) => (
+                <li key={it.id}>
+                  {it.title} × {it.quantity} — {formatMoney(it.line_gross)}
+                  {it.restocked && ' · naskladněno zpět'}
+                </li>
+              ))}
+            </ul>
+            <div style={{ fontSize: '0.8125rem', color: '#666' }}>
+              Požadovaný refund: {formatMoney(ret.requested_refund)}
+              {ret.actual_refund && (
+                <>
+                  {' '}
+                  • Refundováno: <strong>{formatMoney(ret.actual_refund)}</strong> (
+                  {ret.refund_method})
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+              {ret.status === 'requested' && (
+                <>
+                  <button
+                    type="button"
+                    style={downloadBtn}
+                    disabled={busy}
+                    onClick={() => transitionMutation.mutate({ id: ret.id, action: 'approve' })}
+                  >
+                    Schválit
+                  </button>
+                  <button
+                    type="button"
+                    style={dangerBtn}
+                    disabled={busy}
+                    onClick={() => transitionMutation.mutate({ id: ret.id, action: 'reject' })}
+                  >
+                    Zamítnout
+                  </button>
+                </>
+              )}
+              {ret.status === 'approved' && (
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  disabled={busy}
+                  onClick={() => transitionMutation.mutate({ id: ret.id, action: 'receive' })}
+                >
+                  Označit přijato
+                </button>
+              )}
+              {ret.status === 'received' && (
+                <>
+                  <label style={{ fontSize: '0.8125rem', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={refundShipping}
+                      onChange={(e) => setRefundShipping(e.target.checked)}
+                    />
+                    vrátit i dopravu
+                  </label>
+                  <label style={{ fontSize: '0.8125rem', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={restock}
+                      onChange={(e) => setRestock(e.target.checked)}
+                    />
+                    naskladnit zpět
+                  </label>
+                  <button
+                    type="button"
+                    style={dangerBtn}
+                    disabled={busy}
+                    onClick={() => refundMutation.mutate(ret.id)}
+                  >
+                    {refundMutation.isPending ? 'Refunduji…' : 'Refundovat'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+
+      {(transitionMutation.isError || refundMutation.isError || createMutation.isError) && (
+        <p style={{ color: '#c00', fontSize: '0.8125rem' }}>
+          {((transitionMutation.error ?? refundMutation.error ?? createMutation.error) as Error)
+            ?.message}
+        </p>
+      )}
+
+      {canCreate && !creating && (
+        <button type="button" style={downloadBtn} onClick={() => setCreating(true)}>
+          + Nová vratka
+        </button>
+      )}
+
+      {creating && (
+        <div style={{ marginTop: '0.75rem', borderTop: '1px solid #eee', paddingTop: '0.75rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <tbody>
+              {order.items.map((it) => (
+                <tr key={it.id}>
+                  <td style={{ padding: '0.25rem 0' }}>
+                    {it.product_title} — {it.variant_title}
+                  </td>
+                  <td style={{ textAlign: 'right', width: 110 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      max={it.quantity}
+                      value={quantities[it.id] ?? 0}
+                      onChange={(e) =>
+                        setQuantities((prev) => ({
+                          ...prev,
+                          [it.id]: Math.max(0, Math.min(it.quantity, Number(e.target.value))),
+                        }))
+                      }
+                      style={{ width: 56, padding: '0.25rem' }}
+                    />{' '}
+                    / {it.quantity}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+            <select
+              value={reasonCode}
+              onChange={(e) => setReasonCode(e.target.value)}
+              style={{ padding: '0.25rem', fontSize: '0.8125rem' }}
+            >
+              <option value="changed_mind">Odstoupení od smlouvy</option>
+              <option value="damaged">Poškozené zboží</option>
+              <option value="wrong_item">Špatné zboží</option>
+              <option value="not_as_described">Neodpovídá popisu</option>
+              <option value="other">Jiný důvod</option>
+            </select>
+            <button
+              type="button"
+              style={downloadBtn}
+              disabled={!anySelected || createMutation.isPending}
+              onClick={() => createMutation.mutate()}
+            >
+              Vytvořit vratku
+            </button>
+            <button type="button" style={dangerBtn} onClick={() => setCreating(false)}>
+              Zrušit
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const dangerBtn: React.CSSProperties = {
+  padding: '0.25rem 0.625rem',
+  background: '#fff5f5',
+  border: '1px solid #ffcccc',
+  color: '#a03030',
+  borderRadius: 4,
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+};
 
 function InvoicesPanel({ orderId, orderStatus }: { orderId: string; orderStatus: string }) {
   const queryClient = useQueryClient();

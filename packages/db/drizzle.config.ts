@@ -23,6 +23,7 @@ export default defineConfig({
     './src/schema/tax-rates.ts',
     './src/schema/shipping.ts',
     './src/schema/invoices.ts',
+    './src/schema/returns.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

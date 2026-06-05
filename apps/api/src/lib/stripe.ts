@@ -113,6 +113,34 @@ export async function createCheckoutSession(
   return { sessionId: session.id, paymentUrl: session.url };
 }
 
+export interface CreateRefundInput {
+  paymentIntentId: string;
+  amountMinor: bigint;
+  /** Idempotency key — return pub_id keeps retries safe. */
+  idempotencyKey: string;
+}
+
+/**
+ * Refund (part of) a payment intent. Throws if Stripe not configured.
+ * Per `13-payments.md` refund subset — full payments table comes later.
+ */
+export async function createRefund(
+  config: ShopioConfig,
+  input: CreateRefundInput,
+): Promise<{ refundId: string; status: string }> {
+  const stripe = getStripe(config);
+  if (!stripe) throw new Error('Stripe not configured');
+  const refund = await stripe.refunds.create(
+    {
+      payment_intent: input.paymentIntentId,
+      amount: Number(input.amountMinor),
+      reason: 'requested_by_customer',
+    },
+    { idempotencyKey: input.idempotencyKey },
+  );
+  return { refundId: refund.id, status: refund.status ?? 'pending' };
+}
+
 /**
  * Verify Stripe webhook signature + parse event. Throws on invalid signature.
  */

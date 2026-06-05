@@ -91,6 +91,32 @@ export interface InvoiceSummary {
   is_void: boolean;
 }
 
+export interface ReturnDetail {
+  id: string;
+  number: string;
+  status: string;
+  reason_code: string;
+  customer_note: string | null;
+  staff_note: string | null;
+  currency: string;
+  requested_refund: Money;
+  shipping_refund: Money;
+  actual_refund: Money | null;
+  refund_method: string | null;
+  refund_reference: string | null;
+  requested_at: string;
+  refunded_at: string | null;
+  items: {
+    id: string;
+    title: string;
+    sku: string | null;
+    quantity: number;
+    line_gross: Money;
+    line_tax: Money;
+    restocked: boolean;
+  }[];
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -265,6 +291,48 @@ class ApiClient {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Returns
+  // ---------------------------------------------------------------------------
+  async listOrderReturns(orderId: string): Promise<{ returns: ReturnDetail[] }> {
+    return this.request(`/admin/orders/${orderId}/returns`);
+  }
+
+  async createReturn(
+    orderId: string,
+    body: {
+      items: { orderItemId: string; quantity: number }[];
+      reasonCode?: string;
+      staffNote?: string;
+    },
+  ): Promise<ReturnDetail> {
+    return this.request(`/admin/orders/${orderId}/returns`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async transitionReturn(
+    returnId: string,
+    action: 'approve' | 'reject' | 'receive' | 'cancel',
+    body?: { reason?: string },
+  ): Promise<ReturnDetail> {
+    return this.request(`/admin/returns/${returnId}/${action}`, {
+      method: 'POST',
+      ...(body && { body: JSON.stringify(body) }),
+    });
+  }
+
+  async refundReturn(
+    returnId: string,
+    body: { refundShipping: boolean; restock: boolean },
+  ): Promise<ReturnDetail & { credit_note_number?: string | null }> {
+    return this.request(`/admin/returns/${returnId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 
   // ---------------------------------------------------------------------------
