@@ -12,6 +12,7 @@ import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { sendOrderPaidEmail } from '../lib/order-emails';
+import { issueInvoiceForOrder } from '../lib/invoices';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -284,14 +285,26 @@ export async function registerOrderRoutes(
         'order.status_updated',
       );
 
-      // Trigger paid email when transitioning into paid (manual admin mark)
+      // Trigger invoice + paid email when transitioning into paid (manual admin mark).
+      // Invoice first so the email can attach the PDF (per `15 §3.5`).
       if (
         (parsed.data.status === 'paid' || parsed.data.paymentStatus === 'paid') &&
         existing.paymentStatus !== 'paid'
       ) {
-        void sendOrderPaidEmail({ db, config, log: app.log }, existing.id).catch((err) => {
-          app.log.error({ err, orderId: existing.id }, 'order.paid_email_failed');
-        });
+        void (async () => {
+          try {
+            const issued = await issueInvoiceForOrder(db, existing.id);
+            app.log.info(
+              { orderId: existing.id, invoiceNumber: issued.invoice.number },
+              'order.invoice_issued',
+            );
+          } catch (err) {
+            app.log.error({ err, orderId: existing.id }, 'order.invoice_failed');
+          }
+          await sendOrderPaidEmail({ db, config, log: app.log }, existing.id).catch((err) => {
+            app.log.error({ err, orderId: existing.id }, 'order.paid_email_failed');
+          });
+        })();
       }
 
       return reply.send({ data: serializeOrder(updated!, items) });

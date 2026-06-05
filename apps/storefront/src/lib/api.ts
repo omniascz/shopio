@@ -293,6 +293,11 @@ export const STOREFRONT_API_BASE =
     ? (process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040')
     : API_BASE;
 
+/** Direct download URL for the order's tax invoice PDF (404 until issued). */
+export function invoicePdfUrl(tenantSlug: string, orderNumber: string, email: string): string {
+  return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/invoice.pdf?email=${encodeURIComponent(email)}`;
+}
+
 async function cartFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${STOREFRONT_API_BASE}/api/${API_VERSION}${path}`, {
     ...init,

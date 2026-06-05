@@ -39,6 +39,16 @@ async function seed() {
   // ---------------------------------------------------------------------------
   // Tenant: bob-ceramics
   // ---------------------------------------------------------------------------
+  // Invoicing identity (per `15 §3.5` seller snapshot source). IČO/DIČ are
+  // fictional seed values; address + bank live in settings.invoicing.
+  const invoicingSettings = {
+    invoicing: {
+      address: { line1: 'Keramická 12', city: 'Praha 7', postal_code: '170 00' },
+      bank_account_iban: 'CZ6508000000192000145399',
+      bank_account_swift: 'GIBACZPX',
+    },
+  };
+
   let tenant = await findTenantBySlug(db, 'bob-ceramics');
   if (!tenant) {
     const [created] = await db
@@ -47,13 +57,31 @@ async function seed() {
         pubId: 'tnt_seed_bob_ceramics',
         slug: 'bob-ceramics',
         displayName: 'Bob Ceramics',
+        legalEntityName: 'Bob Ceramics s.r.o.',
         countryCode: 'CZ',
         status: 'active',
+        registrationNumber: '12345678',
+        vatId: 'CZ12345678',
+        settings: invoicingSettings,
       })
       .returning();
     tenant = created!;
     console.log(`  ✓ Created tenant bob-ceramics (${tenant.id})`);
   } else {
+    // Idempotent top-up: ensure invoicing identity exists on older seeds
+    if (!tenant.registrationNumber || !tenant.vatId) {
+      await db
+        .update(schema.tenants)
+        .set({
+          legalEntityName: tenant.legalEntityName ?? 'Bob Ceramics s.r.o.',
+          registrationNumber: tenant.registrationNumber ?? '12345678',
+          vatId: tenant.vatId ?? 'CZ12345678',
+          settings: { ...(tenant.settings as object), ...invoicingSettings },
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.tenants.id, tenant.id));
+      console.log(`  ✓ Updated tenant bob-ceramics invoicing identity`);
+    }
     console.log(`  ↻ Tenant bob-ceramics already exists`);
   }
 

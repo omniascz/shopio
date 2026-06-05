@@ -12,6 +12,8 @@ import type { FastifyBaseLogger } from 'fastify';
 import { asc, eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { renderOrderPaidEmail, sendEmail, type OrderEmailContext } from './email';
+import { getInvoiceForOrder } from './invoices';
+import { renderInvoicePdf } from './invoice-pdf';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -71,7 +73,28 @@ export async function sendOrderPaidEmail(deps: EmailServiceDeps, orderId: string
     placedAt: order.placedAt,
   };
 
+  // Attach the tax invoice PDF when already issued (per `15 §3.5`). Best-effort:
+  // a render failure must not block the confirmation email.
+  let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+  try {
+    const found = await getInvoiceForOrder(db, order.id, 'invoice');
+    if (found) {
+      const pdf = await renderInvoicePdf(found.invoice, found.items);
+      attachments = [
+        { filename: `${found.invoice.number}.pdf`, content: pdf, contentType: 'application/pdf' },
+      ];
+    }
+  } catch (err) {
+    log.error({ err, orderId: order.id }, 'order_emails.paid.invoice_attachment_failed');
+  }
+
   const { subject, text, html } = renderOrderPaidEmail(ctx);
-  await sendEmail(config, { to: order.customerEmail, subject, text, html });
-  log.info({ orderId: order.id }, 'order_emails.paid.sent');
+  await sendEmail(config, {
+    to: order.customerEmail,
+    subject,
+    text,
+    html,
+    ...(attachments && { attachments }),
+  });
+  log.info({ orderId: order.id, withInvoice: Boolean(attachments) }, 'order_emails.paid.sent');
 }

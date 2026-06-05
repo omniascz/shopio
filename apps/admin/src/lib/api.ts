@@ -77,6 +77,20 @@ export interface OrderDetail {
   }[];
 }
 
+export interface InvoiceSummary {
+  id: string;
+  kind: 'invoice' | 'credit_note';
+  number: string;
+  variable_symbol: string | null;
+  issued_at: string;
+  taxable_supply_date: string;
+  currency: string;
+  subtotal: Money;
+  tax: Money;
+  total: Money;
+  is_void: boolean;
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -220,6 +234,37 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Invoices
+  // ---------------------------------------------------------------------------
+  async listOrderInvoices(orderId: string): Promise<{ invoices: InvoiceSummary[] }> {
+    return this.request(`/admin/orders/${orderId}/invoices`);
+  }
+
+  async issueInvoice(orderId: string): Promise<InvoiceSummary> {
+    return this.request(`/admin/orders/${orderId}/invoices`, { method: 'POST' });
+  }
+
+  /** Download an authenticated binary (PDF/XML) and trigger a browser save. */
+  async downloadInvoiceFile(invoiceId: string, format: 'pdf' | 'xml'): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const res = await fetch(`${API_BASE}/api/${API_VERSION}/admin/invoices/${invoiceId}.${format}`, {
+      headers,
+      credentials: 'include',
+    });
+    if (!res.ok) throw new ApiError(`Download failed (${res.status})`, res.status);
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${invoiceId}.${format}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ---------------------------------------------------------------------------

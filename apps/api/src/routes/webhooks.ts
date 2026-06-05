@@ -14,11 +14,12 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { eq, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
 import { sendOrderPaidEmail } from '../lib/order-emails';
+import { issueInvoiceForOrder } from '../lib/invoices';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -163,6 +164,12 @@ async function handleCheckoutSessionCompleted(
     return;
   }
 
+  // Stash the payment intent id — refunds (per `17-returns-refunds.md`) need it.
+  const paymentIntentId =
+    typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+
   await db
     .update(schema.orders)
     .set({
@@ -171,6 +178,11 @@ async function handleCheckoutSessionCompleted(
       paymentStatus: 'paid',
       paidAt: new Date(),
       updatedAt: new Date(),
+      ...(paymentIntentId && {
+        metadata: dsql`${schema.orders.metadata} || ${JSON.stringify({
+          stripe_payment_intent_id: paymentIntentId,
+        })}::jsonb`,
+      }),
     })
     .where(eq(schema.orders.id, order.id));
 
@@ -182,6 +194,18 @@ async function handleCheckoutSessionCompleted(
     },
     'stripe.webhook.order_paid',
   );
+
+  // Issue the tax invoice (per `15 §3.5` — trigger: payment captured). Best-effort:
+  // a failure here must not bounce the webhook (Stripe would retry the whole event).
+  try {
+    const issued = await issueInvoiceForOrder(db, order.id);
+    app.log.info(
+      { orderId: order.id, invoiceNumber: issued.invoice.number, created: issued.created },
+      'stripe.webhook.invoice_issued',
+    );
+  } catch (err) {
+    app.log.error({ err, orderId: order.id }, 'stripe.webhook.invoice_failed');
+  }
 
   // Send payment confirmation email (best-effort)
   await sendOrderPaidEmail({ db, config, log: app.log }, order.id).catch((err) => {

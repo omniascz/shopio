@@ -17,4 +17,6 @@ export * from './orders';
 export * from './tax-rates';
 // Shipping (Wave 1 — `14-shipping.md`)
 export * from './shipping';
+// Invoicing (Wave 1 — `15-tax-compliance.md` §3.5)
+export * from './invoices';
 // Future: customers, inventory, payments, ...

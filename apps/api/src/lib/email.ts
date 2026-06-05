@@ -38,6 +38,7 @@ export interface SendEmailInput {
   text: string;
   html: string;
   replyTo?: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }
 
 export async function sendEmail(config: ShopioConfig, input: SendEmailInput): Promise<void> {
@@ -54,6 +55,7 @@ export async function sendEmail(config: ShopioConfig, input: SendEmailInput): Pr
     text: input.text,
     html: input.html,
     ...(input.replyTo && { replyTo: input.replyTo }),
+    ...(input.attachments?.length && { attachments: input.attachments }),
   });
 }
 

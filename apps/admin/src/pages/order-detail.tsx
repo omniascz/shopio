@@ -194,6 +194,8 @@ export function OrderDetailPage() {
             )}
           </section>
 
+          <InvoicesPanel orderId={orderId} orderStatus={order.payment_status} />
+
           <section style={cardStyle}>
             <h2 style={sectionHeaderStyle}>Zákazník</h2>
             <dl style={{ fontSize: '0.875rem', margin: 0 }}>
@@ -244,6 +246,89 @@ export function OrderDetailPage() {
     </div>
   );
 }
+
+function InvoicesPanel({ orderId, orderStatus }: { orderId: string; orderStatus: string }) {
+  const queryClient = useQueryClient();
+  const invoicesQuery = useQuery({
+    queryKey: ['admin', 'order', orderId, 'invoices'],
+    queryFn: () => api.listOrderInvoices(orderId),
+  });
+
+  const issueMutation = useMutation({
+    mutationFn: () => api.issueInvoice(orderId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['admin', 'order', orderId, 'invoices'] }),
+  });
+
+  const invoices = invoicesQuery.data?.invoices ?? [];
+  const hasRegular = invoices.some((i) => i.kind === 'invoice' && !i.is_void);
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Faktury</h2>
+      {invoicesQuery.isLoading ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Načítání…</p>
+      ) : invoices.length === 0 ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Zatím žádná faktura.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {invoices.map((inv) => (
+            <li key={inv.id} style={{ marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                {inv.kind === 'credit_note' ? 'Dobropis' : 'Faktura'} {inv.number}
+                {inv.is_void && <span style={{ color: '#c00' }}> (stornováno)</span>}
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: '#666' }}>
+                {new Date(inv.issued_at).toLocaleDateString('cs-CZ')} • {formatMoney(inv.total)}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  onClick={() => void api.downloadInvoiceFile(inv.id, 'pdf')}
+                >
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  onClick={() => void api.downloadInvoiceFile(inv.id, 'xml')}
+                >
+                  ISDOC
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!hasRegular && orderStatus === 'paid' && (
+        <button
+          type="button"
+          disabled={issueMutation.isPending}
+          onClick={() => issueMutation.mutate()}
+          style={{ ...downloadBtn, marginTop: '0.5rem' }}
+        >
+          {issueMutation.isPending ? 'Vystavuji…' : 'Vystavit fakturu'}
+        </button>
+      )}
+      {issueMutation.isError && (
+        <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>
+          {(issueMutation.error as Error).message}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const downloadBtn: React.CSSProperties = {
+  padding: '0.25rem 0.625rem',
+  background: '#f0f7ff',
+  border: '1px solid #cce0ff',
+  color: '#003d99',
+  borderRadius: 4,
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+};
 
 const cardStyle: React.CSSProperties = {
   background: '#fff',

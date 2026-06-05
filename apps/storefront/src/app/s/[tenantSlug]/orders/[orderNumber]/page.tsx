@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getOrder, formatMoney, formatVatRate, type OrderDetail } from '@/lib/api';
+import { getOrder, formatMoney, formatVatRate, invoicePdfUrl, type OrderDetail } from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string; orderNumber: string }>;
@@ -181,6 +181,19 @@ export default function OrderConfirmationPage({ params }: Props) {
           <dt style={dtStyle}>Vytvořeno</dt>
           <dd style={ddStyle}>{new Date(order.placed_at).toLocaleString('cs-CZ')}</dd>
         </dl>
+        {order.payment_status === 'paid' && email && (
+          <a
+            href={invoicePdfUrl(tenantSlug, orderNumber, email)}
+            style={{
+              display: 'inline-block',
+              marginTop: '1rem',
+              fontSize: '0.875rem',
+              color: '#0066cc',
+            }}
+          >
+            ⬇ Stáhnout fakturu (PDF)
+          </a>
+        )}
       </section>
 
       <Link
