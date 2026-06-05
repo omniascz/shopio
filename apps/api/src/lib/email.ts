@@ -284,3 +284,78 @@ export function renderOrderPaidEmail(ctx: OrderEmailContext): {
 
   return { subject, text, html };
 }
+
+export interface OrderShippedEmailContext {
+  tenantName: string;
+  tenantSlug: string;
+  storefrontBaseUrl: string;
+  orderNumber: string;
+  customerName: string | null;
+  customerEmail: string;
+  carrierName: string;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  pickupPointName?: string | null;
+}
+
+export function renderOrderShippedEmail(ctx: OrderShippedEmailContext): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const confirmationUrl = `${ctx.storefrontBaseUrl}/s/${ctx.tenantSlug}/orders/${ctx.orderNumber}?email=${encodeURIComponent(ctx.customerEmail)}`;
+  const subject = `Objednávka ${ctx.orderNumber} byla odeslána`;
+
+  const destination = ctx.pickupPointName
+    ? `Zásilku doručíme na výdejní místo ${ctx.pickupPointName}.`
+    : 'Zásilku doručíme na vaši adresu.';
+
+  const text = [
+    `Dobrý den${ctx.customerName ? ` ${ctx.customerName}` : ''},`,
+    '',
+    `vaše objednávka ${ctx.orderNumber} byla předána dopravci (${ctx.carrierName}).`,
+    destination,
+    ...(ctx.trackingNumber
+      ? ['', `Sledovací číslo: ${ctx.trackingNumber}`, ...(ctx.trackingUrl ? [`Sledování zásilky: ${ctx.trackingUrl}`] : [])]
+      : []),
+    '',
+    `Detail objednávky: ${confirmationUrl}`,
+    '',
+    `S pozdravem,`,
+    `${ctx.tenantName}`,
+  ].join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="cs">
+<head><meta charset="UTF-8"/><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#222;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="padding:24px 28px;background:#e3f2fd;border-bottom:1px solid #bbdefb;">
+      <h1 style="margin:0;font-size:22px;">📦 Zásilka je na cestě</h1>
+      <p style="margin:8px 0 0;color:#1565c0;font-size:14px;">${escapeHtml(ctx.orderNumber)}</p>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="margin:0 0 16px;">Dobrý den${ctx.customerName ? ` <strong>${escapeHtml(ctx.customerName)}</strong>` : ''},</p>
+      <p style="margin:0 0 16px;">vaše objednávka byla předána dopravci <strong>${escapeHtml(ctx.carrierName)}</strong>. ${escapeHtml(destination)}</p>
+      ${
+        ctx.trackingNumber
+          ? `<p style="margin:0 0 16px;">Sledovací číslo: <strong>${escapeHtml(ctx.trackingNumber)}</strong></p>${
+              ctx.trackingUrl
+                ? `<div style="margin:24px 0;text-align:center;">
+        <a href="${ctx.trackingUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:4px;font-weight:500;">
+          Sledovat zásilku
+        </a>
+      </div>`
+                : ''
+            }`
+          : ''
+      }
+      <p style="margin:0 0 16px;"><a href="${confirmationUrl}" style="color:#0066cc;">Detail objednávky</a></p>
+      <p style="margin:24px 0 0;color:#666;font-size:13px;">S pozdravem,<br/>${escapeHtml(ctx.tenantName)}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}

@@ -117,6 +117,25 @@ export interface ReturnDetail {
   }[];
 }
 
+export interface ShipmentDetail {
+  id: string;
+  number: string;
+  status: string;
+  carrier_code: string;
+  service_code: string;
+  weight_grams: number;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  label_provider: string | null;
+  has_label: boolean;
+  pickup_point: { name?: string } | null;
+  internal_note: string | null;
+  created_at: string;
+  handed_over_at: string | null;
+  delivered_at: string | null;
+  items: { id: string; title: string; sku: string | null; quantity: number }[];
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -333,6 +352,54 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shipments
+  // ---------------------------------------------------------------------------
+  async listOrderShipments(orderId: string): Promise<{ shipments: ShipmentDetail[] }> {
+    return this.request(`/admin/orders/${orderId}/shipments`);
+  }
+
+  async createShipment(
+    orderId: string,
+    body: { items: { orderItemId: string; quantity: number }[]; internalNote?: string },
+  ): Promise<ShipmentDetail> {
+    return this.request(`/admin/orders/${orderId}/shipments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async generateShipmentLabel(shipmentId: string): Promise<ShipmentDetail> {
+    return this.request(`/admin/shipments/${shipmentId}/label`, { method: 'POST' });
+  }
+
+  async transitionShipment(
+    shipmentId: string,
+    action: 'handed-over' | 'delivered' | 'cancel',
+  ): Promise<ShipmentDetail> {
+    return this.request(`/admin/shipments/${shipmentId}/${action}`, { method: 'POST' });
+  }
+
+  /** Download the shipping label PDF. */
+  async downloadShipmentLabel(shipmentId: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const res = await fetch(
+      `${API_BASE}/api/${API_VERSION}/admin/shipments/${shipmentId}/label.pdf`,
+      { headers, credentials: 'include' },
+    );
+    if (!res.ok) throw new ApiError(`Download failed (${res.status})`, res.status);
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${shipmentId}-label.pdf`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ---------------------------------------------------------------------------

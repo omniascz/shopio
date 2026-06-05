@@ -149,6 +149,8 @@ export const orderItems = pgTable(
     skuSnapshot: text('sku_snapshot'),
     /** Quantity + pricing — minor units. */
     quantity: integer('quantity').notNull(),
+    /** Fulfilled (handed to carrier) quantity — per `14` RULE-SHIP-006. */
+    quantityFulfilled: integer('quantity_fulfilled').notNull().default(0),
     unitPriceAmount: bigint('unit_price_amount', { mode: 'bigint' }).notNull(),
     unitPriceCurrency: text('unit_price_currency').notNull(),
     /** Line totals (computed at placement; immutable). */

@@ -3,7 +3,15 @@
 import { use, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getOrder, formatMoney, formatVatRate, invoicePdfUrl, type OrderDetail } from '@/lib/api';
+import {
+  getOrder,
+  getOrderTracking,
+  formatMoney,
+  formatVatRate,
+  invoicePdfUrl,
+  type OrderDetail,
+  type OrderTrackingShipment,
+} from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string; orderNumber: string }>;
@@ -15,6 +23,7 @@ export default function OrderConfirmationPage({ params }: Props) {
   const email = searchParams.get('email');
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [shipments, setShipments] = useState<OrderTrackingShipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundErr, setNotFoundErr] = useState(false);
 
@@ -30,7 +39,11 @@ export default function OrderConfirmationPage({ params }: Props) {
         const o = await getOrder(tenantSlug, orderNumber, email);
         if (cancelled) return;
         if (!o) setNotFoundErr(true);
-        else setOrder(o);
+        else {
+          setOrder(o);
+          const t = await getOrderTracking(tenantSlug, orderNumber, email);
+          if (!cancelled) setShipments(t);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -166,6 +179,55 @@ export default function OrderConfirmationPage({ params }: Props) {
           {order.shipping_address.countryCode}
         </address>
       </section>
+
+      {shipments.length > 0 && (
+        <section style={sectionStyle}>
+          <h2 style={sectionHeaderStyle}>Zásilky</h2>
+          {shipments.map((shp) => (
+            <div key={shp.number} style={{ marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 500 }}>
+                {shp.status === 'delivered'
+                  ? '✓ Doručeno'
+                  : shp.status === 'handed_over'
+                    ? '🚚 Na cestě'
+                    : '📦 Připravujeme'}
+                {shp.tracking_number && (
+                  <>
+                    {' '}
+                    —{' '}
+                    {shp.tracking_url ? (
+                      <a
+                        href={shp.tracking_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#0066cc' }}
+                      >
+                        {shp.tracking_number}
+                      </a>
+                    ) : (
+                      shp.tracking_number
+                    )}
+                  </>
+                )}
+              </div>
+              <ul
+                style={{
+                  margin: '0.375rem 0 0',
+                  paddingLeft: '1.25rem',
+                  fontSize: '0.8125rem',
+                  color: '#666',
+                }}
+              >
+                {shp.events.map((e, idx) => (
+                  <li key={idx}>
+                    {new Date(e.occurred_at).toLocaleString('cs-CZ')} — {e.description ?? e.status}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section style={sectionStyle}>
         <h2 style={sectionHeaderStyle}>Stav objednávky</h2>

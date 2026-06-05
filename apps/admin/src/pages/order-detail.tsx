@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, formatMoney, type OrderDetail, type ReturnDetail } from '../lib/api';
+import {
+  api,
+  formatMoney,
+  type OrderDetail,
+  type ReturnDetail,
+  type ShipmentDetail,
+} from '../lib/api';
 import { StatusBadge } from './dashboard';
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -165,6 +171,8 @@ export function OrderDetailPage() {
             </section>
           )}
 
+          <ShipmentsPanel orderId={orderId} order={order} />
+
           <ReturnsPanel orderId={orderId} order={order} />
         </div>
 
@@ -247,6 +255,224 @@ export function OrderDetailPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+  pending: 'Čeká na štítek',
+  label_generated: 'Štítek vygenerován',
+  handed_over: 'Předáno dopravci',
+  delivered: 'Doručeno',
+  cancelled: 'Zrušeno',
+};
+
+function ShipmentsPanel({ orderId, order }: { orderId: string; order: OrderDetail }) {
+  const queryClient = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  const shipmentsQuery = useQuery({
+    queryKey: ['admin', 'order', orderId, 'shipments'],
+    queryFn: () => api.listOrderShipments(orderId),
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'order', orderId] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createShipment(orderId, {
+        items: Object.entries(quantities)
+          .filter(([, q]) => q > 0)
+          .map(([orderItemId, quantity]) => ({ orderItemId, quantity })),
+      }),
+    onSuccess: () => {
+      setCreating(false);
+      setQuantities({});
+      invalidate();
+    },
+  });
+
+  const labelMutation = useMutation({
+    mutationFn: (id: string) => api.generateShipmentLabel(id),
+    onSuccess: invalidate,
+  });
+
+  const transitionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'handed-over' | 'delivered' | 'cancel' }) =>
+      api.transitionShipment(id, action),
+    onSuccess: invalidate,
+  });
+
+  const shipments = shipmentsQuery.data?.shipments ?? [];
+  const canCreate = order.status === 'paid' || order.status === 'fulfilling';
+  const anySelected = Object.values(quantities).some((q) => q > 0);
+  const busy =
+    createMutation.isPending || labelMutation.isPending || transitionMutation.isPending;
+  const error = createMutation.error ?? labelMutation.error ?? transitionMutation.error;
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Zásilky</h2>
+
+      {shipmentsQuery.isLoading ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Načítání…</p>
+      ) : shipments.length === 0 ? (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Žádné zásilky.</p>
+      ) : (
+        shipments.map((shp: ShipmentDetail) => (
+          <div
+            key={shp.id}
+            style={{
+              border: '1px solid #e9ecef',
+              borderRadius: 6,
+              padding: '0.75rem',
+              marginBottom: '0.75rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '0.9375rem' }}>{shp.number}</strong>
+              <span style={{ fontSize: '0.8125rem', color: '#444' }}>
+                {SHIPMENT_STATUS_LABELS[shp.status] ?? shp.status}
+              </span>
+            </div>
+            <ul style={{ margin: '0.5rem 0', paddingLeft: '1.25rem', fontSize: '0.8125rem' }}>
+              {shp.items.map((it) => (
+                <li key={it.id}>
+                  {it.title} × {it.quantity}
+                </li>
+              ))}
+            </ul>
+            <div style={{ fontSize: '0.8125rem', color: '#666' }}>
+              {shp.carrier_code} • {(shp.weight_grams / 1000).toFixed(2)} kg
+              {shp.pickup_point?.name && <> • {shp.pickup_point.name}</>}
+              {shp.tracking_number && (
+                <>
+                  {' '}
+                  •{' '}
+                  {shp.tracking_url ? (
+                    <a href={shp.tracking_url} target="_blank" rel="noreferrer">
+                      {shp.tracking_number}
+                    </a>
+                  ) : (
+                    shp.tracking_number
+                  )}
+                  {shp.label_provider === 'mock' && ' (mock)'}
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+              {shp.status === 'pending' && (
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  disabled={busy}
+                  onClick={() => labelMutation.mutate(shp.id)}
+                >
+                  {labelMutation.isPending ? 'Generuji…' : 'Vygenerovat štítek'}
+                </button>
+              )}
+              {shp.has_label && (
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  onClick={() => void api.downloadShipmentLabel(shp.id)}
+                >
+                  Štítek PDF
+                </button>
+              )}
+              {shp.status === 'label_generated' && (
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  disabled={busy}
+                  onClick={() => transitionMutation.mutate({ id: shp.id, action: 'handed-over' })}
+                >
+                  Předáno dopravci
+                </button>
+              )}
+              {shp.status === 'handed_over' && (
+                <button
+                  type="button"
+                  style={downloadBtn}
+                  disabled={busy}
+                  onClick={() => transitionMutation.mutate({ id: shp.id, action: 'delivered' })}
+                >
+                  Označit doručeno
+                </button>
+              )}
+              {(shp.status === 'pending' || shp.status === 'label_generated') && (
+                <button
+                  type="button"
+                  style={dangerBtn}
+                  disabled={busy}
+                  onClick={() => transitionMutation.mutate({ id: shp.id, action: 'cancel' })}
+                >
+                  Zrušit
+                </button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+
+      {error && (
+        <p style={{ color: '#c00', fontSize: '0.8125rem' }}>{(error as Error).message}</p>
+      )}
+
+      {canCreate && !creating && (
+        <button type="button" style={downloadBtn} onClick={() => setCreating(true)}>
+          + Nová zásilka
+        </button>
+      )}
+
+      {creating && (
+        <div style={{ marginTop: '0.75rem', borderTop: '1px solid #eee', paddingTop: '0.75rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <tbody>
+              {order.items.map((it) => (
+                <tr key={it.id}>
+                  <td style={{ padding: '0.25rem 0' }}>
+                    {it.product_title} — {it.variant_title}
+                  </td>
+                  <td style={{ textAlign: 'right', width: 110 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      max={it.quantity}
+                      value={quantities[it.id] ?? 0}
+                      onChange={(e) =>
+                        setQuantities((prev) => ({
+                          ...prev,
+                          [it.id]: Math.max(0, Math.min(it.quantity, Number(e.target.value))),
+                        }))
+                      }
+                      style={{ width: 56, padding: '0.25rem' }}
+                    />{' '}
+                    / {it.quantity}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              style={downloadBtn}
+              disabled={!anySelected || createMutation.isPending}
+              onClick={() => createMutation.mutate()}
+            >
+              Vytvořit zásilku
+            </button>
+            <button type="button" style={dangerBtn} onClick={() => setCreating(false)}>
+              Zrušit
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

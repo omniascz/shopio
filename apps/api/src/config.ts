@@ -52,6 +52,9 @@ const ConfigSchema = z.object({
   // Zásilkovna / Packeta (optional — when absent the storefront falls back to the
   // seeded pickup-point picker instead of the Packeta JS widget).
   PACKETA_API_KEY: z.string().min(8).optional(),
+  /** REST API password (different secret than the widget key) — when absent,
+   * label generation runs in mock mode (fake barcode + placeholder PDF). */
+  PACKETA_API_PASSWORD: z.string().min(8).optional(),
 
   // SMTP (Mailpit in dev; Postmark/SendGrid in prod via SMTP relay)
   SMTP_HOST: z.string().default('localhost'),

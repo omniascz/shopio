@@ -293,6 +293,36 @@ export const STOREFRONT_API_BASE =
     ? (process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040')
     : API_BASE;
 
+export interface OrderTrackingShipment {
+  number: string;
+  carrier: string;
+  status: string;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  handed_over_at: string | null;
+  delivered_at: string | null;
+  events: { status: string; description: string | null; occurred_at: string }[];
+}
+
+/** Shipments + tracking timeline for an order (empty until fulfillment starts). */
+export async function getOrderTracking(
+  tenantSlug: string,
+  orderNumber: string,
+  email: string,
+): Promise<OrderTrackingShipment[]> {
+  try {
+    const res = await fetch(
+      `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/tracking?email=${encodeURIComponent(email)}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json?.data?.shipments ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Direct download URL for the order's tax invoice PDF (404 until issued). */
 export function invoicePdfUrl(tenantSlug: string, orderNumber: string, email: string): string {
   return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/invoice.pdf?email=${encodeURIComponent(email)}`;

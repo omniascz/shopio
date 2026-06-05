@@ -21,4 +21,6 @@ export * from './shipping';
 export * from './invoices';
 // Returns (Wave 1 — `17-returns-refunds.md` MVP)
 export * from './returns';
+// Shipments / fulfillment (Wave 1 — `14-shipping.md` §3.1 + `16`)
+export * from './shipments';
 // Future: customers, inventory, payments, ...

@@ -14,6 +14,7 @@ import { registerOrderRoutes } from './routes/orders';
 import { registerWebhookRoutes } from './routes/webhooks';
 import { registerInvoiceRoutes } from './routes/invoices';
 import { registerReturnRoutes } from './routes/returns';
+import { registerShipmentRoutes } from './routes/shipments';
 
 export async function buildServer() {
   const config = getConfig();
@@ -76,6 +77,7 @@ export async function buildServer() {
   await registerWebhookRoutes(server, { config, db });
   await registerInvoiceRoutes(server, { config, db });
   await registerReturnRoutes(server, { config, db });
+  await registerShipmentRoutes(server, { config, db });
 
   return server;
 }
