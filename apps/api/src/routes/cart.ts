@@ -42,6 +42,7 @@ import {
   availableQuantity,
   reserveStock,
 } from '../lib/inventory';
+import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -390,6 +391,10 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         });
       }
 
+      // Logged-in customer (per `18`) — links the order to the account and
+      // remembers the shipping address for the next checkout. Guest stays fine.
+      const customer = await resolveCustomer(db, req, tenant.id);
+
       // Shipping selection — resolve + price the chosen rate against the cart
       // metrics + ship-to country (per `14 §5`). Validate pickup point if required.
       const country = input.shippingAddress.countryCode.toUpperCase();
@@ -529,6 +534,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               tenantId: tenant.id,
               pubId: generatePubId('ord'),
               orderNumber,
+              customerId: customer?.id ?? null,
               customerEmail: input.customerEmail,
               customerName: input.customerName,
               customerPhone: input.customerPhone ?? null,
@@ -613,6 +619,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           { orderId: result.id, tenantId: tenant.id, customerEmail: input.customerEmail },
           'checkout.order_placed',
         );
+
+        // Remember the shipping address on the account (best-effort)
+        if (customer) {
+          void db
+            .update(schema.customers)
+            .set({ defaultAddress: input.shippingAddress, updatedAt: new Date() })
+            .where(eq(schema.customers.id, customer.id))
+            .catch(() => {});
+        }
 
         // Send order-placed email (best-effort, non-blocking)
         void (async () => {

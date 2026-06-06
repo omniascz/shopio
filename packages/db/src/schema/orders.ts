@@ -43,7 +43,9 @@ export const orders = pgTable(
     pubId: text('pub_id').notNull(), // ord_ NanoID
     /** Per-tenant sequential — e.g. ORD-2026-00000001. */
     orderNumber: text('order_number').notNull(),
-    /** Customer snapshot (no customer table yet — Fáze 1 wave 2). */
+    /** Logged-in customer at placement (nullable — guest checkout stays). */
+    customerId: uuid('customer_id'),
+    /** Customer snapshot (denormalized — survives account deletion, RULE-SEC-038). */
     customerEmail: text('customer_email').notNull(),
     customerName: text('customer_name'),
     customerPhone: text('customer_phone'),
@@ -124,6 +126,9 @@ export const orders = pgTable(
     orderNumberUnique: uniqueIndex('uq_orders_order_number').on(t.tenantId, t.orderNumber),
     tenantStatusIdx: index('idx_orders_tenant_status').on(t.tenantId, t.status, t.placedAt),
     customerEmailIdx: index('idx_orders_customer_email').on(t.tenantId, t.customerEmail),
+    customerIdx: index('idx_orders_customer')
+      .on(t.customerId)
+      .where(sql`customer_id IS NOT NULL`),
   }),
 );
 

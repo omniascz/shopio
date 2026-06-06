@@ -25,4 +25,6 @@ export * from './returns';
 export * from './shipments';
 // Inventory (Wave 1 — `09-inventory.md` reservations + ledger MVP)
 export * from './inventory';
+// Customers (Wave 1 — `18-customer-management.md` MVP)
+export * from './customers';
 // Future: customers, inventory, payments, ...

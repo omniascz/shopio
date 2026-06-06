@@ -73,6 +73,19 @@ export default async function TenantLayout({ children, params }: Props) {
           >
             {tenant.display_name}
           </Link>
+          <Link
+            href={`/s/${tenantSlug}/ucet`}
+            style={{
+              marginLeft: 'auto',
+              marginRight: '7rem', // clear the fixed cart button
+              fontSize: '0.875rem',
+              color: 'inherit',
+              textDecoration: 'none',
+              opacity: 0.85,
+            }}
+          >
+            👤 Můj účet
+          </Link>
         </header>
         <div
           style={{

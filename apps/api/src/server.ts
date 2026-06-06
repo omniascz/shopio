@@ -21,6 +21,7 @@ import { setTenantStatusChecker } from './plugins/auth-middleware';
 import { schema } from '@shopio/db';
 import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
+import { registerCustomerAuthRoutes } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
 
 export async function buildServer() {
@@ -99,6 +100,7 @@ export async function buildServer() {
   await registerSettingsRoutes(server, { config, db });
   await registerMediaRoutes(server, { config, db });
   registerSearchAdminRoutes(server, { config, db });
+  await registerCustomerAuthRoutes(server, { config, db });
 
   // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
   // BullMQ takes over in a later wave. Releases expired unpaid holds and

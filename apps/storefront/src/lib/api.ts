@@ -344,6 +344,99 @@ export async function getOrderTracking(
   }
 }
 
+// =============================================================================
+// Customer accounts (cookie session, client-side)
+// =============================================================================
+
+export interface CustomerProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  default_address: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    postalCode?: string;
+    countryCode?: string;
+  } | null;
+}
+
+export interface CustomerOrder {
+  number: string;
+  status: string;
+  payment_status: string;
+  total: Money;
+  placed_at: string;
+  detail_url: string;
+}
+
+async function customerFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const res = await fetch(`${STOREFRONT_API_BASE}/api/${API_VERSION}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    credentials: 'include',
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = json?.error?.message ?? `API ${res.status}`;
+    throw new Error(message);
+  }
+  return (json?.data ?? null) as T | null;
+}
+
+export async function customerMe(tenantSlug: string): Promise<CustomerProfile | null> {
+  try {
+    const data = await customerFetch<{ customer: CustomerProfile }>(
+      `/storefront/${tenantSlug}/me`,
+    );
+    return data?.customer ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function customerRegister(
+  tenantSlug: string,
+  body: { email: string; password: string; fullName?: string },
+): Promise<CustomerProfile> {
+  const data = await customerFetch<{ customer: CustomerProfile }>(
+    `/storefront/${tenantSlug}/auth/register`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+  return data!.customer;
+}
+
+export async function customerLogin(
+  tenantSlug: string,
+  body: { email: string; password: string },
+): Promise<CustomerProfile> {
+  const data = await customerFetch<{ customer: CustomerProfile }>(
+    `/storefront/${tenantSlug}/auth/login`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+  return data!.customer;
+}
+
+export async function customerLogout(tenantSlug: string): Promise<void> {
+  await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
+}
+
+export async function customerOrders(tenantSlug: string): Promise<CustomerOrder[]> {
+  try {
+    const data = await customerFetch<{ orders: CustomerOrder[] }>(
+      `/storefront/${tenantSlug}/me/orders`,
+    );
+    return data?.orders ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Direct download URL for the order's tax invoice PDF (404 until issued). */
 export function invoicePdfUrl(tenantSlug: string, orderNumber: string, email: string): string {
   return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/invoice.pdf?email=${encodeURIComponent(email)}`;
