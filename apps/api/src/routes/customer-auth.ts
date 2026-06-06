@@ -30,7 +30,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '@shopio/authz';
-import { renderPasswordResetEmail, sendEmail } from '../lib/email';
+import { renderPasswordResetEmail, renderVerifyEmail, sendEmail } from '../lib/email';
 import { ReturnError, createReturn } from '../lib/returns';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -116,6 +116,15 @@ export async function registerCustomerAuthRoutes(
         .returning();
 
       await issueSession(db, req, reply, isProd, tenant.id, customer!.id);
+
+      // Welcome verification e-mail (non-blocking — login works unverified in MVP)
+      void sendVerificationEmail(db, config, app, {
+        tenantId: tenant.id,
+        tenantSlug: req.params.tenantSlug,
+        customerId: customer!.id,
+        email,
+      });
+
       app.log.info({ customerId: customer!.id, tenantId: tenant.id }, 'customer.registered');
       return reply.code(201).send({ data: { customer: serializeCustomer(customer!) } });
     },
@@ -413,6 +422,126 @@ export async function registerCustomerPasswordResetRoutes(
 }
 
 // =============================================================================
+// E-mail verification (non-blocking MVP — login allowed unverified)
+// =============================================================================
+
+const VERIFY_TOKEN_TTL_HOURS = 48;
+
+async function sendVerificationEmail(
+  db: AppDb,
+  config: ShopioConfig,
+  app: FastifyInstance,
+  input: { tenantId: string; tenantSlug: string; customerId: string; email: string },
+): Promise<void> {
+  try {
+    const raw = randomBytes(32).toString('hex');
+    await db.insert(schema.customerAuthTokens).values({
+      tenantId: input.tenantId,
+      customerId: input.customerId,
+      tokenHash: hashToken(raw),
+      purpose: 'email_verify',
+      expiresAt: new Date(Date.now() + VERIFY_TOKEN_TTL_HOURS * 60 * 60 * 1000),
+    });
+    const [tenantRow] = await db
+      .select({ displayName: schema.tenants.displayName })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, input.tenantId))
+      .limit(1);
+    const verifyUrl = `${config.SHOPIO_BASE_URL}/s/${input.tenantSlug}/ucet/overeni?token=${raw}`;
+    const { subject, text, html } = renderVerifyEmail({
+      tenantName: tenantRow?.displayName ?? input.tenantSlug,
+      verifyUrl,
+    });
+    await sendEmail(config, { to: input.email, subject, text, html });
+  } catch (err) {
+    app.log.error({ err, customerId: input.customerId }, 'customer.verify_email_failed');
+  }
+}
+
+export async function registerCustomerVerificationRoutes(
+  app: FastifyInstance,
+  opts: PluginOptions,
+): Promise<void> {
+  const { db, config } = opts;
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/auth/verify-email — { token }
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/auth/verify-email',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+
+      const parsed = z
+        .object({ token: z.string().regex(/^[a-f0-9]{64}$/i) })
+        .safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+
+      const [row] = await db
+        .select()
+        .from(schema.customerAuthTokens)
+        .where(
+          and(
+            eq(schema.customerAuthTokens.tokenHash, hashToken(parsed.data.token)),
+            eq(schema.customerAuthTokens.tenantId, tenant.id),
+            eq(schema.customerAuthTokens.purpose, 'email_verify'),
+            isNull(schema.customerAuthTokens.usedAt),
+            gt(schema.customerAuthTokens.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+      if (!row) {
+        return reply.code(400).send({
+          error: { code: 'TOKEN_INVALID', message: 'Odkaz je neplatný nebo vypršel' },
+        });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(schema.customerAuthTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(schema.customerAuthTokens.id, row.id));
+        await tx
+          .update(schema.customers)
+          .set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(schema.customers.id, row.customerId));
+      });
+
+      app.log.info({ customerId: row.customerId }, 'customer.email_verified');
+      return reply.send({ data: { message: 'E-mail byl ověřen. Děkujeme!' } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/auth/resend-verification — logged in
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/auth/resend-verification',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({
+          error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' },
+        });
+      }
+      if (customer.emailVerifiedAt) {
+        return reply.send({ data: { message: 'E-mail už je ověřený.' } });
+      }
+      await sendVerificationEmail(db, config, app, {
+        tenantId: tenant.id,
+        tenantSlug: req.params.tenantSlug,
+        customerId: customer.id,
+        email: customer.email,
+      });
+      return reply.send({ data: { message: 'Ověřovací e-mail jsme poslali znovu.' } });
+    },
+  );
+}
+
+// =============================================================================
 // Customer return portal (per `17` FLOW-RTN-001 customer-initiated, MVP)
 // =============================================================================
 
@@ -659,6 +788,7 @@ function serializeCustomer(c: typeof schema.customers.$inferSelect) {
   return {
     id: c.pubId,
     email: c.email,
+    email_verified: Boolean(c.emailVerifiedAt),
     full_name: c.fullName,
     phone: c.phone,
     default_address: c.defaultAddress,

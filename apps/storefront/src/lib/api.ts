@@ -351,6 +351,7 @@ export async function getOrderTracking(
 export interface CustomerProfile {
   id: string;
   email: string;
+  email_verified?: boolean;
   full_name: string | null;
   phone: string | null;
   default_address: {
@@ -424,6 +425,22 @@ export async function customerLogin(
 
 export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
+}
+
+export async function customerVerifyEmail(tenantSlug: string, token: string): Promise<string> {
+  const data = await customerFetch<{ message: string }>(
+    `/storefront/${tenantSlug}/auth/verify-email`,
+    { method: 'POST', body: JSON.stringify({ token }) },
+  );
+  return data?.message ?? 'E-mail byl ověřen.';
+}
+
+export async function customerResendVerification(tenantSlug: string): Promise<string> {
+  const data = await customerFetch<{ message: string }>(
+    `/storefront/${tenantSlug}/auth/resend-verification`,
+    { method: 'POST' },
+  );
+  return data?.message ?? 'Ověřovací e-mail jsme poslali znovu.';
 }
 
 export async function customerForgotPassword(tenantSlug: string, email: string): Promise<string> {

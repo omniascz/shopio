@@ -10,6 +10,7 @@ import Link from 'next/link';
 import {
   customerCreateReturn,
   customerForgotPassword,
+  customerResendVerification,
   customerLogin,
   customerLogout,
   customerMe,
@@ -114,8 +115,39 @@ function LoggedIn({
   onChanged: () => void;
   onLogout: () => void;
 }) {
+  const [verifyInfo, setVerifyInfo] = useState<string | null>(null);
+
   return (
     <>
+      {customer.email_verified === false && (
+        <div
+          style={{
+            background: 'rgba(255, 200, 80, 0.15)',
+            border: '1px solid rgba(200, 150, 30, 0.45)',
+            borderRadius: 6,
+            padding: '0.625rem 1rem',
+            marginBottom: '1rem',
+            fontSize: '0.875rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>✉ Váš e-mail zatím není ověřený — zkontrolujte schránku.</span>
+          <button
+            type="button"
+            onClick={() =>
+              void customerResendVerification(tenantSlug).then(setVerifyInfo).catch(() => {})
+            }
+            style={{ ...secondaryBtnStyle, fontSize: '0.75rem' }}
+          >
+            Poslat znovu
+          </button>
+          {verifyInfo && <span style={{ fontSize: '0.8125rem' }}>{verifyInfo}</span>}
+        </div>
+      )}
       <section style={sectionStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>

@@ -336,6 +336,54 @@ export function renderPasswordResetEmail(ctx: PasswordResetEmailContext): {
   return { subject, text, html };
 }
 
+export interface VerifyEmailContext {
+  tenantName: string;
+  verifyUrl: string;
+}
+
+export function renderVerifyEmail(ctx: VerifyEmailContext): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const subject = `Potvrďte svůj e-mail — ${ctx.tenantName}`;
+
+  const text = [
+    'Dobrý den,',
+    '',
+    `děkujeme za registraci v obchodě ${ctx.tenantName}.`,
+    'Potvrďte prosím svůj e-mail kliknutím na tento odkaz:',
+    '',
+    ctx.verifyUrl,
+    '',
+    'Pokud jste se neregistrovali, tento e-mail ignorujte.',
+  ].join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="cs">
+<head><meta charset="UTF-8"/><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#222;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="padding:24px 28px;background:#e8f5e9;border-bottom:1px solid #c8e6c9;">
+      <h1 style="margin:0;font-size:22px;">✉ Potvrďte svůj e-mail</h1>
+      <p style="margin:8px 0 0;color:#2e7d32;font-size:14px;">${escapeHtml(ctx.tenantName)}</p>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="margin:0 0 16px;">Děkujeme za registraci. Potvrďte prosím svůj e-mail:</p>
+      <div style="margin:24px 0;text-align:center;">
+        <a href="${ctx.verifyUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:4px;font-weight:500;">
+          Potvrdit e-mail
+        </a>
+      </div>
+      <p style="margin:0;color:#666;font-size:13px;">Pokud jste se neregistrovali, tento e-mail ignorujte.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
+
 export interface OrderShippedEmailContext {
   tenantName: string;
   tenantSlug: string;

@@ -41,6 +41,8 @@ export const customers = pgTable(
     phone: text('phone'),
     /** Nullable — passkey-only accounts come with the WebAuthn wave. */
     passwordHash: text('password_hash'),
+    /** Set when the verify-link from the welcome e-mail is clicked. */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     status: text('status', { enum: ['active', 'disabled'] })
       .notNull()
       .default('active'),
