@@ -13,6 +13,13 @@ export function DashboardPage() {
     queryFn: () => api.listProducts({ limit: 5 }),
   });
 
+  const dashboardQuery = useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: () => api.getDashboard(),
+    refetchInterval: 60_000,
+  });
+  const metrics = dashboardQuery.data;
+
   return (
     <div>
       <h1 style={{ margin: '0 0 1.5rem', fontSize: '1.75rem' }}>Přehled</h1>
@@ -26,6 +33,27 @@ export function DashboardPage() {
         }}
       >
         <StatCard
+          label="Dnešní objednávky"
+          value={metrics ? String(metrics.today.orders) : '…'}
+          link="/orders"
+        />
+        <StatCard
+          label="Dnešní tržby (zaplacené)"
+          value={metrics ? formatMoney(metrics.today.revenue) : '…'}
+          link="/orders"
+        />
+        <StatCard
+          label="Čeká na platbu"
+          value={metrics ? String(metrics.pending_payment) : '…'}
+          link="/orders"
+        />
+        <StatCard
+          label="Vratky k vyřízení"
+          value={metrics ? String(metrics.returns_action_needed) : '…'}
+          link="/returns"
+          highlight={Boolean(metrics && metrics.returns_action_needed > 0)}
+        />
+        <StatCard
           label="Objednávek celkem"
           value={ordersQuery.data?.total?.toString() ?? '…'}
           link="/orders"
@@ -36,6 +64,31 @@ export function DashboardPage() {
           link="/products"
         />
       </div>
+
+      {metrics && metrics.low_stock.length > 0 && (
+        <section style={{ ...sectionStyle, borderColor: '#ffcc80', background: '#fffaf2' }}>
+          <header style={sectionHeader}>
+            <h2 style={{ margin: 0, fontSize: '1.125rem' }}>⚠ Dochází sklad</h2>
+          </header>
+          <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.875rem' }}>
+            {metrics.low_stock.map((v) => (
+              <li key={`${v.product_id}-${v.sku}`} style={{ marginBottom: '0.25rem' }}>
+                <Link
+                  to="/products/$productId"
+                  params={{ productId: v.product_id }}
+                  style={{ color: '#0066ff', textDecoration: 'none' }}
+                >
+                  {v.product_title} — {v.variant_title}
+                </Link>{' '}
+                {v.sku && <span style={{ color: '#666' }}>({v.sku})</span>} ·{' '}
+                <strong style={{ color: v.available <= 0 ? '#c00' : '#a65f00' }}>
+                  {v.available <= 0 ? 'vyprodáno' : `zbývá ${v.available} ks`}
+                </strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section style={sectionStyle}>
         <header style={sectionHeader}>
@@ -87,16 +140,26 @@ export function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, link }: { label: string; value: string; link: string }) {
+function StatCard({
+  label,
+  value,
+  link,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  link: string;
+  highlight?: boolean;
+}) {
   return (
     <Link
       to={link}
       style={{
         display: 'block',
-        background: '#fff',
+        background: highlight ? '#fff8e1' : '#fff',
         padding: '1.25rem',
         borderRadius: 8,
-        border: '1px solid #e9ecef',
+        border: highlight ? '1px solid #ffcc80' : '1px solid #e9ecef',
         textDecoration: 'none',
         color: 'inherit',
       }}

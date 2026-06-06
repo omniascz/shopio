@@ -55,6 +55,104 @@ export async function registerOrderRoutes(
   const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
+  // GET /admin/dashboard — merchant overview metrics (per `20-analytics` MVP)
+  // ---------------------------------------------------------------------------
+  app.get(
+    '/api/2026-05-20/admin/dashboard',
+    { preHandler: [requirePermission(PERMISSIONS.ORDER_VIEW)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) {
+        return reply.code(400).send({
+          error: { code: 'NO_ACTIVE_TENANT', message: 'Select a tenant first' },
+        });
+      }
+
+      const [todayOrders, pendingPayment, openReturns, lowStock, currencyRow] =
+        await Promise.all([
+          // Orders placed today + revenue from today's PAID orders
+          db
+            .select({
+              count: dsql<number>`COUNT(*)::int`,
+              revenue: dsql<string>`COALESCE(SUM(total_amount) FILTER (WHERE payment_status = 'paid'), 0)::text`,
+            })
+            .from(schema.orders)
+            .where(
+              and(
+                eq(schema.orders.tenantId, tenantId),
+                dsql`${schema.orders.placedAt} >= date_trunc('day', now())`,
+              ),
+            ),
+          db
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.orders)
+            .where(
+              and(
+                eq(schema.orders.tenantId, tenantId),
+                eq(schema.orders.status, 'pending_payment'),
+              ),
+            ),
+          db
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.returns)
+            .where(
+              and(
+                eq(schema.returns.tenantId, tenantId),
+                dsql`${schema.returns.status} IN ('requested', 'received')`,
+              ),
+            ),
+          // Sellable stock running out (available = on hand − reserved)
+          db
+            .select({
+              sku: schema.productVariants.sku,
+              title: schema.productVariants.title,
+              productTitle: schema.products.title,
+              productPubId: schema.products.pubId,
+              available: dsql<number>`(${schema.productVariants.stockOnHand} - ${schema.productVariants.stockReserved})::int`,
+            })
+            .from(schema.productVariants)
+            .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
+            .where(
+              and(
+                eq(schema.productVariants.tenantId, tenantId),
+                eq(schema.products.status, 'active'),
+                dsql`${schema.productVariants.stockOnHand} - ${schema.productVariants.stockReserved} <= 5`,
+                eq(schema.productVariants.allowBackorder, false),
+              ),
+            )
+            .orderBy(
+              dsql`${schema.productVariants.stockOnHand} - ${schema.productVariants.stockReserved} ASC`,
+            )
+            .limit(10),
+          db
+            .select({ currency: schema.tenants.defaultCurrency })
+            .from(schema.tenants)
+            .where(eq(schema.tenants.id, tenantId))
+            .limit(1),
+        ]);
+
+      const currency = currencyRow[0]?.currency ?? 'CZK';
+      return reply.send({
+        data: {
+          today: {
+            orders: todayOrders[0]?.count ?? 0,
+            revenue: { amount: todayOrders[0]?.revenue ?? '0', currency },
+          },
+          pending_payment: pendingPayment[0]?.count ?? 0,
+          returns_action_needed: openReturns[0]?.count ?? 0,
+          low_stock: lowStock.map((v) => ({
+            product_id: v.productPubId,
+            product_title: v.productTitle,
+            variant_title: v.title,
+            sku: v.sku,
+            available: v.available,
+          })),
+        },
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /admin/orders — list (tenant-scoped via auth)
   // ---------------------------------------------------------------------------
   app.get(

@@ -27,6 +27,19 @@ export interface LoginResult {
   user: AuthUser;
 }
 
+export interface DashboardData {
+  today: { orders: number; revenue: Money };
+  pending_payment: number;
+  returns_action_needed: number;
+  low_stock: {
+    product_id: string;
+    product_title: string;
+    variant_title: string;
+    sku: string | null;
+    available: number;
+  }[];
+}
+
 export interface OrderListItem {
   id: string;
   number: string;
@@ -409,6 +422,13 @@ class ApiClient {
     } finally {
       this.accessToken = null;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dashboard
+  // ---------------------------------------------------------------------------
+  async getDashboard(): Promise<DashboardData> {
+    return this.request('/admin/dashboard');
   }
 
   // ---------------------------------------------------------------------------
