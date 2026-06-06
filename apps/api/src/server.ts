@@ -23,6 +23,7 @@ import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
 import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import { registerCouponAdminRoutes } from './routes/coupons-admin';
+import { registerAnalyticsRoutes } from './routes/analytics';
 import {
   registerCustomerAuthRoutes,
   registerCustomerPasswordResetRoutes,
@@ -110,6 +111,7 @@ export async function buildServer() {
   registerSearchAdminRoutes(server, { config, db });
   await registerReviewAdminRoutes(server, { config, db });
   await registerCouponAdminRoutes(server, { config, db });
+  await registerAnalyticsRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });
   await registerCustomerReturnRoutes(server, { config, db });

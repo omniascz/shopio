@@ -27,6 +27,16 @@ export interface LoginResult {
   user: AuthUser;
 }
 
+export interface AnalyticsData {
+  period: string;
+  currency: string;
+  totals: { revenue: Money; orders: number; average_order_value: Money };
+  revenue_series: { day: string; revenue: string; orders: number }[];
+  top_products: { title: string; units: number; revenue: Money }[];
+  refunds: { amount: Money; count: number };
+  customers: { new: number; returning: number };
+}
+
 export interface DashboardData {
   today: { orders: number; revenue: Money };
   pending_payment: number;
@@ -448,6 +458,10 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   async getDashboard(): Promise<DashboardData> {
     return this.request('/admin/dashboard');
+  }
+
+  async getAnalytics(period: string): Promise<AnalyticsData> {
+    return this.request(`/admin/analytics?period=${period}`);
   }
 
   // ---------------------------------------------------------------------------
