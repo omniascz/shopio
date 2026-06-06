@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import sensible from '@fastify/sensible';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { getConfig, corsOrigins } from './config';
 import { getDb } from './db';
 import { registerAuthRoutes } from './routes/auth';
@@ -16,6 +17,7 @@ import { registerInvoiceRoutes } from './routes/invoices';
 import { registerReturnRoutes } from './routes/returns';
 import { registerShipmentRoutes } from './routes/shipments';
 import { registerSettingsRoutes } from './routes/settings';
+import { registerMediaRoutes } from './routes/media';
 import { sweepExpiredReservations } from './lib/inventory';
 
 export async function buildServer() {
@@ -51,6 +53,7 @@ export async function buildServer() {
 
   await server.register(cookie);
   await server.register(sensible);
+  await server.register(multipart); // product media uploads (per-route limits)
 
   // Health endpoints (per `31 §RULE-OPS-041`)
   server.get('/health/live', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
@@ -81,6 +84,7 @@ export async function buildServer() {
   await registerReturnRoutes(server, { config, db });
   await registerShipmentRoutes(server, { config, db });
   await registerSettingsRoutes(server, { config, db });
+  await registerMediaRoutes(server, { config, db });
 
   // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
   // BullMQ takes over in a later wave. Releases expired unpaid holds and

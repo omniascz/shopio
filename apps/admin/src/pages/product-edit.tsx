@@ -237,8 +237,228 @@ export function ProductEditPage() {
       </header>
 
       <ProductFieldsForm product={product} onSaved={invalidate} />
+      <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
+      <CategoriesPanel product={product} onSaved={invalidate} />
     </div>
+  );
+}
+
+// =============================================================================
+// Media
+// =============================================================================
+
+function MediaPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      await api.uploadProductMedia(product.id, file);
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Obrázky</h2>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+        {product.media.map((m) => (
+          <figure key={m.id} style={{ margin: 0, width: 132 }}>
+            <div
+              style={{
+                width: 132,
+                height: 132,
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: m.is_primary ? '2px solid #0066ff' : '1px solid #e3e6ea',
+                background: '#f8f9fb',
+              }}
+            >
+              <img
+                src={m.url}
+                alt={m.alt ?? ''}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            <figcaption style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem' }}>
+              {!m.is_primary && (
+                <button
+                  type="button"
+                  title="Nastavit jako hlavní"
+                  style={{ ...smallBtnStyle, flex: 1 }}
+                  onClick={() =>
+                    void api
+                      .updateProductMedia(product.id, m.id, { isPrimary: true })
+                      .then(onSaved)
+                      .catch((err) => setError((err as Error).message))
+                  }
+                >
+                  ★ Hlavní
+                </button>
+              )}
+              {m.is_primary && (
+                <span style={{ flex: 1, fontSize: '0.6875rem', color: '#0066ff', alignSelf: 'center', textAlign: 'center' }}>
+                  hlavní obrázek
+                </span>
+              )}
+              <button
+                type="button"
+                title="Smazat"
+                style={{ ...smallBtnStyle, background: '#fff5f5', borderColor: '#ffcccc', color: '#a03030' }}
+                onClick={() =>
+                  void api
+                    .deleteProductMedia(product.id, m.id)
+                    .then(onSaved)
+                    .catch((err) => setError((err as Error).message))
+                }
+              >
+                ✕
+              </button>
+            </figcaption>
+          </figure>
+        ))}
+        <label
+          style={{
+            width: 132,
+            height: 132,
+            borderRadius: 6,
+            border: '2px dashed #cdd3da',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: uploading ? 'wait' : 'pointer',
+            color: '#666',
+            fontSize: '0.8125rem',
+            textAlign: 'center',
+          }}
+        >
+          {uploading ? 'Nahrávám…' : '+ Nahrát obrázek'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+            onChange={(e) => void handleUpload(e)}
+            disabled={uploading}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
+      <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>
+        JPEG/PNG/WebP/GIF/AVIF · max 5 MB · první nahraný se stane hlavním
+      </p>
+      {error && <p style={errorStyle}>{error}</p>}
+    </section>
+  );
+}
+
+// =============================================================================
+// Categories
+// =============================================================================
+
+function CategoriesPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(new Set(product.category_ids));
+  const [newName, setNewName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelected(new Set(product.category_ids));
+  }, [product.id, product.category_ids]);
+
+  const categoriesQuery = useQuery({
+    queryKey: ['admin', 'categories'],
+    queryFn: () => api.listCategories(),
+  });
+  const categories = categoriesQuery.data?.categories ?? [];
+
+  const dirty =
+    selected.size !== product.category_ids.length ||
+    product.category_ids.some((id) => !selected.has(id));
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.updateProduct(product.id, { categoryIds: [...selected] }),
+    onSuccess: onSaved,
+    onError: (err) => setError((err as Error).message),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () => api.createCategory({ name: newName }),
+    onSuccess: (cat) => {
+      setNewName('');
+      setSelected((prev) => new Set([...prev, cat.id]));
+      queryClient.invalidateQueries({ queryKey: ['admin', 'categories'] });
+    },
+    onError: (err) => setError((err as Error).message),
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Kategorie</h2>
+      {categories.length === 0 && !categoriesQuery.isLoading && (
+        <p style={{ color: '#666', fontSize: '0.875rem' }}>Zatím žádné kategorie — vytvořte první níže.</p>
+      )}
+      <div style={{ display: 'flex', gap: '0.5rem 1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+        {categories.map((c) => (
+          <label key={c.id} style={{ fontSize: '0.875rem', display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={selected.has(c.id)}
+              onChange={(e) =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (e.target.checked) next.add(c.id);
+                  else next.delete(c.id);
+                  return next;
+                })
+              }
+            />
+            {' '.repeat((c.depth ?? 0) * 2)}
+            {c.name}
+          </label>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <input
+          type="text"
+          placeholder="Nová kategorie…"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 260 }}
+        />
+        <button
+          type="button"
+          disabled={!newName || createMutation.isPending}
+          onClick={() => {
+            setError(null);
+            createMutation.mutate();
+          }}
+          style={smallBtnStyle}
+        >
+          Vytvořit
+        </button>
+      </div>
+      {error && <p style={errorStyle}>{error}</p>}
+      <button
+        type="button"
+        disabled={!dirty || saveMutation.isPending}
+        onClick={() => {
+          setError(null);
+          saveMutation.mutate();
+        }}
+        style={{ ...primaryBtnStyle, opacity: !dirty || saveMutation.isPending ? 0.6 : 1 }}
+      >
+        {saveMutation.isPending ? 'Ukládám…' : 'Uložit kategorie'}
+      </button>
+    </section>
   );
 }
 
@@ -342,6 +562,36 @@ function ProductFieldsForm({
 }
 
 function VariantsPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState('');
+  const [sku, setSku] = useState('');
+  const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('0');
+  const [error, setError] = useState<string | null>(null);
+
+  const addMutation = useMutation({
+    mutationFn: async () => {
+      const priceMinor = toMinor(price);
+      if (!priceMinor) throw new Error('Neplatná cena');
+      return api.addVariant(product.id, {
+        title,
+        ...(sku && { sku }),
+        priceAmount: priceMinor,
+        priceCurrency: product.base_price_currency ?? 'CZK',
+        stockOnHand: Number(stock) || 0,
+      });
+    },
+    onSuccess: () => {
+      setAdding(false);
+      setTitle('');
+      setSku('');
+      setPrice('');
+      setStock('0');
+      onSaved();
+    },
+    onError: (err) => setError((err as Error).message),
+  });
+
   return (
     <section style={cardStyle}>
       <h2 style={sectionHeaderStyle}>Varianty, ceny a sklad</h2>
@@ -363,6 +613,42 @@ function VariantsPanel({ product, onSaved }: { product: ProductDetail; onSaved: 
           ))}
         </tbody>
       </table>
+
+      {!adding ? (
+        <button type="button" style={{ ...smallBtnStyle, marginTop: '0.75rem' }} onClick={() => setAdding(true)}>
+          + Přidat variantu
+        </button>
+      ) : (
+        <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <Field label="Název (např. Velikost L)">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ ...inputStyle, width: 180 }} />
+          </Field>
+          <Field label="SKU">
+            <input value={sku} onChange={(e) => setSku(e.target.value)} style={{ ...inputStyle, width: 120 }} />
+          </Field>
+          <Field label="Cena (Kč)">
+            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="599,00" style={{ ...inputStyle, width: 100 }} />
+          </Field>
+          <Field label="Skladem">
+            <input type="number" min={0} value={stock} onChange={(e) => setStock(e.target.value)} style={{ ...inputStyle, width: 80 }} />
+          </Field>
+          <button
+            type="button"
+            disabled={!title || !price || addMutation.isPending}
+            onClick={() => {
+              setError(null);
+              addMutation.mutate();
+            }}
+            style={{ ...primaryBtnStyle, marginBottom: '0.875rem' }}
+          >
+            {addMutation.isPending ? 'Přidávám…' : 'Přidat'}
+          </button>
+          <button type="button" onClick={() => setAdding(false)} style={{ ...smallBtnStyle, marginBottom: '0.875rem' }}>
+            Zrušit
+          </button>
+        </div>
+      )}
+      {error && <p style={errorStyle}>{error}</p>}
     </section>
   );
 }

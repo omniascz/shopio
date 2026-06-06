@@ -166,6 +166,22 @@ export interface ProductVariantDetail {
   position?: number;
 }
 
+export interface MediaItem {
+  id: string;
+  kind?: string;
+  url: string;
+  alt: string | null;
+  position?: number;
+  is_primary: boolean;
+}
+
+export interface CategoryItem {
+  id: string;
+  slug: string;
+  name: string;
+  depth?: number;
+}
+
 export interface ProductDetail {
   id: string;
   slug: string;
@@ -178,7 +194,8 @@ export interface ProductDetail {
   brand_name: string | null;
   published_at: string | null;
   variants: ProductVariantDetail[];
-  media: { id: string; url: string; alt: string | null; is_primary: boolean }[];
+  media: MediaItem[];
+  category_ids: string[];
 }
 
 export interface ShopSettings {
@@ -578,6 +595,7 @@ class ApiClient {
       status: string;
       vendor: string | null;
       brandName: string | null;
+      categoryIds: string[];
     }>,
   ): Promise<ProductDetail> {
     return this.request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -605,6 +623,71 @@ class ApiClient {
 
   async archiveProduct(id: string): Promise<void> {
     await this.request(`/products/${id}`, { method: 'DELETE' });
+  }
+
+  async addVariant(
+    productId: string,
+    body: {
+      title: string;
+      sku?: string;
+      priceAmount: string;
+      priceCurrency: string;
+      stockOnHand?: number;
+      weightGrams?: number;
+      optionValues?: Record<string, string>;
+    },
+  ): Promise<ProductVariantDetail> {
+    return this.request(`/products/${productId}/variants`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Media
+  // ---------------------------------------------------------------------------
+  async uploadProductMedia(productId: string, file: File): Promise<MediaItem> {
+    const form = new FormData();
+    form.append('file', file);
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const res = await fetch(`${API_BASE}/api/${API_VERSION}/products/${productId}/media`, {
+      method: 'POST',
+      headers, // no content-type — browser sets the multipart boundary
+      body: form,
+      credentials: 'include',
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new ApiError(json?.error?.message ?? `Upload failed (${res.status})`, res.status, json?.error?.code);
+    }
+    return json.data as MediaItem;
+  }
+
+  async updateProductMedia(
+    productId: string,
+    mediaId: string,
+    body: { alt?: string | null; isPrimary?: boolean; position?: number },
+  ): Promise<MediaItem> {
+    return this.request(`/products/${productId}/media/${mediaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteProductMedia(productId: string, mediaId: string): Promise<void> {
+    await this.request(`/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Categories
+  // ---------------------------------------------------------------------------
+  async listCategories(): Promise<{ categories: CategoryItem[]; count: number }> {
+    return this.request('/categories');
+  }
+
+  async createCategory(body: { name: string; slug?: string }): Promise<CategoryItem> {
+    return this.request('/categories', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // ---------------------------------------------------------------------------

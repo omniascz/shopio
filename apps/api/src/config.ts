@@ -56,6 +56,15 @@ const ConfigSchema = z.object({
    * label generation runs in mock mode (fake barcode + placeholder PDF). */
   PACKETA_API_PASSWORD: z.string().min(8).optional(),
 
+  // Object storage (MinIO in dev; S3-compatible in prod) — product media
+  SHOPIO_S3_ENDPOINT: z.string().url().default('http://localhost:9100'),
+  SHOPIO_S3_REGION: z.string().default('us-east-1'),
+  SHOPIO_S3_ACCESS_KEY: z.string().default('minioadmin'),
+  SHOPIO_S3_SECRET_KEY: z.string().default('minioadmin'),
+  SHOPIO_S3_BUCKET_MEDIA: z.string().default('shopio-dev-media'),
+  /** Public base for stored objects (defaults to endpoint/bucket — MinIO path style). */
+  SHOPIO_S3_PUBLIC_URL: z.string().url().optional(),
+
   // SMTP (Mailpit in dev; Postmark/SendGrid in prod via SMTP relay)
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1027),

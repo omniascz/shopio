@@ -111,6 +111,9 @@ const UpdateProductBody = z.object({
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).optional(),
   vendor: z.string().max(120).nullable().optional(),
   brandName: z.string().max(120).nullable().optional(),
+  /** Full replacement of category assignments (M:M sync). Accepts category
+   * pub_ids (cat_…) or internal UUIDs. */
+  categoryIds: z.array(z.string().min(1)).max(20).optional(),
 });
 
 const UpdateVariantBody = z.object({
@@ -555,8 +558,12 @@ export async function registerProductRoutes(
           .where(eq(schema.productMedia.productId, product.id))
           .orderBy(asc(schema.productMedia.position)),
         db
-          .select({ categoryId: schema.productCategories.categoryId })
+          .select({ pubId: schema.categories.pubId })
           .from(schema.productCategories)
+          .innerJoin(
+            schema.categories,
+            eq(schema.categories.id, schema.productCategories.categoryId),
+          )
           .where(eq(schema.productCategories.productId, product.id)),
       ]);
 
@@ -565,7 +572,7 @@ export async function registerProductRoutes(
           product,
           variants,
           media,
-          catRows.map((r) => r.categoryId),
+          catRows.map((r) => r.pubId),
         ),
       });
     },
@@ -607,21 +614,159 @@ export async function registerProductRoutes(
         });
       }
 
-      const updates: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() };
+      const { categoryIds, ...fieldInput } = parsed.data;
+      const updates: Record<string, unknown> = { ...fieldInput, updatedAt: new Date() };
 
       // Auto-set publishedAt on first publish
       if (parsed.data.status === 'active' && existing.status !== 'active') {
         updates.publishedAt = new Date();
       }
 
-      const [updated] = await db
-        .update(schema.products)
-        .set(updates)
-        .where(eq(schema.products.id, existing.id))
-        .returning();
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(schema.products)
+          .set(updates)
+          .where(eq(schema.products.id, existing.id))
+          .returning();
+
+        // Category sync — full replacement (tenant-scoped category check)
+        if (categoryIds) {
+          const uuidLike = categoryIds.filter((c) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c),
+          );
+          const valid = categoryIds.length
+            ? await tx
+                .select({ id: schema.categories.id })
+                .from(schema.categories)
+                .where(
+                  and(
+                    eq(schema.categories.tenantId, auth.tenantId),
+                    or(
+                      inArray(schema.categories.pubId, categoryIds),
+                      ...(uuidLike.length ? [inArray(schema.categories.id, uuidLike)] : []),
+                    ),
+                  ),
+                )
+            : [];
+          await tx
+            .delete(schema.productCategories)
+            .where(eq(schema.productCategories.productId, existing.id));
+          if (valid.length) {
+            await tx.insert(schema.productCategories).values(
+              valid.map((c, idx) => ({
+                tenantId: auth.tenantId,
+                productId: existing.id,
+                categoryId: c.id,
+                position: idx,
+              })),
+            );
+          }
+        }
+        return row!;
+      });
+
+      const catRows = await db
+        .select({ pubId: schema.categories.pubId })
+        .from(schema.productCategories)
+        .innerJoin(
+          schema.categories,
+          eq(schema.categories.id, schema.productCategories.categoryId),
+        )
+        .where(eq(schema.productCategories.productId, existing.id));
 
       return reply.send({
-        data: serializeProduct(updated!, [], [], []),
+        data: serializeProduct(updated, [], [], catRows.map((r) => r.pubId)),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /products/{id}/variants — add a variant
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { id: string } }>(
+    '/api/2026-05-20/products/:id/variants',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const auth = req.auth!;
+      if (!ensureTenant(auth, reply)) return;
+      if (!ensurePermission(auth, PERMISSIONS.PRODUCT_EDIT, reply)) return;
+
+      const parsed = VariantInput.safeParse(req.body);
+      if (!parsed.success) return reply.code(422).send(zodErr(parsed.error));
+      const input = parsed.data;
+
+      const { id } = req.params;
+      const [product] = await db
+        .select({ id: schema.products.id })
+        .from(schema.products)
+        .where(
+          and(
+            eq(schema.products.tenantId, auth.tenantId),
+            id.startsWith('prd_') ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
+          ),
+        )
+        .limit(1);
+      if (!product) {
+        return reply.code(404).send({
+          error: { code: 'PRODUCT_NOT_FOUND', message: 'Product not found' },
+        });
+      }
+
+      const created = await db.transaction(async (tx) => {
+        const [agg] = await tx
+          .select({ maxPos: dsql<number>`COALESCE(MAX(${schema.productVariants.position}), -1)::int` })
+          .from(schema.productVariants)
+          .where(eq(schema.productVariants.productId, product.id));
+
+        const [variant] = await tx
+          .insert(schema.productVariants)
+          .values({
+            tenantId: auth.tenantId,
+            productId: product.id,
+            pubId: generatePubId('prv'),
+            sku: input.sku ?? null,
+            barcode: input.barcode ?? null,
+            title: input.title,
+            priceAmount: input.priceAmount,
+            priceCurrency: input.priceCurrency,
+            compareAtAmount: input.compareAtAmount ?? null,
+            weightGrams: input.weightGrams ?? null,
+            requiresShipping: input.requiresShipping,
+            stockOnHand: input.stockOnHand,
+            allowBackorder: input.allowBackorder,
+            optionValues: input.optionValues,
+            position: (agg?.maxPos ?? -1) + 1,
+          })
+          .returning();
+
+        // Initial stock → ledger baseline (per `09`)
+        if (input.stockOnHand > 0) {
+          await tx.insert(schema.stockMovements).values({
+            tenantId: auth.tenantId,
+            variantId: variant!.id,
+            quantityDelta: input.stockOnHand,
+            reason: 'initial_load',
+            referenceType: 'manual',
+            resultingStockOnHand: input.stockOnHand,
+            actorUserId: auth.userId,
+          });
+        }
+        return variant!;
+      });
+
+      return reply.code(201).send({
+        data: {
+          id: created.pubId,
+          sku: created.sku,
+          title: created.title,
+          price_amount: created.priceAmount.toString(),
+          price_currency: created.priceCurrency,
+          stock_on_hand: created.stockOnHand,
+          stock_reserved: created.stockReserved,
+          stock_available: created.stockOnHand - created.stockReserved,
+          option_values: created.optionValues,
+          position: created.position,
+        },
       });
     },
   );
