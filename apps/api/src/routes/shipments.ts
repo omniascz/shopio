@@ -125,13 +125,15 @@ export async function registerShipmentRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const input = parsed.data;
 
-      const [order] = await db
-        .select()
-        .from(schema.orders)
-        .where(
-          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
-        )
-        .limit(1);
+      const [order] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select()
+          .from(schema.orders)
+          .where(
+            and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
+          )
+          .limit(1),
+      );
       if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
       if (order.status !== 'paid' && order.status !== 'fulfilling') {
         return reply.code(422).send({
@@ -142,17 +144,19 @@ export async function registerShipmentRoutes(
         });
       }
 
-      const orderItems = await db
-        .select({
-          item: schema.orderItems,
-          weightGrams: schema.productVariants.weightGrams,
-        })
-        .from(schema.orderItems)
-        .leftJoin(
-          schema.productVariants,
-          eq(schema.productVariants.id, schema.orderItems.variantId),
-        )
-        .where(eq(schema.orderItems.orderId, order.id));
+      const orderItems = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select({
+            item: schema.orderItems,
+            weightGrams: schema.productVariants.weightGrams,
+          })
+          .from(schema.orderItems)
+          .leftJoin(
+            schema.productVariants,
+            eq(schema.productVariants.id, schema.orderItems.variantId),
+          )
+          .where(eq(schema.orderItems.orderId, order.id)),
+      );
       const itemsByPubId = new Map(orderItems.map((r) => [r.item.pubId, r]));
 
       const method = order.shippingMethod as {
@@ -162,7 +166,7 @@ export async function registerShipmentRoutes(
       } | null;
 
       try {
-        const result = await db.transaction(async (tx) => {
+        const result = await withTenant(rlsDb, tenantId, async (tx) => {
           // Lock the order row — serializes concurrent shipment creates so the
           // shippable-quantity guard can't be bypassed by parallel requests.
           await tx
@@ -299,7 +303,9 @@ export async function registerShipmentRoutes(
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
 
-      const shipment = await findShipment(db, tenantId, req.params.shipmentPubId);
+      const shipment = await withTenant(rlsDb, tenantId, (tx) =>
+        findShipment(tx, tenantId, req.params.shipmentPubId),
+      );
       if (!shipment) return notFound(reply, 'SHIPMENT_NOT_FOUND', 'Shipment not found');
       if (!isValidShipmentTransition(shipment.status, 'label_generated')) {
         return reply.code(422).send({
@@ -310,24 +316,24 @@ export async function registerShipmentRoutes(
         });
       }
 
-      const [order] = await db
-        .select()
-        .from(schema.orders)
-        .where(eq(schema.orders.id, shipment.orderId))
-        .limit(1);
+      const [order] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx.select().from(schema.orders).where(eq(schema.orders.id, shipment.orderId)).limit(1),
+      );
       if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
 
       // Home-delivery carrier id from provider config (real mode only)
-      const [providerConfig] = await db
-        .select({ options: schema.shippingProviderConfigs.options })
-        .from(schema.shippingProviderConfigs)
-        .where(
-          and(
-            eq(schema.shippingProviderConfigs.tenantId, tenantId),
-            eq(schema.shippingProviderConfigs.carrierCode, shipment.carrierCode),
-          ),
-        )
-        .limit(1);
+      const [providerConfig] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select({ options: schema.shippingProviderConfigs.options })
+          .from(schema.shippingProviderConfigs)
+          .where(
+            and(
+              eq(schema.shippingProviderConfigs.tenantId, tenantId),
+              eq(schema.shippingProviderConfigs.carrierCode, shipment.carrierCode),
+            ),
+          )
+          .limit(1),
+      );
       const providerOptions = (providerConfig?.options ?? {}) as {
         home_delivery_carrier_id?: string;
         api_password?: string;
@@ -374,21 +380,23 @@ export async function registerShipmentRoutes(
         // real mode the loser may have created an orphan packet at the
         // carrier — logged for manual cleanup; createPacket is deterministic
         // in mock mode.)
-        const [updated] = await db
-          .update(schema.shipments)
-          .set({
-            status: 'label_generated',
-            statusEnteredAt: new Date(),
-            carrierShipmentId: packet.carrierShipmentId,
-            trackingNumber: packet.barcode,
-            trackingUrl: trackingUrlFor(packet.barcode),
-            labelPdfBase64: labelPdf.toString('base64'),
-            labelGeneratedAt: new Date(),
-            labelProvider: packet.provider,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(schema.shipments.id, shipment.id), eq(schema.shipments.status, 'pending')))
-          .returning();
+        const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+          tx
+            .update(schema.shipments)
+            .set({
+              status: 'label_generated',
+              statusEnteredAt: new Date(),
+              carrierShipmentId: packet.carrierShipmentId,
+              trackingNumber: packet.barcode,
+              trackingUrl: trackingUrlFor(packet.barcode),
+              labelPdfBase64: labelPdf.toString('base64'),
+              labelGeneratedAt: new Date(),
+              labelProvider: packet.provider,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(schema.shipments.id, shipment.id), eq(schema.shipments.status, 'pending')))
+            .returning(),
+        );
         if (!updated) {
           app.log.warn(
             { shipmentId: shipment.id, provider: packet.provider, barcode: packet.barcode },
@@ -402,15 +410,16 @@ export async function registerShipmentRoutes(
           });
         }
 
-        await db.insert(schema.shipmentEvents).values({
-          tenantId,
-          shipmentId: shipment.id,
-          status: 'label_generated',
-          description: `Štítek vygenerován (${packet.provider === 'mock' ? 'mock' : 'Packeta'}), č. ${packet.barcode}`,
-          source: 'system',
+        const items = await withTenant(rlsDb, tenantId, async (tx) => {
+          await tx.insert(schema.shipmentEvents).values({
+            tenantId,
+            shipmentId: shipment.id,
+            status: 'label_generated',
+            description: `Štítek vygenerován (${packet.provider === 'mock' ? 'mock' : 'Packeta'}), č. ${packet.barcode}`,
+            source: 'system',
+          });
+          return listShipmentItems(tx, shipment.id);
         });
-
-        const items = await listShipmentItems(db, shipment.id);
         app.log.info(
           {
             shipmentId: shipment.id,
@@ -467,7 +476,9 @@ export async function registerShipmentRoutes(
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
 
-      const shipment = await findShipment(db, tenantId, req.params.shipmentPubId);
+      const shipment = await withTenant(rlsDb, tenantId, (tx) =>
+        findShipment(tx, tenantId, req.params.shipmentPubId),
+      );
       if (!shipment) return notFound(reply, 'SHIPMENT_NOT_FOUND', 'Shipment not found');
       if (!isValidShipmentTransition(shipment.status, 'handed_over')) {
         return reply.code(422).send({
@@ -478,24 +489,25 @@ export async function registerShipmentRoutes(
         });
       }
 
-      const items = await listShipmentItems(db, shipment.id);
-
-      // Variant ids for the inventory commit (shipment items reference order items)
-      const orderItemRows = items.length
-        ? await db
-            .select({ id: schema.orderItems.id, variantId: schema.orderItems.variantId })
-            .from(schema.orderItems)
-            .where(
-              inArray(
-                schema.orderItems.id,
-                items.map((i) => i.orderItemId),
-              ),
-            )
-        : [];
-      const variantByOrderItem = new Map(orderItemRows.map((r) => [r.id, r.variantId]));
+      const { items, variantByOrderItem } = await withTenant(rlsDb, tenantId, async (tx) => {
+        const its = await listShipmentItems(tx, shipment.id);
+        // Variant ids for the inventory commit (shipment items reference order items)
+        const oirows = its.length
+          ? await tx
+              .select({ id: schema.orderItems.id, variantId: schema.orderItems.variantId })
+              .from(schema.orderItems)
+              .where(
+                inArray(
+                  schema.orderItems.id,
+                  its.map((i) => i.orderItemId),
+                ),
+              )
+          : [];
+        return { items: its, variantByOrderItem: new Map(oirows.map((r) => [r.id, r.variantId])) };
+      });
 
       let lostRace = false;
-      const orderAfter = await db.transaction(async (tx) => {
+      const orderAfter = await withTenant(rlsDb, tenantId, async (tx) => {
         // Lock + re-check: a concurrent handover (double-click) blocks here,
         // re-reads handed_over, and aborts — quantity_fulfilled and the stock
         // commit run exactly once.
@@ -619,11 +631,9 @@ export async function registerShipmentRoutes(
         }
       })();
 
-      const [updated] = await db
-        .select()
-        .from(schema.shipments)
-        .where(eq(schema.shipments.id, shipment.id))
-        .limit(1);
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx.select().from(schema.shipments).where(eq(schema.shipments.id, shipment.id)).limit(1),
+      );
       app.log.info({ shipmentId: shipment.id, orderStatus: orderAfter.status }, 'shipment.handed_over');
       return reply.send({
         data: { ...serializeShipment(updated!, items), order_status: orderAfter.status },
@@ -645,7 +655,9 @@ export async function registerShipmentRoutes(
         const tenantId = req.auth!.tenantId;
         if (!tenantId) return noTenant(reply);
 
-        const shipment = await findShipment(db, tenantId, req.params.shipmentPubId);
+        const shipment = await withTenant(rlsDb, tenantId, (tx) =>
+          findShipment(tx, tenantId, req.params.shipmentPubId),
+        );
         if (!shipment) return notFound(reply, 'SHIPMENT_NOT_FOUND', 'Shipment not found');
         if (!isValidShipmentTransition(shipment.status, target)) {
           return reply.code(422).send({
@@ -661,22 +673,24 @@ export async function registerShipmentRoutes(
         const allowedFrom = Object.entries(SHIPMENT_TRANSITIONS)
           .filter(([, targets]) => targets.includes(target))
           .map(([from]) => from);
-        const [updated] = await db
-          .update(schema.shipments)
-          .set({
-            status: target,
-            statusEnteredAt: new Date(),
-            ...(target === 'delivered' && { deliveredAt: new Date() }),
-            ...(target === 'cancelled' && { cancelledAt: new Date() }),
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(schema.shipments.id, shipment.id),
-              inArray(schema.shipments.status, allowedFrom as (typeof shipment.status)[]),
-            ),
-          )
-          .returning();
+        const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+          tx
+            .update(schema.shipments)
+            .set({
+              status: target,
+              statusEnteredAt: new Date(),
+              ...(target === 'delivered' && { deliveredAt: new Date() }),
+              ...(target === 'cancelled' && { cancelledAt: new Date() }),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.shipments.id, shipment.id),
+                inArray(schema.shipments.status, allowedFrom as (typeof shipment.status)[]),
+              ),
+            )
+            .returning(),
+        );
         if (!updated) {
           return reply.code(422).send({
             error: {
@@ -686,15 +700,16 @@ export async function registerShipmentRoutes(
           });
         }
 
-        await db.insert(schema.shipmentEvents).values({
-          tenantId,
-          shipmentId: shipment.id,
-          status: target,
-          description,
-          source: 'manual',
+        const items = await withTenant(rlsDb, tenantId, async (tx) => {
+          await tx.insert(schema.shipmentEvents).values({
+            tenantId,
+            shipmentId: shipment.id,
+            status: target,
+            description,
+            source: 'manual',
+          });
+          return listShipmentItems(tx, shipment.id);
         });
-
-        const items = await listShipmentItems(db, shipment.id);
         app.log.info({ shipmentId: shipment.id, to: target }, 'shipment.status_updated');
         return reply.send({ data: serializeShipment(updated!, items) });
       },
@@ -718,41 +733,46 @@ export async function registerShipmentRoutes(
       if (!tenant || tenant.status !== 'active') {
         return notFound(reply, 'TENANT_NOT_FOUND', 'tenant not found');
       }
-      const [order] = await db
-        .select({ id: schema.orders.id, customerEmail: schema.orders.customerEmail })
-        .from(schema.orders)
-        .where(
-          and(
-            eq(schema.orders.tenantId, tenant.id),
-            eq(schema.orders.orderNumber, req.params.orderNumber),
-          ),
-        )
-        .limit(1);
+      const [order] = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({ id: schema.orders.id, customerEmail: schema.orders.customerEmail })
+          .from(schema.orders)
+          .where(
+            and(
+              eq(schema.orders.tenantId, tenant.id),
+              eq(schema.orders.orderNumber, req.params.orderNumber),
+            ),
+          )
+          .limit(1),
+      );
       const providedEmail = req.query.email?.toLowerCase();
       if (!order || !providedEmail || providedEmail !== order.customerEmail.toLowerCase()) {
         return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
       }
 
-      const rows = await db
-        .select()
-        .from(schema.shipments)
-        .where(eq(schema.shipments.orderId, order.id))
-        .orderBy(asc(schema.shipments.createdAt));
-      const events = rows.length
-        ? await db
-            .select()
-            .from(schema.shipmentEvents)
-            .where(
-              and(
-                inArray(
-                  schema.shipmentEvents.shipmentId,
-                  rows.map((r) => r.id),
+      const { rows, events } = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const shipRows = await tx
+          .select()
+          .from(schema.shipments)
+          .where(eq(schema.shipments.orderId, order.id))
+          .orderBy(asc(schema.shipments.createdAt));
+        const evRows = shipRows.length
+          ? await tx
+              .select()
+              .from(schema.shipmentEvents)
+              .where(
+                and(
+                  inArray(
+                    schema.shipmentEvents.shipmentId,
+                    shipRows.map((r) => r.id),
+                  ),
+                  eq(schema.shipmentEvents.isCustomerVisible, true),
                 ),
-                eq(schema.shipmentEvents.isCustomerVisible, true),
-              ),
-            )
-            .orderBy(asc(schema.shipmentEvents.occurredAt))
-        : [];
+              )
+              .orderBy(asc(schema.shipmentEvents.occurredAt))
+          : [];
+        return { rows: shipRows, events: evRows };
+      });
 
       return reply.send({
         data: {
@@ -802,7 +822,7 @@ async function findShipment(db: AppDb | TenantTx, tenantId: string, shipmentPubI
   return s ?? null;
 }
 
-async function listShipmentItems(db: AppDb, shipmentId: string) {
+async function listShipmentItems(db: AppDb | TenantTx, shipmentId: string) {
   return db
     .select()
     .from(schema.shipmentItems)

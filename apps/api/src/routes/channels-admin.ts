@@ -161,11 +161,13 @@ export async function registerChannelAdminRoutes(
       if (!tenant) return noTenant(reply);
 
       // Resolve the 'manual' channel (must exist + be active).
-      const [channel] = await db
-        .select()
-        .from(schema.channels)
-        .where(and(eq(schema.channels.tenantId, tenantId), eq(schema.channels.code, 'manual')))
-        .limit(1);
+      const [channel] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select()
+          .from(schema.channels)
+          .where(and(eq(schema.channels.tenantId, tenantId), eq(schema.channels.code, 'manual')))
+          .limit(1),
+      );
       if (!channel || !channel.isActive) {
         return reply.code(422).send({
           error: { code: 'CHANNEL_INACTIVE', message: 'Kanál „Ruční objednávka" není aktivní' },
@@ -174,7 +176,8 @@ export async function registerChannelAdminRoutes(
 
       // Resolve variants (by pub_id or UUID) + product tax class + title.
       const ids = input.items.map((i) => i.variantId);
-      const variants = await db
+      const variants = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
         .select({
           id: schema.productVariants.id,
           pubId: schema.productVariants.pubId,
@@ -199,7 +202,8 @@ export async function registerChannelAdminRoutes(
               ids,
             ),
           ),
-        );
+        ),
+      );
       // Allow UUID lookups too (fallback).
       const byPub = new Map(variants.map((v) => [v.pubId, v]));
       const byUuid = new Map(variants.map((v) => [v.id, v]));
@@ -239,7 +243,7 @@ export async function registerChannelAdminRoutes(
       const total = grossGoods + shippingGross;
 
       try {
-        const result = await db.transaction(async (tx) => {
+        const result = await withTenant(rlsDb, tenantId, async (tx) => {
           // Lock + revalidate stock.
           const fresh = await tx
             .select({
