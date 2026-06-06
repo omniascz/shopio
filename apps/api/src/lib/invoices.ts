@@ -13,7 +13,7 @@
  */
 
 import { and, asc, eq, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { generatePubId } from '@shopio/authz';
 import type { AppDb } from '../db';
 
@@ -181,12 +181,17 @@ export interface IssuedInvoice {
 /**
  * Issue the regular invoice for a paid order (idempotent).
  */
-export async function issueInvoiceForOrder(db: AppDb, orderId: string): Promise<IssuedInvoice> {
-  // Fast path — already issued
-  const existing = await getInvoiceForOrder(db, orderId, 'invoice');
-  if (existing) return { ...existing, created: false };
+export async function issueInvoiceForOrder(
+  db: AppDb,
+  tenantId: string,
+  orderId: string,
+): Promise<IssuedInvoice> {
+  // RLS-enforced (per `30`): the whole issuance runs under the tenant GUC.
+  return withTenant(db, tenantId, async (tx) => {
+    // Fast path — already issued
+    const existing = await getInvoiceForOrder(tx, orderId, 'invoice');
+    if (existing) return { ...existing, created: false };
 
-  return db.transaction(async (tx) => {
     // Advisory lock serializes concurrent issuance for one order (webhook +
     // manual admin click racing). The loser re-reads the winner's invoice
     // below instead of burning a sequence number (gapless, RULE-TAX-009).

@@ -387,7 +387,7 @@ async function handleCheckoutSessionCompleted(
   // Issue the tax invoice (per `15 §3.5` — trigger: payment captured). Best-effort:
   // a failure here must not bounce the webhook (Stripe would retry the whole event).
   try {
-    const issued = await issueInvoiceForOrder(db, order.id);
+    const issued = await issueInvoiceForOrder(db, order.tenantId, order.id);
     app.log.info(
       { orderId: order.id, invoiceNumber: issued.invoice.number, created: issued.created },
       'stripe.webhook.invoice_issued',

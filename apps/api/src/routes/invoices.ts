@@ -81,14 +81,16 @@ export async function registerInvoiceRoutes(
           error: { code: 'NO_ACTIVE_TENANT', message: 'Select a tenant first' },
         });
       }
-      const order = await findOrder(db, tenantId, req.params.orderPubId);
+      const order = await withTenant(rlsDb, tenantId, (tx) =>
+        findOrder(tx, tenantId, req.params.orderPubId),
+      );
       if (!order) {
         return reply.code(404).send({
           error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' },
         });
       }
       try {
-        const issued = await issueInvoiceForOrder(db, order.id);
+        const issued = await issueInvoiceForOrder(rlsDb, tenantId, order.id);
         app.log.info(
           { orderId: order.id, invoiceNumber: issued.invoice.number, created: issued.created },
           'invoice.issued',

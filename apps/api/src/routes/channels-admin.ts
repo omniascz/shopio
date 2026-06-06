@@ -345,7 +345,7 @@ export async function registerChannelAdminRoutes(
 
         // Issue invoice for paid manual orders (same as web mark-paid path).
         if (input.markPaid) {
-          void issueInvoiceForOrder(db, result.id).catch((err) => {
+          void issueInvoiceForOrder(rlsDb, tenantId, result.id).catch((err) => {
             app.log.error({ err, orderId: result.id }, 'order.manual_invoice_failed');
           });
         }

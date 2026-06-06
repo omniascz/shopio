@@ -366,7 +366,7 @@ export async function registerOrderRoutes(
       ) {
         void (async () => {
           try {
-            const issued = await issueInvoiceForOrder(db, existing.id);
+            const issued = await issueInvoiceForOrder(rlsDb, tenantId, existing.id);
             app.log.info(
               { orderId: existing.id, invoiceNumber: issued.invoice.number },
               'order.invoice_issued',
