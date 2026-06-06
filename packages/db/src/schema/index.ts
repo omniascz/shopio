@@ -35,4 +35,6 @@ export * from './coupons';
 export * from './companies';
 // Sales channels (Wave 1 — `22-multistore-channels.md` MVP)
 export * from './channels';
+// Content translations (Wave 1 — `23-i18n.md` MVP)
+export * from './translations';
 // Future: payments, ...

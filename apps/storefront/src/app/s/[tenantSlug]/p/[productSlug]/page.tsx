@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct } from '@/lib/api';
+import { getStorefrontLocale } from '@/lib/locale';
 import { AddToCart } from '@/components/add-to-cart';
 import { SaveButtons } from '@/components/save-buttons';
 import { RatingBadge } from '@/components/stars';
@@ -12,7 +13,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props) {
   const { tenantSlug, productSlug } = await params;
-  const product = await getProduct(tenantSlug, productSlug);
+  const product = await getProduct(tenantSlug, productSlug, await getStorefrontLocale());
   if (!product) return { title: 'Produkt nenalezen' };
 
   const description = product.description_html
@@ -79,7 +80,7 @@ function productJsonLd(
 
 export default async function ProductPage({ params }: Props) {
   const { tenantSlug, productSlug } = await params;
-  const product = await getProduct(tenantSlug, productSlug);
+  const product = await getProduct(tenantSlug, productSlug, await getStorefrontLocale());
   if (!product) notFound();
 
   const primaryMedia = product.media.find((m) => m.is_primary) ?? product.media[0];

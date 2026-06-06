@@ -22,6 +22,7 @@ export interface Tenant {
   slug: string;
   display_name: string;
   default_locale: string;
+  enabled_locales?: string[];
   default_currency: string;
   country_code: string;
   appearance?: TenantAppearance;
@@ -149,9 +150,13 @@ export interface StorefrontCategory {
   depth: number;
 }
 
-export async function getCategories(tenantSlug: string): Promise<StorefrontCategory[]> {
+export async function getCategories(
+  tenantSlug: string,
+  locale?: string,
+): Promise<StorefrontCategory[]> {
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
   const data = await shopioFetch<{ categories: StorefrontCategory[] }>(
-    `/storefront/${tenantSlug}/categories`,
+    `/storefront/${tenantSlug}/categories${qs}`,
   );
   return data?.categories ?? [];
 }
@@ -164,6 +169,7 @@ export async function getProducts(
     limit?: number;
     offset?: number;
     facets?: Record<string, string[]>;
+    locale?: string;
   } = {},
 ): Promise<{
   products: ProductListItem[];
@@ -177,6 +183,7 @@ export async function getProducts(
   if (options.categorySlug) params.set('categorySlug', options.categorySlug);
   if (options.limit !== undefined) params.set('limit', String(options.limit));
   if (options.offset !== undefined) params.set('offset', String(options.offset));
+  if (options.locale) params.set('locale', options.locale);
   for (const [name, values] of Object.entries(options.facets ?? {})) {
     for (const v of values) params.append(`facet.${name}`, v);
   }
@@ -194,8 +201,10 @@ export async function getProducts(
 export async function getProduct(
   tenantSlug: string,
   productSlug: string,
+  locale?: string,
 ): Promise<ProductDetail | null> {
-  return shopioFetch<ProductDetail>(`/storefront/${tenantSlug}/products/${productSlug}`);
+  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
+  return shopioFetch<ProductDetail>(`/storefront/${tenantSlug}/products/${productSlug}${qs}`);
 }
 
 export { StorefrontApiError };

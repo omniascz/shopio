@@ -19,6 +19,7 @@ import { schema } from '@shopio/db';
 import { searchProducts } from '../lib/search';
 import { listPublishedReviews, ratingSummaries, ratingSummary } from '../lib/reviews';
 import { facetDistribution } from '../lib/search';
+import { loadTranslations, resolveServeLocale } from '../lib/translations';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -61,6 +62,7 @@ export async function registerStorefrontRoutes(
             slug: tenant.slug,
             display_name: tenant.displayName,
             default_locale: tenant.defaultLocale,
+            enabled_locales: (tenant.enabledLocales as string[]) ?? [tenant.defaultLocale],
             default_currency: tenant.defaultCurrency,
             country_code: tenant.countryCode,
             appearance: {
@@ -85,6 +87,7 @@ export async function registerStorefrontRoutes(
 
       const rows = await db
         .select({
+          id: schema.categories.id,
           pubId: schema.categories.pubId,
           slug: schema.categories.slug,
           name: schema.categories.name,
@@ -99,17 +102,36 @@ export async function registerStorefrontRoutes(
         )
         .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder));
 
+      // i18n (per `23`): apply locale overrides for name/description.
+      const locale = resolveServeLocale(
+        requestedLocale(req),
+        (tenant.enabledLocales as string[]) ?? [],
+        tenant.defaultLocale,
+      );
+      const tr = await loadTranslations(
+        db,
+        tenant.id,
+        'category',
+        rows.map((r) => r.id),
+        locale,
+        tenant.defaultLocale,
+      );
+
       return reply.send({
         data: {
-          categories: rows.map((r) => ({
-            id: r.pubId,
-            slug: r.slug,
-            name: r.name,
-            description: r.description,
-            path: r.path,
-            depth: r.depth,
-            parent_id: r.parentId,
-          })),
+          locale,
+          categories: rows.map((r) => {
+            const o = tr.get(r.id);
+            return {
+              id: r.pubId,
+              slug: r.slug,
+              name: o?.get('name') ?? r.name,
+              description: o?.get('description') ?? r.description,
+              path: r.path,
+              depth: r.depth,
+              parent_id: r.parentId,
+            };
+          }),
           count: rows.length,
         },
       });
@@ -262,6 +284,14 @@ export async function registerStorefrontRoutes(
       const mediaByProduct = new Map(primaryMedia.map((m) => [m.productId, m]));
       const ratings = await ratingSummaries(db, productIds);
 
+      // i18n (per `23`): localized product titles for the card grid.
+      const locale = resolveServeLocale(
+        requestedLocale(req),
+        (tenant.enabledLocales as string[]) ?? [],
+        tenant.defaultLocale,
+      );
+      const tr = await loadTranslations(db, tenant.id, 'product', productIds, locale, tenant.defaultLocale);
+
       // Available filters for the sidebar: distinct attribute names across the
       // tenant's active catalog → Meili facet distribution for the current view.
       let facetFilters: { name: string; values: { value: string; count: number }[] }[] = [];
@@ -298,13 +328,14 @@ export async function registerStorefrontRoutes(
 
       return reply.send({
         data: {
+          locale,
           products: rows.map((r) => {
             const media = mediaByProduct.get(r.id);
             const rating = ratings.get(r.id);
             return {
               id: r.pubId,
               slug: r.slug,
-              title: r.title,
+              title: tr.get(r.id)?.get('title') ?? r.title,
               base_price: r.basePriceAmount
                 ? { amount: r.basePriceAmount.toString(), currency: r.basePriceCurrency }
                 : null,
@@ -361,6 +392,7 @@ export async function registerStorefrontRoutes(
           .orderBy(asc(schema.productMedia.position)),
         db
           .select({
+            id: schema.categories.id,
             slug: schema.categories.slug,
             name: schema.categories.name,
             path: schema.categories.path,
@@ -375,12 +407,25 @@ export async function registerStorefrontRoutes(
         listPublishedReviews(db, product.id, 50),
       ]);
 
+      // i18n (per `23`): localize product title/description + category names.
+      const locale = resolveServeLocale(
+        requestedLocale(req),
+        (tenant.enabledLocales as string[]) ?? [],
+        tenant.defaultLocale,
+      );
+      const [prodTr, catTr] = await Promise.all([
+        loadTranslations(db, tenant.id, 'product', [product.id], locale, tenant.defaultLocale),
+        loadTranslations(db, tenant.id, 'category', catRows.map((c) => c.id), locale, tenant.defaultLocale),
+      ]);
+      const po = prodTr.get(product.id);
+
       return reply.send({
         data: {
+          locale,
           id: product.pubId,
           slug: product.slug,
-          title: product.title,
-          description_html: product.descriptionHtml,
+          title: po?.get('title') ?? product.title,
+          description_html: po?.get('description_html') ?? product.descriptionHtml,
           base_price: product.basePriceAmount
             ? {
                 amount: product.basePriceAmount.toString(),
@@ -420,7 +465,7 @@ export async function registerStorefrontRoutes(
           })),
           categories: catRows.map((c) => ({
             slug: c.slug,
-            name: c.name,
+            name: catTr.get(c.id)?.get('name') ?? c.name,
             path: c.path,
           })),
           rating: { average: reviewSummary.average, count: reviewSummary.count },
@@ -456,6 +501,7 @@ async function resolveTenant(db: AppDb, slug: string) {
       slug: schema.tenants.slug,
       displayName: schema.tenants.displayName,
       defaultLocale: schema.tenants.defaultLocale,
+      enabledLocales: schema.tenants.enabledLocales,
       defaultCurrency: schema.tenants.defaultCurrency,
       countryCode: schema.tenants.countryCode,
       status: schema.tenants.status,
@@ -473,4 +519,10 @@ function notFound(reply: any, kind: string) {
   return reply.code(404).send({
     error: { code: `${kind.toUpperCase()}_NOT_FOUND`, message: `${kind} not found` },
   });
+}
+
+/** Requested storefront locale from `?locale=` (per `23`). */
+function requestedLocale(req: { query: unknown }): string | undefined {
+  const q = (req.query as { locale?: string }).locale;
+  return typeof q === 'string' && q ? q : undefined;
 }

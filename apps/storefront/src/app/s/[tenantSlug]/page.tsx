@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
+import { getStorefrontLocale } from '@/lib/locale';
 import { RatingBadge } from '@/components/stars';
 import { SaveButtons } from '@/components/save-buttons';
 
@@ -34,14 +35,16 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
     selectedFacets[key.slice('facet.'.length)] = Array.isArray(val) ? val : [val];
   }
 
+  const locale = await getStorefrontLocale();
   const [{ products, facets }, categories] = await Promise.all([
     getProducts(tenantSlug, {
       limit: 24,
       ...(q && { q }),
       ...(categorySlug && { categorySlug }),
+      ...(locale && { locale }),
       facets: selectedFacets,
     }),
-    getCategories(tenantSlug),
+    getCategories(tenantSlug, locale),
   ]);
 
   // Helper to build a URL with one facet value toggled, preserving the rest

@@ -28,6 +28,10 @@ export const tenants = pgTable(
     // Geography
     countryCode: text('country_code').notNull(), // ISO 3166-1 alpha-2
     defaultLocale: text('default_locale').notNull().default('cs-CZ'), // BCP-47
+    /** Storefront-selectable locales (per `23-i18n.md`), incl. the default. */
+    enabledLocales: jsonb('enabled_locales')
+      .notNull()
+      .default(sql`'["cs-CZ"]'::jsonb`),
     defaultCurrency: text('default_currency').notNull().default('CZK'), // ISO 4217
     timezone: text('timezone').notNull().default('Europe/Prague'),
     // Identification (CZ tax)

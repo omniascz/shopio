@@ -241,6 +241,119 @@ export function ProductEditPage() {
       <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
       <CategoriesPanel product={product} onSaved={invalidate} />
+      <TranslationsPanel productId={product.id} />
+    </div>
+  );
+}
+
+// =============================================================================
+// Translations (per `23-i18n.md`)
+// =============================================================================
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Název',
+  description_html: 'Popis (HTML)',
+};
+
+function TranslationsPanel({ productId }: { productId: string }) {
+  const settings = useQuery({ queryKey: ['admin', 'locale-settings'], queryFn: () => api.getLocaleSettings() });
+  const data = useQuery({
+    queryKey: ['admin', 'translations', 'product', productId],
+    queryFn: () => api.getTranslations('product', productId),
+  });
+
+  // non-default enabled locales need translation
+  const others = (settings.data?.enabled_locales ?? []).filter(
+    (l) => l !== settings.data?.default_locale,
+  );
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Překlady</h2>
+      {others.length === 0 ? (
+        <p style={{ fontSize: '0.8125rem', color: '#666', margin: 0 }}>
+          Žádné další jazyky. Povolte je v{' '}
+          <Link to="/settings" style={{ color: '#0066ff' }}>
+            Nastavení → Jazyky
+          </Link>
+          .
+        </p>
+      ) : !data.data ? (
+        <p style={{ fontSize: '0.875rem', color: '#666' }}>Načítání…</p>
+      ) : (
+        others.map((locale) => (
+          <LocaleTranslationForm
+            key={locale}
+            productId={productId}
+            locale={locale}
+            fields={data.data!.fields}
+            master={data.data!.master}
+            current={data.data!.translations[locale] ?? {}}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+function LocaleTranslationForm({
+  productId,
+  locale,
+  fields,
+  master,
+  current,
+}: {
+  productId: string;
+  locale: string;
+  fields: string[];
+  master: Record<string, string | null>;
+  current: Record<string, string>;
+}) {
+  const queryClient = useQueryClient();
+  const [values, setValues] = useState<Record<string, string>>(current);
+  const [saved, setSaved] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: () => api.putTranslation({ entityType: 'product', entityId: productId, locale, fields: values }),
+    onSuccess: () => {
+      setSaved(true);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'translations', 'product', productId] });
+      setTimeout(() => setSaved(false), 1500);
+    },
+  });
+
+  return (
+    <div style={{ border: '1px solid #eee', borderRadius: 6, padding: '0.875rem', marginBottom: '0.75rem' }}>
+      <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.5rem' }}>{locale}</div>
+      {fields.map((f) => (
+        <label key={f} style={{ display: 'block', marginBottom: '0.625rem' }}>
+          <span style={{ display: 'block', fontSize: '0.75rem', color: '#888', marginBottom: 2 }}>
+            {FIELD_LABELS[f] ?? f} · originál: {master[f] || '—'}
+          </span>
+          {f === 'description_html' ? (
+            <textarea
+              value={values[f] ?? ''}
+              onChange={(e) => setValues({ ...values, [f]: e.target.value })}
+              rows={3}
+              style={{ width: '100%', padding: '0.4rem', border: '1px solid #ddd', borderRadius: 4, boxSizing: 'border-box', fontSize: '0.875rem' }}
+            />
+          ) : (
+            <input
+              value={values[f] ?? ''}
+              onChange={(e) => setValues({ ...values, [f]: e.target.value })}
+              style={{ width: '100%', padding: '0.4rem', border: '1px solid #ddd', borderRadius: 4, boxSizing: 'border-box', fontSize: '0.875rem' }}
+            />
+          )}
+        </label>
+      ))}
+      <button
+        type="button"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending}
+        style={{ padding: '0.4rem 0.875rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 4, fontSize: '0.8125rem', cursor: 'pointer' }}
+      >
+        {mutation.isPending ? 'Ukládám…' : saved ? '✓ Uloženo' : 'Uložit překlad'}
+      </button>
     </div>
   );
 }

@@ -34,7 +34,57 @@ export function SettingsPage() {
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
       <AppearanceSection settings={settings} />
+      <LocalesSection />
     </div>
+  );
+}
+
+// =============================================================================
+// Jazyky (per `23-i18n.md`)
+// =============================================================================
+
+function LocalesSection() {
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ['admin', 'locale-settings'], queryFn: () => api.getLocaleSettings() });
+  const mutation = useMutation({
+    mutationFn: (enabled: string[]) => api.setLocaleSettings(enabled),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'locale-settings'] }),
+  });
+  const d = query.data;
+
+  function toggle(code: string, on: boolean) {
+    if (!d) return;
+    const next = on
+      ? [...d.enabled_locales, code]
+      : d.enabled_locales.filter((l) => l !== code);
+    mutation.mutate(next);
+  }
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Jazyky</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Povolené jazyky obchodu. Výchozí jazyk ({d?.default_locale}) je vždy zapnutý.
+        Překlady produktů zadáte na detailu produktu.
+      </p>
+      {d &&
+        d.available_locales.map((l) => {
+          const enabled = d.enabled_locales.includes(l.code);
+          const isDefault = l.code === d.default_locale;
+          return (
+            <label key={l.code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.25rem 0', fontSize: '0.9375rem' }}>
+              <input
+                type="checkbox"
+                checked={enabled}
+                disabled={isDefault || mutation.isPending}
+                onChange={(e) => toggle(l.code, e.target.checked)}
+              />
+              {l.name} <span style={{ color: '#999', fontSize: '0.8125rem' }}>{l.code}</span>
+              {isDefault && <span style={{ color: '#999', fontSize: '0.75rem' }}>(výchozí)</span>}
+            </label>
+          );
+        })}
+    </section>
   );
 }
 

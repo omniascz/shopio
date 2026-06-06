@@ -720,6 +720,48 @@ class ApiClient {
     return this.request(`/admin/channels/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
+  // ---------------------------------------------------------------------------
+  // i18n (per `23`)
+  // ---------------------------------------------------------------------------
+  async getLocaleSettings(): Promise<{
+    default_locale: string;
+    enabled_locales: string[];
+    available_locales: { code: string; name: string }[];
+  }> {
+    return this.request('/admin/locale-settings');
+  }
+
+  async setLocaleSettings(enabledLocales: string[]): Promise<{ enabled_locales: string[] }> {
+    return this.request('/admin/locale-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ enabledLocales }),
+    });
+  }
+
+  async getTranslations(
+    entityType: 'product' | 'category',
+    entityId: string,
+  ): Promise<{
+    entity_type: string;
+    entity_id: string;
+    fields: string[];
+    master: Record<string, string | null>;
+    translations: Record<string, Record<string, string>>;
+  }> {
+    return this.request(
+      `/admin/translations?entityType=${entityType}&entityId=${encodeURIComponent(entityId)}`,
+    );
+  }
+
+  async putTranslation(body: {
+    entityType: 'product' | 'category';
+    entityId: string;
+    locale: string;
+    fields: Record<string, string>;
+  }): Promise<{ ok: boolean }> {
+    return this.request('/admin/translations', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
   async createManualOrder(body: {
     customerEmail: string;
     customerName: string;

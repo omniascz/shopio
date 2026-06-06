@@ -7,6 +7,8 @@ import { CompareProvider } from '@/lib/compare-context';
 import { CartDrawer } from '@/components/cart-drawer';
 import { CartButton } from '@/components/cart-button';
 import { SavedNav } from '@/components/saved-nav';
+import { LocaleSwitcher } from '@/components/locale-switcher';
+import { getStorefrontLocale } from '@/lib/locale';
 
 interface Props {
   children: ReactNode;
@@ -24,6 +26,12 @@ export default async function TenantLayout({ children, params }: Props) {
   const { tenantSlug } = await params;
   const tenant = await getTenant(tenantSlug);
   if (!tenant) notFound();
+
+  const cookieLocale = await getStorefrontLocale();
+  const enabledLocales = tenant.enabled_locales ?? [tenant.default_locale];
+  const currentLocale = enabledLocales.includes(cookieLocale ?? '')
+    ? cookieLocale!
+    : tenant.default_locale;
 
   const appearance = tenant.appearance ?? {
     theme: 'minimal',
@@ -86,6 +94,7 @@ export default async function TenantLayout({ children, params }: Props) {
             }}
           >
             <SavedNav tenantSlug={tenantSlug} />
+            <LocaleSwitcher locales={enabledLocales} current={currentLocale} />
             <Link
               href={`/s/${tenantSlug}/ucet`}
               style={{ fontSize: '0.875rem', color: 'inherit', textDecoration: 'none', opacity: 0.85 }}

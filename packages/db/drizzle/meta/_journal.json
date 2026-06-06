@@ -127,6 +127,13 @@
       "when": 1780750254130,
       "tag": "0017_channels",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780751250507,
+      "tag": "0018_i18n_translations",
+      "breakpoints": true
     }
   ]
 }
