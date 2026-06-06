@@ -51,14 +51,14 @@ const ConfigSchema = z.object({
 
   // Zásilkovna / Packeta (optional — when absent the storefront falls back to the
   // seeded pickup-point picker instead of the Packeta JS widget).
-  PACKETA_API_KEY: z.string().min(8).optional(),
+  PACKETA_API_KEY: optionalNonEmpty(z.string().min(8)),
   /** REST API password (different secret than the widget key) — when absent,
    * label generation runs in mock mode (fake barcode + placeholder PDF). */
-  PACKETA_API_PASSWORD: z.string().min(8).optional(),
+  PACKETA_API_PASSWORD: optionalNonEmpty(z.string().min(8)),
 
   // Meilisearch (optional — storefront search falls back to ILIKE when absent)
-  MEILISEARCH_HOST: z.string().url().optional(),
-  MEILISEARCH_API_KEY: z.string().optional(),
+  MEILISEARCH_HOST: optionalNonEmpty(z.string().url()),
+  MEILISEARCH_API_KEY: optionalNonEmpty(z.string()),
 
   // Object storage (MinIO in dev; S3-compatible in prod) — product media
   SHOPIO_S3_ENDPOINT: z.string().url().default('http://localhost:9100'),
@@ -67,7 +67,7 @@ const ConfigSchema = z.object({
   SHOPIO_S3_SECRET_KEY: z.string().default('minioadmin'),
   SHOPIO_S3_BUCKET_MEDIA: z.string().default('shopio-dev-media'),
   /** Public base for stored objects (defaults to endpoint/bucket — MinIO path style). */
-  SHOPIO_S3_PUBLIC_URL: z.string().url().optional(),
+  SHOPIO_S3_PUBLIC_URL: optionalNonEmpty(z.string().url()),
 
   // SMTP (Mailpit in dev; Postmark/SendGrid in prod via SMTP relay)
   SMTP_HOST: z.string().default('localhost'),
@@ -82,6 +82,14 @@ const ConfigSchema = z.object({
     )
     .default(true),
 });
+
+/** Optional env vars: orchestrators pass empty strings — treat them as unset. */
+function optionalNonEmpty<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    schema.optional(),
+  );
+}
 
 function stripeKeySchema(prefix: string) {
   return z.preprocess((v) => {

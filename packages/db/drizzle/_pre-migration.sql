@@ -6,6 +6,10 @@
 -- Run BEFORE first Drizzle migration via `pnpm db:migrate` script.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Materialized-path category trees (per `07-categories-taxonomy.md`)
+CREATE EXTENSION IF NOT EXISTS "ltree";
+-- Case-insensitive emails (per `30 §5`)
+CREATE EXTENSION IF NOT EXISTS "citext";
 
 CREATE OR REPLACE FUNCTION uuidv7() RETURNS uuid AS $$
 DECLARE

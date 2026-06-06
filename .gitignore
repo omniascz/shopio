@@ -66,3 +66,5 @@ drizzle/.snapshot/
 
 # Sentry
 .sentryclirc
+.env.prod
+!.env.prod.example

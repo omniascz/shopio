@@ -1,0 +1,26 @@
+# Build context hygiene — keep images + build context small
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+
+# Docs / specs / research (multi-MB, never needed in images)
+zadani
+research
+state
+*.md
+!README.md
+
+# Local env + tooling
+.env
+.env.*
+!.env.example
+.git
+.husky
+.claude
+/c
+tmp

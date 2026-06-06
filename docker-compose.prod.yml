@@ -1,0 +1,137 @@
+# Shopio — single-server production stack (per `38-deployment-guide.md` §3).
+#
+#   cp .env.prod.example .env.prod        # fill in secrets!
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Topology: Postgres + Redis + Meilisearch + MinIO behind the API; Next.js
+# storefront and the nginx-served admin SPA in front. Put a TLS-terminating
+# reverse proxy (Caddy/Traefik/nginx) in front of ports 3030/3031/4040 for
+# real deployments — this file is the application layer.
+
+name: shopio-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-shopio}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-shopio}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env.prod}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: 'true'
+    volumes:
+      - meili_data:/meili_data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env.prod}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.prod}
+    volumes:
+      - minio_data:/data
+    ports:
+      - '${MINIO_PORT:-9100}:9000' # public media URLs point here (or front it with a CDN)
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4040
+      DATABASE_URL: postgres://${POSTGRES_USER:-shopio}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shopio}
+      SHOPIO_JWT_SECRET: ${SHOPIO_JWT_SECRET:?set SHOPIO_JWT_SECRET in .env.prod}
+      SHOPIO_SESSION_PEPPER: ${SHOPIO_SESSION_PEPPER:?set SHOPIO_SESSION_PEPPER in .env.prod}
+      SHOPIO_BASE_URL: ${SHOPIO_BASE_URL:-http://localhost:3030}
+      SHOPIO_ADMIN_URL: ${SHOPIO_ADMIN_URL:-http://localhost:3031}
+      SHOPIO_API_URL: ${SHOPIO_API_URL:-http://localhost:4040}
+      CORS_ORIGIN: ${SHOPIO_BASE_URL:-http://localhost:3030},${SHOPIO_ADMIN_URL:-http://localhost:3031}
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
+      SHOPIO_S3_ENDPOINT: http://minio:9000
+      SHOPIO_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SHOPIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SHOPIO_S3_BUCKET_MEDIA: ${S3_BUCKET_MEDIA:-shopio-media}
+      # Public base for stored media (browser-reachable MinIO/CDN)
+      SHOPIO_S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9100/shopio-media}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Shopio <noreply@example.com>}
+      SMTP_ENABLED: ${SMTP_ENABLED:-true}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      PACKETA_API_KEY: ${PACKETA_API_KEY:-}
+      PACKETA_API_PASSWORD: ${PACKETA_API_PASSWORD:-}
+    ports:
+      - '${API_PORT:-4040}:4040'
+    healthcheck:
+      # 127.0.0.1, not localhost — alpine resolves localhost to ::1 first and
+      # the server binds IPv4 0.0.0.0
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4040/health/live || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  storefront:
+    build:
+      context: .
+      dockerfile: deploy/storefront.Dockerfile
+      args:
+        NEXT_PUBLIC_SHOPIO_API_URL: ${SHOPIO_API_URL:-http://localhost:4040}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Server-side fetches go container-to-container
+      SHOPIO_API_URL: http://api:4040
+    ports:
+      - '${STOREFRONT_PORT:-3030}:3030'
+
+  admin:
+    build:
+      context: .
+      dockerfile: deploy/admin.Dockerfile
+      args:
+        VITE_SHOPIO_API_URL: ${SHOPIO_API_URL:-http://localhost:4040}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${ADMIN_PORT:-3031}:80'
+
+volumes:
+  pg_data:
+  redis_data:
+  meili_data:
+  minio_data:
