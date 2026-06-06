@@ -39,6 +39,9 @@ export function isStripeEnabled(config: ShopioConfig): boolean {
 export interface CreateCheckoutSessionInput {
   orderId: string;
   orderNumber: string;
+  /** Tenant pub_id — REQUIRED for webhook tenant scoping (order pub_ids are
+   * only unique per tenant; an unscoped lookup could match another tenant). */
+  tenantPubId: string;
   customerEmail: string;
   currency: string;
   items: {
@@ -98,11 +101,13 @@ export async function createCheckoutSession(
     metadata: {
       shopio_order_id: input.orderId,
       shopio_order_number: input.orderNumber,
+      shopio_tenant_id: input.tenantPubId,
     },
     payment_intent_data: {
       metadata: {
         shopio_order_id: input.orderId,
         shopio_order_number: input.orderNumber,
+        shopio_tenant_id: input.tenantPubId,
       },
     },
     // EU compliance: collect billing address for VAT (Fáze 1 wave 2)

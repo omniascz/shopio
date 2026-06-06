@@ -14,7 +14,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { eq, sql as dsql } from 'drizzle-orm';
+import { and, eq, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
@@ -136,34 +136,69 @@ export async function registerWebhookRoutes(
 // Event handlers
 // =============================================================================
 
+/**
+ * Resolve the order from Stripe event metadata, scoped by tenant.
+ *
+ * Order pub_ids are unique only per tenant (uq tenant_id+pub_id) — an
+ * unscoped lookup could match another tenant's order. Sessions carry
+ * `shopio_tenant_id` (tenant pub_id) since the tenant-binding fix; older
+ * sessions without it fall back to the global lookup with a loud warning.
+ */
+async function resolveWebhookOrder(
+  app: FastifyInstance,
+  db: AppDb,
+  session: Stripe.Checkout.Session,
+): Promise<typeof schema.orders.$inferSelect | null> {
+  const orderPubId = session.client_reference_id ?? session.metadata?.shopio_order_id;
+  if (!orderPubId) {
+    app.log.warn({ sessionId: session.id }, 'stripe.webhook.no_order_id');
+    return null;
+  }
+
+  const tenantPubId = session.metadata?.shopio_tenant_id;
+  let tenantId: string | null = null;
+  if (tenantPubId) {
+    const [tenant] = await db
+      .select({ id: schema.tenants.id })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.pubId, tenantPubId))
+      .limit(1);
+    if (!tenant) {
+      app.log.warn({ tenantPubId, sessionId: session.id }, 'stripe.webhook.tenant_not_found');
+      return null;
+    }
+    tenantId = tenant.id;
+  } else {
+    app.log.warn(
+      { sessionId: session.id, orderPubId },
+      'stripe.webhook.missing_tenant_metadata_fallback_unscoped',
+    );
+  }
+
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(
+      tenantId
+        ? and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, orderPubId))
+        : eq(schema.orders.pubId, orderPubId),
+    )
+    .limit(1);
+  if (!order) {
+    app.log.warn({ orderPubId }, 'stripe.webhook.order_not_found');
+    return null;
+  }
+  return order;
+}
+
 async function handleCheckoutSessionCompleted(
   app: FastifyInstance,
   db: AppDb,
   config: ShopioConfig,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  const orderId = session.client_reference_id ?? session.metadata?.shopio_order_id;
-  if (!orderId) {
-    app.log.warn({ sessionId: session.id }, 'stripe.webhook.no_order_id');
-    return;
-  }
-
-  const [order] = await db
-    .select()
-    .from(schema.orders)
-    .where(eq(schema.orders.pubId, orderId))
-    .limit(1);
-
-  if (!order) {
-    app.log.warn({ orderId }, 'stripe.webhook.order_not_found');
-    return;
-  }
-
-  // Idempotency: skip if already paid
-  if (order.paymentStatus === 'paid') {
-    app.log.info({ orderId: order.id }, 'stripe.webhook.already_paid');
-    return;
-  }
+  const resolved = await resolveWebhookOrder(app, db, session);
+  if (!resolved) return;
 
   // Stash the payment intent id — refunds (per `17-returns-refunds.md`) need it.
   const paymentIntentId =
@@ -171,26 +206,51 @@ async function handleCheckoutSessionCompleted(
       ? session.payment_intent
       : (session.payment_intent?.id ?? null);
 
-  await db
-    .update(schema.orders)
-    .set({
-      status: 'paid',
-      statusEnteredAt: new Date(),
-      paymentStatus: 'paid',
-      paidAt: new Date(),
-      updatedAt: new Date(),
-      ...(paymentIntentId && {
-        metadata: dsql`${schema.orders.metadata} || ${JSON.stringify({
-          stripe_payment_intent_id: paymentIntentId,
-        })}::jsonb`,
-      }),
-    })
-    .where(eq(schema.orders.id, order.id));
+  // Lock + re-check inside one tx: idempotent on already-paid, and never
+  // resurrect a cancelled order (sweeper/admin may have cancelled it while
+  // this webhook was in flight — its stock hold is already released).
+  const order = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(schema.orders)
+      .where(eq(schema.orders.id, resolved.id))
+      .for('update')
+      .limit(1);
+    if (!locked) return null;
 
-  // Paid orders hold their stock reservation indefinitely (per `09`)
-  await clearReservationExpiry(db, order.id).catch((err) => {
-    app.log.error({ err, orderId: order.id }, 'stripe.webhook.reservation_clear_failed');
+    if (locked.paymentStatus === 'paid') {
+      app.log.info({ orderId: locked.id }, 'stripe.webhook.already_paid');
+      return null;
+    }
+    if (locked.status === 'cancelled') {
+      app.log.warn(
+        { orderId: locked.id, sessionId: session.id },
+        'stripe.webhook.paid_after_cancellation_needs_manual_review',
+      );
+      return null;
+    }
+
+    await tx
+      .update(schema.orders)
+      .set({
+        status: 'paid',
+        statusEnteredAt: new Date(),
+        paymentStatus: 'paid',
+        paidAt: new Date(),
+        updatedAt: new Date(),
+        ...(paymentIntentId && {
+          metadata: dsql`${schema.orders.metadata} || ${JSON.stringify({
+            stripe_payment_intent_id: paymentIntentId,
+          })}::jsonb`,
+        }),
+      })
+      .where(eq(schema.orders.id, locked.id));
+
+    // Paid orders hold their stock reservation indefinitely (per `09`)
+    await clearReservationExpiry(tx, locked.id);
+    return locked;
   });
+  if (!order) return;
 
   app.log.info(
     {
@@ -224,23 +284,21 @@ async function handleCheckoutSessionExpired(
   db: AppDb,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  const orderId = session.client_reference_id ?? session.metadata?.shopio_order_id;
-  if (!orderId) return;
+  const resolved = await resolveWebhookOrder(app, db, session);
+  if (!resolved) return;
 
-  const [order] = await db
-    .select({
-      id: schema.orders.id,
-      status: schema.orders.status,
-    })
-    .from(schema.orders)
-    .where(eq(schema.orders.pubId, orderId))
-    .limit(1);
+  // Cancel the order + release its stock hold (per `09-inventory.md`).
+  // Lock + re-check: a payment webhook may have raced us.
+  const cancelled = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: schema.orders.id, status: schema.orders.status })
+      .from(schema.orders)
+      .where(eq(schema.orders.id, resolved.id))
+      .for('update')
+      .limit(1);
+    if (!locked || locked.status !== 'pending_payment') return false;
 
-  if (!order || order.status !== 'pending_payment') return;
-
-  // Cancel the order + release its stock hold (per `09-inventory.md`)
-  await db.transaction(async (tx) => {
-    await releaseOrderReservations(tx, order.id, 'order_cancelled');
+    await releaseOrderReservations(tx, locked.id, 'order_cancelled');
     await tx
       .update(schema.orders)
       .set({
@@ -250,8 +308,9 @@ async function handleCheckoutSessionExpired(
         paymentStatus: 'failed',
         updatedAt: new Date(),
       })
-      .where(eq(schema.orders.id, order.id));
+      .where(eq(schema.orders.id, locked.id));
+    return true;
   });
 
-  app.log.info({ orderId: order.id }, 'stripe.webhook.order_cancelled_expired');
+  if (cancelled) app.log.info({ orderId: resolved.id }, 'stripe.webhook.order_cancelled_expired');
 }

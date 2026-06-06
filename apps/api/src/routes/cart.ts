@@ -650,6 +650,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             const session = await createCheckoutSession(config, {
               orderId: result.pubId,
               orderNumber: result.orderNumber,
+              tenantPubId: tenant.pubId,
               customerEmail: result.customerEmail,
               currency: result.currency,
               items: items.map((it) => ({
@@ -1076,11 +1077,13 @@ function validationErr(reply: any, error: z.ZodError) {
 }
 
 async function generateOrderNumber(
-  tx: { select: AppDb['select'] },
+  tx: { select: AppDb['select']; execute: AppDb['execute'] },
   tenantId: string,
 ): Promise<string> {
   const year = new Date().getFullYear();
-  // Count orders this tenant this year + 1 (simple, race-OK for MVP since tx-scoped)
+  // Advisory lock serializes concurrent checkouts for the tenant so COUNT+1
+  // can't collide on uq_orders_order_number.
+  await tx.execute(dsql`SELECT pg_advisory_xact_lock(hashtext(${`ord:${tenantId}:${year}`}))`);
   const result = await tx
     .select({ count: dsql<number>`COUNT(*)::int` })
     .from(schema.orders)

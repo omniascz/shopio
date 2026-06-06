@@ -7,7 +7,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, desc, eq, ilike, or, sql as dsql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, or, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
@@ -218,71 +218,21 @@ export async function registerOrderRoutes(
         });
       }
 
-      const [existing] = await db
-        .select({
-          id: schema.orders.id,
-          status: schema.orders.status,
-          paymentStatus: schema.orders.paymentStatus,
-        })
-        .from(schema.orders)
-        .where(
-          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
-        )
-        .limit(1);
-      if (!existing) {
-        return reply.code(404).send({
-          error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' },
-        });
-      }
-
-      // Validate transition (per `16 §RULE-ORD-005`)
-      if (parsed.data.status) {
-        if (!isValidTransition(existing.status, parsed.data.status)) {
-          return reply.code(422).send({
-            error: {
-              code: 'INVALID_STATUS_TRANSITION',
-              message: `Cannot transition from ${existing.status} → ${parsed.data.status}`,
-            },
+      // Transition + inventory sync run in ONE transaction with the order row
+      // locked FOR UPDATE — concurrent admin clicks / webhook races re-read
+      // the fresh status and fail the transition check instead of double-applying.
+      let result: Awaited<ReturnType<typeof applyTransition>>;
+      try {
+        result = await applyTransition(db, tenantId, req.params.orderPubId, parsed.data);
+      } catch (err) {
+        if (err instanceof TransitionError) {
+          return reply.code(err.httpStatus).send({
+            error: { code: err.code, message: err.message },
           });
         }
+        throw err;
       }
-
-      const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (parsed.data.status) {
-        updates.status = parsed.data.status;
-        updates.statusEnteredAt = new Date();
-        if (parsed.data.status === 'paid' && existing.paymentStatus !== 'paid') {
-          updates.paymentStatus = 'paid';
-          updates.paidAt = new Date();
-        }
-        if (parsed.data.status === 'fulfilled') updates.fulfilledAt = new Date();
-        if (parsed.data.status === 'cancelled') updates.cancelledAt = new Date();
-      }
-      if (parsed.data.paymentStatus) {
-        updates.paymentStatus = parsed.data.paymentStatus;
-        if (parsed.data.paymentStatus === 'paid') updates.paidAt = new Date();
-      }
-
-      const [updated] = await db
-        .update(schema.orders)
-        .set(updates)
-        .where(eq(schema.orders.id, existing.id))
-        .returning();
-
-      // Inventory sync (per `09`): cancellation releases the hold, payment
-      // makes it permanent. Best-effort — status change already committed.
-      try {
-        if (parsed.data.status === 'cancelled') {
-          await releaseOrderReservations(db, existing.id, 'order_cancelled');
-        } else if (
-          (parsed.data.status === 'paid' || parsed.data.paymentStatus === 'paid') &&
-          existing.paymentStatus !== 'paid'
-        ) {
-          await clearReservationExpiry(db, existing.id);
-        }
-      } catch (err) {
-        app.log.error({ err, orderId: existing.id }, 'order.inventory_sync_failed');
-      }
+      const { existing, updated } = result;
 
       const items = await db
         .select()
@@ -331,6 +281,115 @@ export async function registerOrderRoutes(
 // =============================================================================
 // Helpers
 // =============================================================================
+
+class TransitionError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly httpStatus: number = 422,
+  ) {
+    super(message);
+  }
+}
+
+interface TransitionInput {
+  status?: string | undefined;
+  paymentStatus?: string | undefined;
+}
+
+/**
+ * Apply an admin status transition atomically: lock the order, validate the
+ * transition against the FRESH status, guard cancellation of shipped orders,
+ * and run the inventory sync (per `09`) in the same transaction.
+ */
+async function applyTransition(
+  db: AppDb,
+  tenantId: string,
+  orderPubId: string,
+  input: TransitionInput,
+): Promise<{
+  existing: { id: string; status: string; paymentStatus: string };
+  updated: typeof schema.orders.$inferSelect;
+}> {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        id: schema.orders.id,
+        status: schema.orders.status,
+        paymentStatus: schema.orders.paymentStatus,
+      })
+      .from(schema.orders)
+      .where(and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, orderPubId)))
+      .for('update')
+      .limit(1);
+    if (!existing) {
+      throw new TransitionError('ORDER_NOT_FOUND', 'Order not found', 404);
+    }
+
+    // Validate transition (per `16 §RULE-ORD-005`)
+    if (input.status && !isValidTransition(existing.status, input.status)) {
+      throw new TransitionError(
+        'INVALID_STATUS_TRANSITION',
+        `Cannot transition from ${existing.status} → ${input.status}`,
+      );
+    }
+
+    // Goods already with the carrier cannot be "cancelled" — that's the
+    // returns/refunds workflow (per `16` + `17`).
+    if (input.status === 'cancelled') {
+      const [shipped] = await tx
+        .select({ count: dsql<number>`COUNT(*)::int` })
+        .from(schema.shipments)
+        .where(
+          and(
+            eq(schema.shipments.orderId, existing.id),
+            inArray(schema.shipments.status, ['handed_over', 'delivered']),
+          ),
+        );
+      if ((shipped?.count ?? 0) > 0) {
+        throw new TransitionError(
+          'ORDER_HAS_SHIPPED_GOODS',
+          'Order has shipments already handed to the carrier — use the returns workflow instead',
+        );
+      }
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.status) {
+      updates.status = input.status;
+      updates.statusEnteredAt = new Date();
+      if (input.status === 'paid' && existing.paymentStatus !== 'paid') {
+        updates.paymentStatus = 'paid';
+        updates.paidAt = new Date();
+      }
+      if (input.status === 'fulfilled') updates.fulfilledAt = new Date();
+      if (input.status === 'cancelled') updates.cancelledAt = new Date();
+    }
+    if (input.paymentStatus) {
+      updates.paymentStatus = input.paymentStatus;
+      if (input.paymentStatus === 'paid') updates.paidAt = new Date();
+    }
+
+    const [updated] = await tx
+      .update(schema.orders)
+      .set(updates)
+      .where(eq(schema.orders.id, existing.id))
+      .returning();
+
+    // Inventory sync (per `09`) — same tx, so a failure rolls back the
+    // status change too (no leaked holds on a "cancelled" order).
+    if (input.status === 'cancelled') {
+      await releaseOrderReservations(tx, existing.id, 'order_cancelled');
+    } else if (
+      (input.status === 'paid' || input.paymentStatus === 'paid') &&
+      existing.paymentStatus !== 'paid'
+    ) {
+      await clearReservationExpiry(tx, existing.id);
+    }
+
+    return { existing, updated: updated! };
+  });
+}
 
 function serializeOrder(
   order: typeof schema.orders.$inferSelect,

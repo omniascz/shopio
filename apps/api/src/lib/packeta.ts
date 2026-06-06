@@ -25,6 +25,9 @@ const PACKETA_REST_URL = 'https://www.zasilkovna.cz/api/rest';
 export interface CreatePacketInput {
   /** Merchant-side reference (order number, ≤20 chars relevant for Packeta). */
   number: string;
+  /** Mock-mode barcode seed — MUST be unique per shipment (shipment number),
+   * not per order, so split shipments don't collide on the tracking unique. */
+  mockSeed?: string | undefined;
   name: string;
   surname: string;
   email: string;
@@ -83,7 +86,9 @@ export async function createPacket(
 ): Promise<CreatePacketResult> {
   if (!isPacketaEnabled(config)) {
     // Deterministic mock — same shipment retries produce the same barcode.
-    const digest = createHash('sha256').update(`packeta:${input.number}`).digest('hex');
+    const digest = createHash('sha256')
+      .update(`packeta:${input.mockSeed ?? input.number}`)
+      .digest('hex');
     const digits = String(parseInt(digest.slice(0, 10), 16) % 1_000_000_000).padStart(9, '0');
     return {
       provider: 'mock',

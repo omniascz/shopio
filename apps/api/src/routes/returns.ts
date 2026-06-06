@@ -185,8 +185,12 @@ export async function registerReturnRoutes(
 
           const requestedRefund = lines.reduce((s, l) => s + l.computed.lineGrossAmount, 0n);
 
-          // RMA number — per-tenant count per year (tx-scoped, mirrors order numbers)
+          // RMA number — per-tenant count per year. Advisory lock serializes
+          // concurrent creates so COUNT+1 can't collide on uq_returns_number.
           const year = new Date().getFullYear();
+          await tx.execute(
+            dsql`SELECT pg_advisory_xact_lock(hashtext(${`rma:${tenantId}:${year}`}))`,
+          );
           const [cnt] = await tx
             .select({ count: dsql<number>`COUNT(*)::int` })
             .from(schema.returns)
@@ -322,197 +326,241 @@ export async function registerReturnRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const { refundShipping, restock } = parsed.data;
 
-      const found = await findReturn(db, tenantId, req.params.returnPubId);
-      if (!found) return notFound(reply, 'RETURN_NOT_FOUND', 'Return not found');
-      if (!isValidReturnTransition(found.status, 'refunded')) {
-        return reply.code(422).send({
-          error: {
-            code: 'INVALID_STATUS_TRANSITION',
-            message: `Refund requires status received (current: ${found.status})`,
-          },
-        });
-      }
-
-      const [order] = await db
-        .select()
-        .from(schema.orders)
-        .where(eq(schema.orders.id, found.orderId))
-        .limit(1);
-      if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
-
-      const items = await listReturnItems(db, found.id);
-      const itemsGross = items.reduce((s, i) => s + i.lineGrossAmount, 0n);
-
-      // Shipping refund — only when not already refunded by a prior return
-      let shipping = { gross: 0n, net: 0n, tax: 0n };
-      if (refundShipping && order.shippingAmount > 0n) {
-        const orderItemsRows = await db
-          .select({ lineTaxAmount: schema.orderItems.lineTaxAmount })
-          .from(schema.orderItems)
-          .where(eq(schema.orderItems.orderId, order.id));
-        const orderItemTaxSum = orderItemsRows.reduce((s, r) => s + r.lineTaxAmount, 0n);
-        shipping = computeShippingRefund({
-          shippingAmount: order.shippingAmount,
-          taxAmount: order.taxAmount,
-          orderItemTaxSum,
-        });
-      }
-
-      const refundTotal = itemsGross + shipping.gross;
-      const remainingRefundable = order.totalAmount - order.refundedAmount;
-      if (refundTotal > remainingRefundable) {
-        return reply.code(422).send({
-          error: {
-            code: 'REFUND_EXCEEDS_REMAINING',
-            message: `Refund ${refundTotal} exceeds remaining refundable ${remainingRefundable}`,
-          },
-        });
-      }
-
-      // 1) Provider refund (outside tx; idempotency key = return pub_id)
-      const orderMeta = (order.metadata ?? {}) as { stripe_payment_intent_id?: string };
-      let refundMethod: string;
-      let refundReference: string;
-      if (
-        isStripeEnabled(config) &&
-        order.paymentMethod === 'stripe' &&
-        orderMeta.stripe_payment_intent_id
-      ) {
-        try {
-          const res = await createRefund(config, {
-            paymentIntentId: orderMeta.stripe_payment_intent_id,
-            amountMinor: refundTotal,
-            idempotencyKey: `refund_${found.pubId}`,
-          });
-          refundMethod = 'stripe';
-          refundReference = res.refundId;
-        } catch (err) {
-          app.log.error({ err, returnId: found.id }, 'return.stripe_refund_failed');
-          return reply.code(502).send({
-            error: {
-              code: 'PAYMENT_PROVIDER_ERROR',
-              message: 'Stripe refund failed — no changes were made. Retry safe.',
-            },
-          });
-        }
-      } else {
-        refundMethod = 'mock';
-        refundReference = `re_mock_${found.pubId}`;
-      }
-
-      // 2) Credit note (dobropis) — RULE-RTN-014
-      const creditLines: CreditNoteLine[] = items.map((i) => ({
-        sku: i.skuSnapshot,
-        title: i.titleSnapshot,
-        quantity: i.quantity,
-        unitPriceAmount: i.unitGrossAmount,
-        netAmount: i.lineNetAmount,
-        taxClassCode: i.taxClassCode,
-        taxRateBasisPoints: i.taxRateBasisPoints,
-        taxAmount: i.lineTaxAmount,
-        grossAmount: i.lineGrossAmount,
-      }));
-      if (shipping.gross > 0n) {
-        const method = order.shippingMethod as { display_name?: string } | null;
-        creditLines.push({
-          sku: null,
-          title: method?.display_name ? `Doprava — ${method.display_name}` : 'Doprava',
-          quantity: 1,
-          unitPriceAmount: shipping.gross,
-          netAmount: shipping.net,
-          taxClassCode: 'standard',
-          taxRateBasisPoints:
-            shipping.net > 0n
-              ? Math.round(Number(shipping.tax) / Number(shipping.net) / 0.01) * 100
-              : 0,
-          taxAmount: shipping.tax,
-          grossAmount: shipping.gross,
-        });
-      }
-      let creditNoteId: string | null = null;
+      // The whole saga runs in ONE transaction with the return + order rows
+      // locked FOR UPDATE: concurrent refund clicks block, the loser re-reads
+      // status='refunded' and aborts; credit-note failure rolls everything
+      // back (the executed provider refund is retry-safe — Stripe idempotency
+      // key + deterministic mock reference both collapse on retry).
       let creditNoteNumber: string | null = null;
       try {
-        const issued = await issueCreditNote(db, order.id, creditLines, {
-          reason: `Vratka ${found.number} k objednávce ${order.orderNumber}`,
-        });
-        creditNoteId = issued.invoice.id;
-        creditNoteNumber = issued.invoice.number;
-      } catch (err) {
-        // Credit note failure must not lose the executed provider refund — log loudly.
-        app.log.error({ err, returnId: found.id }, 'return.credit_note_failed');
-      }
-
-      // 3) Finalize: return row + restock + order sync (single tx)
-      const result = await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(schema.returns)
-          .set({
-            status: 'refunded',
-            statusEnteredAt: new Date(),
-            refundedAt: new Date(),
-            shippingRefundAmount: shipping.gross,
-            actualRefundAmount: refundTotal,
-            refundMethod,
-            refundReference,
-            creditNoteInvoiceId: creditNoteId,
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.returns.id, found.id))
-          .returning();
-
-        if (restock) {
-          for (const i of items) {
-            if (!i.variantId) continue;
-            // Physical stock-in via the ledger (per `09`: reason='return')
-            await restockReturn(tx, {
-              tenantId,
-              variantId: i.variantId,
-              quantity: i.quantity,
-              returnId: found.id,
-              actorUserId: req.auth!.userId,
-            });
-            await tx
-              .update(schema.returnItems)
-              .set({ restocked: true, restockedAt: new Date() })
-              .where(eq(schema.returnItems.id, i.id));
+        const result = await db.transaction(async (tx) => {
+          const [found] = await tx
+            .select()
+            .from(schema.returns)
+            .where(
+              and(
+                eq(schema.returns.tenantId, tenantId),
+                eq(schema.returns.pubId, req.params.returnPubId),
+              ),
+            )
+            .for('update')
+            .limit(1);
+          if (!found) throw new ReturnError('RETURN_NOT_FOUND', 'Return not found');
+          if (!isValidReturnTransition(found.status, 'refunded')) {
+            throw new ReturnError(
+              'INVALID_STATUS_TRANSITION',
+              `Refund requires status received (current: ${found.status})`,
+            );
           }
-        }
 
-        // Order sync (RULE-RTN-015): cumulative refunded amount + full-refund status
-        const newRefunded = order.refundedAmount + refundTotal;
-        const fullyRefunded = newRefunded >= order.totalAmount;
-        await tx
-          .update(schema.orders)
-          .set({
-            refundedAmount: newRefunded,
-            ...(fullyRefunded && {
-              status: 'refunded' as const,
+          const [order] = await tx
+            .select()
+            .from(schema.orders)
+            .where(eq(schema.orders.id, found.orderId))
+            .for('update')
+            .limit(1);
+          if (!order) throw new ReturnError('ORDER_NOT_FOUND', 'Order not found');
+          // Order must still hold a captured, not-yet-fully-refunded payment
+          if (order.paymentStatus !== 'paid') {
+            throw new ReturnError(
+              'ORDER_NOT_REFUNDABLE',
+              `Order payment status is ${order.paymentStatus}`,
+            );
+          }
+
+          const [tenant] = await tx
+            .select({ shippingTaxClass: schema.tenants.shippingTaxClass })
+            .from(schema.tenants)
+            .where(eq(schema.tenants.id, tenantId))
+            .limit(1);
+
+          const items = await listReturnItems(tx, found.id);
+          const itemsGross = items.reduce((s, i) => s + i.lineGrossAmount, 0n);
+
+          // Shipping refund — once per order across all returns
+          let shipping = { gross: 0n, net: 0n, tax: 0n };
+          if (refundShipping && order.shippingAmount > 0n) {
+            const [prior] = await tx
+              .select({
+                refunded: dsql<string>`COALESCE(SUM(${schema.returns.shippingRefundAmount}), 0)::text`,
+              })
+              .from(schema.returns)
+              .where(
+                and(
+                  eq(schema.returns.orderId, order.id),
+                  eq(schema.returns.status, 'refunded'),
+                ),
+              );
+            if (BigInt(prior?.refunded ?? '0') > 0n) {
+              throw new ReturnError(
+                'SHIPPING_ALREADY_REFUNDED',
+                'Shipping was already refunded by a previous return on this order',
+              );
+            }
+            const orderItemsRows = await tx
+              .select({ lineTaxAmount: schema.orderItems.lineTaxAmount })
+              .from(schema.orderItems)
+              .where(eq(schema.orderItems.orderId, order.id));
+            const orderItemTaxSum = orderItemsRows.reduce((s, r) => s + r.lineTaxAmount, 0n);
+            shipping = computeShippingRefund({
+              shippingAmount: order.shippingAmount,
+              taxAmount: order.taxAmount,
+              orderItemTaxSum,
+            });
+          }
+
+          const refundTotal = itemsGross + shipping.gross;
+          const remainingRefundable = order.totalAmount - order.refundedAmount;
+          if (refundTotal > remainingRefundable) {
+            throw new ReturnError(
+              'REFUND_EXCEEDS_REMAINING',
+              `Refund ${refundTotal} exceeds remaining refundable ${remainingRefundable}`,
+            );
+          }
+
+          // Provider refund. Inside the tx on purpose: the row locks make the
+          // call single-flight per return, and a rollback after success is
+          // safe to retry (idempotent at the provider). MVP trade-off — moves
+          // to an outbox/worker with the BullMQ wave.
+          const orderMeta = (order.metadata ?? {}) as { stripe_payment_intent_id?: string };
+          let refundMethod: string;
+          let refundReference: string;
+          if (
+            isStripeEnabled(config) &&
+            order.paymentMethod === 'stripe' &&
+            orderMeta.stripe_payment_intent_id
+          ) {
+            const res = await createRefund(config, {
+              paymentIntentId: orderMeta.stripe_payment_intent_id,
+              amountMinor: refundTotal,
+              idempotencyKey: `refund_${found.pubId}`,
+            });
+            refundMethod = 'stripe';
+            refundReference = res.refundId;
+          } else {
+            refundMethod = 'mock';
+            refundReference = `re_mock_${found.pubId}`;
+          }
+
+          // Credit note (dobropis) — RULE-RTN-014. A failure here throws and
+          // rolls back the whole saga (return stays `received`, retry-safe).
+          const creditLines: CreditNoteLine[] = items.map((i) => ({
+            sku: i.skuSnapshot,
+            title: i.titleSnapshot,
+            quantity: i.quantity,
+            unitPriceAmount: i.unitGrossAmount,
+            netAmount: i.lineNetAmount,
+            taxClassCode: i.taxClassCode,
+            taxRateBasisPoints: i.taxRateBasisPoints,
+            taxAmount: i.lineTaxAmount,
+            grossAmount: i.lineGrossAmount,
+          }));
+          if (shipping.gross > 0n) {
+            const method = order.shippingMethod as { display_name?: string } | null;
+            creditLines.push({
+              sku: null,
+              title: method?.display_name ? `Doprava — ${method.display_name}` : 'Doprava',
+              quantity: 1,
+              unitPriceAmount: shipping.gross,
+              netAmount: shipping.net,
+              taxClassCode: tenant?.shippingTaxClass ?? 'standard',
+              taxRateBasisPoints:
+                shipping.net > 0n
+                  ? Math.round(Number(shipping.tax) / Number(shipping.net) / 0.01) * 100
+                  : 0,
+              taxAmount: shipping.tax,
+              grossAmount: shipping.gross,
+            });
+          }
+          const issued = await issueCreditNote(tx, order.id, creditLines, {
+            reason: `Vratka ${found.number} k objednávce ${order.orderNumber}`,
+          });
+          creditNoteNumber = issued.invoice.number;
+
+          // Finalize: return row + restock + order sync
+          const [updated] = await tx
+            .update(schema.returns)
+            .set({
+              status: 'refunded',
               statusEnteredAt: new Date(),
-              paymentStatus: 'refunded' as const,
-            }),
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.orders.id, order.id));
+              refundedAt: new Date(),
+              shippingRefundAmount: shipping.gross,
+              actualRefundAmount: refundTotal,
+              refundMethod,
+              refundReference,
+              creditNoteInvoiceId: issued.invoice.id,
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.returns.id, found.id))
+            .returning();
 
-        return updated!;
-      });
+          if (restock) {
+            for (const i of items) {
+              if (!i.variantId || i.restocked) continue;
+              // Physical stock-in via the ledger (per `09`: reason='return')
+              await restockReturn(tx, {
+                tenantId,
+                variantId: i.variantId,
+                quantity: i.quantity,
+                returnId: found.id,
+                actorUserId: req.auth!.userId,
+              });
+              await tx
+                .update(schema.returnItems)
+                .set({ restocked: true, restockedAt: new Date() })
+                .where(eq(schema.returnItems.id, i.id));
+            }
+          }
 
-      const finalItems = await listReturnItems(db, found.id);
-      app.log.info(
-        {
-          returnId: found.id,
-          amount: refundTotal.toString(),
-          method: refundMethod,
-          creditNote: creditNoteNumber,
-        },
-        'return.refunded',
-      );
-      return reply.send({
-        data: {
-          ...serializeReturn(result, finalItems),
-          credit_note_number: creditNoteNumber,
-        },
-      });
+          // Order sync (RULE-RTN-015): cumulative refunded amount + full-refund status
+          const newRefunded = order.refundedAmount + refundTotal;
+          const fullyRefunded = newRefunded >= order.totalAmount;
+          await tx
+            .update(schema.orders)
+            .set({
+              refundedAmount: newRefunded,
+              ...(fullyRefunded && {
+                status: 'refunded' as const,
+                statusEnteredAt: new Date(),
+                paymentStatus: 'refunded' as const,
+              }),
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.orders.id, order.id));
+
+          return { updated: updated!, refundTotal, refundMethod };
+        });
+
+        const finalItems = await listReturnItems(db, result.updated.id);
+        app.log.info(
+          {
+            returnId: result.updated.id,
+            amount: result.refundTotal.toString(),
+            method: result.refundMethod,
+            creditNote: creditNoteNumber,
+          },
+          'return.refunded',
+        );
+        return reply.send({
+          data: {
+            ...serializeReturn(result.updated, finalItems),
+            credit_note_number: creditNoteNumber,
+          },
+        });
+      } catch (err) {
+        if (err instanceof ReturnError) {
+          const status = err.code === 'RETURN_NOT_FOUND' || err.code === 'ORDER_NOT_FOUND' ? 404 : 422;
+          return reply.code(status).send({ error: { code: err.code, message: err.message } });
+        }
+        app.log.error({ err, returnPubId: req.params.returnPubId }, 'return.refund_failed');
+        return reply.code(502).send({
+          error: {
+            code: 'REFUND_FAILED',
+            message:
+              'Refund failed and was rolled back. Retry is safe (provider call is idempotent).',
+          },
+        });
+      }
     },
   );
 }
@@ -530,7 +578,10 @@ async function findOrder(db: AppDb, tenantId: string, orderPubId: string) {
   return order ?? null;
 }
 
-async function findReturn(db: AppDb, tenantId: string, returnPubId: string) {
+/** Root db or transaction — both expose the query builder. */
+type DbConn = AppDb | Parameters<Parameters<AppDb['transaction']>[0]>[0];
+
+async function findReturn(db: DbConn, tenantId: string, returnPubId: string) {
   const [ret] = await db
     .select()
     .from(schema.returns)
@@ -539,7 +590,7 @@ async function findReturn(db: AppDb, tenantId: string, returnPubId: string) {
   return ret ?? null;
 }
 
-async function listReturnItems(db: AppDb, returnId: string) {
+async function listReturnItems(db: DbConn, returnId: string) {
   return db
     .select()
     .from(schema.returnItems)

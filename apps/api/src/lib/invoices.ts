@@ -161,6 +161,13 @@ export async function issueInvoiceForOrder(db: AppDb, orderId: string): Promise<
   if (existing) return { ...existing, created: false };
 
   return db.transaction(async (tx) => {
+    // Advisory lock serializes concurrent issuance for one order (webhook +
+    // manual admin click racing). The loser re-reads the winner's invoice
+    // below instead of burning a sequence number (gapless, RULE-TAX-009).
+    await tx.execute(dsql`SELECT pg_advisory_xact_lock(hashtext(${`inv:${orderId}`}))`);
+    const reread = await getInvoiceForOrder(tx, orderId, 'invoice');
+    if (reread) return { ...reread, created: false };
+
     const [order] = await tx
       .select()
       .from(schema.orders)
@@ -291,7 +298,7 @@ export interface CreditNoteLine {
  * returns workflow. Amounts are positive; `kind='credit_note'` carries the sign.
  */
 export async function issueCreditNote(
-  db: AppDb,
+  db: DbConn,
   orderId: string,
   lines: CreditNoteLine[],
   opts: { reason?: string } = {},
