@@ -12,7 +12,7 @@
  */
 
 import { and, eq, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { generatePubId } from '@shopio/authz';
 import type { AppDb } from '../db';
 
@@ -154,36 +154,38 @@ export async function createReturn(db: AppDb, input: CreateReturnInput): Promise
     throw new ReturnError('NO_ITEMS', 'No items to return');
   }
 
-  const [order] = await db
-    .select()
-    .from(schema.orders)
-    .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId)))
-    .limit(1);
-  if (!order) throw new ReturnError('ORDER_NOT_FOUND', 'Order not found');
+  // RLS-enforced (per `30`): all reads + writes run under the tenant GUC.
+  return withTenant(db, input.tenantId, async (tx) => {
+    const [order] = await tx
+      .select()
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId)))
+      .limit(1);
+    if (!order) throw new ReturnError('ORDER_NOT_FOUND', 'Order not found');
 
-  // RULE-RTN-001 subset: only paid-side orders can be returned
-  if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded') {
-    throw new ReturnError('ORDER_NOT_REFUNDABLE', 'Order has no captured payment');
-  }
+    // RULE-RTN-001 subset: only paid-side orders can be returned
+    if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded') {
+      throw new ReturnError('ORDER_NOT_REFUNDABLE', 'Order has no captured payment');
+    }
 
-  const orderItems = await db
-    .select()
-    .from(schema.orderItems)
-    .where(eq(schema.orderItems.orderId, order.id));
-  const itemsByPubId = new Map(orderItems.map((it) => [it.pubId, it]));
+    const orderItems = await tx
+      .select()
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.orderId, order.id));
+    const itemsByPubId = new Map(orderItems.map((it) => [it.pubId, it]));
 
-  // Prior holds per order item (RULE-RTN-009 subset)
-  const priorItems = await db
-    .select({
-      orderItemId: schema.returnItems.orderItemId,
-      quantity: schema.returnItems.quantity,
-      status: schema.returns.status,
-    })
-    .from(schema.returnItems)
-    .innerJoin(schema.returns, eq(schema.returns.id, schema.returnItems.returnId))
-    .where(eq(schema.returns.orderId, order.id));
+    // Prior holds per order item (RULE-RTN-009 subset)
+    const priorItems = await tx
+      .select({
+        orderItemId: schema.returnItems.orderItemId,
+        quantity: schema.returnItems.quantity,
+        status: schema.returns.status,
+      })
+      .from(schema.returnItems)
+      .innerJoin(schema.returns, eq(schema.returns.id, schema.returnItems.returnId))
+      .where(eq(schema.returns.orderId, order.id));
 
-  return db.transaction(async (tx) => {
+
     const lines = input.items.map((reqItem) => {
       const orderItem = itemsByPubId.get(reqItem.orderItemPubId);
       if (!orderItem) {

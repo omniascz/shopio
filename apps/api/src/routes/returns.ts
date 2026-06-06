@@ -69,7 +69,7 @@ export async function registerReturnRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db, config } = opts;
+  const { config } = opts;
   const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
@@ -223,11 +223,13 @@ export async function registerReturnRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const input = parsed.data;
 
-      const order = await findOrder(db, tenantId, req.params.orderPubId);
+      const order = await withTenant(rlsDb, tenantId, (tx) =>
+        findOrder(tx, tenantId, req.params.orderPubId),
+      );
       if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
 
       try {
-        const result = await createReturn(db, {
+        const result = await createReturn(rlsDb, {
           tenantId,
           orderId: order.id,
           items: input.items.map((it) => ({
@@ -273,7 +275,9 @@ export async function registerReturnRoutes(
         const reason =
           action === 'reject' ? (RejectBody.safeParse(req.body ?? {}).data?.reason ?? null) : null;
 
-        const found = await findReturn(db, tenantId, req.params.returnPubId);
+        const found = await withTenant(rlsDb, tenantId, (tx) =>
+          findReturn(tx, tenantId, req.params.returnPubId),
+        );
         if (!found) return notFound(reply, 'RETURN_NOT_FOUND', 'Return not found');
 
         if (!isValidReturnTransition(found.status, target)) {
@@ -285,19 +289,21 @@ export async function registerReturnRoutes(
           });
         }
 
-        const [updated] = await db
-          .update(schema.returns)
-          .set({
-            status: target,
-            statusEnteredAt: new Date(),
-            [timestampCol]: new Date(),
-            ...(reason && { staffNote: reason }),
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.returns.id, found.id))
-          .returning();
-
-        const items = await listReturnItems(db, found.id);
+        const { updated, items } = await withTenant(rlsDb, tenantId, async (tx) => {
+          const [u] = await tx
+            .update(schema.returns)
+            .set({
+              status: target,
+              statusEnteredAt: new Date(),
+              [timestampCol]: new Date(),
+              ...(reason && { staffNote: reason }),
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.returns.id, found.id))
+            .returning();
+          const its = await listReturnItems(tx, found.id);
+          return { updated: u, items: its };
+        });
         app.log.info(
           { returnId: found.id, from: found.status, to: target },
           'return.status_updated',
@@ -328,7 +334,7 @@ export async function registerReturnRoutes(
       // key + deterministic mock reference both collapse on retry).
       let creditNoteNumber: string | null = null;
       try {
-        const result = await db.transaction(async (tx) => {
+        const result = await withTenant(rlsDb, tenantId, async (tx) => {
           const [found] = await tx
             .select()
             .from(schema.returns)
@@ -526,7 +532,9 @@ export async function registerReturnRoutes(
           return { updated: updated!, refundTotal, refundMethod };
         });
 
-        const finalItems = await listReturnItems(db, result.updated.id);
+        const finalItems = await withTenant(rlsDb, tenantId, (tx) =>
+          listReturnItems(tx, result.updated.id),
+        );
         app.log.info(
           {
             returnId: result.updated.id,
