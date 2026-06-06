@@ -8,12 +8,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, ilike, inArray, or, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -53,6 +54,7 @@ export async function registerOrderRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/dashboard — merchant overview metrics (per `20-analytics` MVP)
@@ -69,9 +71,9 @@ export async function registerOrderRoutes(
       }
 
       const [todayOrders, pendingPayment, openReturns, lowStock, currencyRow] =
-        await Promise.all([
+        await withTenant(rlsDb, tenantId, (tx) => Promise.all([
           // Orders placed today + revenue from today's PAID orders
-          db
+          tx
             .select({
               count: dsql<number>`COUNT(*)::int`,
               revenue: dsql<string>`COALESCE(SUM(total_amount) FILTER (WHERE payment_status = 'paid'), 0)::text`,
@@ -83,7 +85,7 @@ export async function registerOrderRoutes(
                 dsql`${schema.orders.placedAt} >= date_trunc('day', now())`,
               ),
             ),
-          db
+          tx
             .select({ count: dsql<number>`COUNT(*)::int` })
             .from(schema.orders)
             .where(
@@ -92,7 +94,7 @@ export async function registerOrderRoutes(
                 eq(schema.orders.status, 'pending_payment'),
               ),
             ),
-          db
+          tx
             .select({ count: dsql<number>`COUNT(*)::int` })
             .from(schema.returns)
             .where(
@@ -102,7 +104,7 @@ export async function registerOrderRoutes(
               ),
             ),
           // Sellable stock running out (available = on hand − reserved)
-          db
+          tx
             .select({
               sku: schema.productVariants.sku,
               title: schema.productVariants.title,
@@ -124,12 +126,12 @@ export async function registerOrderRoutes(
               dsql`${schema.productVariants.stockOnHand} - ${schema.productVariants.stockReserved} ASC`,
             )
             .limit(10),
-          db
+          tx
             .select({ currency: schema.tenants.defaultCurrency })
             .from(schema.tenants)
             .where(eq(schema.tenants.id, tenantId))
             .limit(1),
-        ]);
+        ]));
 
       const currency = currencyRow[0]?.currency ?? 'CZK';
       return reply.send({
@@ -198,30 +200,32 @@ export async function registerOrderRoutes(
               ? desc(schema.orders.totalAmount)
               : asc(schema.orders.totalAmount);
 
-      const [rows, countRow] = await Promise.all([
-        db
-          .select({
-            id: schema.orders.id,
-            pubId: schema.orders.pubId,
-            orderNumber: schema.orders.orderNumber,
-            customerEmail: schema.orders.customerEmail,
-            customerName: schema.orders.customerName,
-            status: schema.orders.status,
-            paymentStatus: schema.orders.paymentStatus,
-            totalAmount: schema.orders.totalAmount,
-            currency: schema.orders.currency,
-            placedAt: schema.orders.placedAt,
-          })
-          .from(schema.orders)
-          .where(and(...conditions))
-          .orderBy(order)
-          .limit(limit)
-          .offset(offset),
-        db
-          .select({ count: dsql<number>`COUNT(*)::int` })
-          .from(schema.orders)
-          .where(and(...conditions)),
-      ]);
+      const [rows, countRow] = await withTenant(rlsDb, tenantId, (tx) =>
+        Promise.all([
+          tx
+            .select({
+              id: schema.orders.id,
+              pubId: schema.orders.pubId,
+              orderNumber: schema.orders.orderNumber,
+              customerEmail: schema.orders.customerEmail,
+              customerName: schema.orders.customerName,
+              status: schema.orders.status,
+              paymentStatus: schema.orders.paymentStatus,
+              totalAmount: schema.orders.totalAmount,
+              currency: schema.orders.currency,
+              placedAt: schema.orders.placedAt,
+            })
+            .from(schema.orders)
+            .where(and(...conditions))
+            .orderBy(order)
+            .limit(limit)
+            .offset(offset),
+          tx
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.orders)
+            .where(and(...conditions)),
+        ]),
+      );
 
       const total = countRow[0]?.count ?? 0;
 
@@ -260,27 +264,30 @@ export async function registerOrderRoutes(
         });
       }
 
-      const [order] = await db
-        .select()
-        .from(schema.orders)
-        .where(
-          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
-        )
-        .limit(1);
-      if (!order) {
+      const found = await withTenant(rlsDb, tenantId, async (tx) => {
+        const [order] = await tx
+          .select()
+          .from(schema.orders)
+          .where(
+            and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
+          )
+          .limit(1);
+        if (!order) return null;
+        const items = await tx
+          .select()
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.orderId, order.id))
+          .orderBy(asc(schema.orderItems.createdAt));
+        return { order, items };
+      });
+      if (!found) {
         return reply.code(404).send({
           error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' },
         });
       }
 
-      const items = await db
-        .select()
-        .from(schema.orderItems)
-        .where(eq(schema.orderItems.orderId, order.id))
-        .orderBy(asc(schema.orderItems.createdAt));
-
       return reply.send({
-        data: serializeOrder(order, items),
+        data: serializeOrder(found.order, found.items),
       });
     },
   );
@@ -321,7 +328,7 @@ export async function registerOrderRoutes(
       // the fresh status and fail the transition check instead of double-applying.
       let result: Awaited<ReturnType<typeof applyTransition>>;
       try {
-        result = await applyTransition(db, tenantId, req.params.orderPubId, parsed.data);
+        result = await applyTransition(rlsDb, tenantId, req.params.orderPubId, parsed.data);
       } catch (err) {
         if (err instanceof TransitionError) {
           return reply.code(err.httpStatus).send({
@@ -332,11 +339,13 @@ export async function registerOrderRoutes(
       }
       const { existing, updated } = result;
 
-      const items = await db
-        .select()
-        .from(schema.orderItems)
-        .where(eq(schema.orderItems.orderId, existing.id))
-        .orderBy(asc(schema.orderItems.createdAt));
+      const items = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select()
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.orderId, existing.id))
+          .orderBy(asc(schema.orderItems.createdAt)),
+      );
 
       app.log.info(
         {
@@ -409,7 +418,9 @@ async function applyTransition(
   existing: { id: string; status: string; paymentStatus: string };
   updated: typeof schema.orders.$inferSelect;
 }> {
-  return db.transaction(async (tx) => {
+  // RLS-enforced (per `30`): runs under the tenant GUC; the explicit tenant
+  // filters below remain as defense-in-depth.
+  return withTenant(db, tenantId, async (tx) => {
     const [existing] = await tx
       .select({
         id: schema.orders.id,
