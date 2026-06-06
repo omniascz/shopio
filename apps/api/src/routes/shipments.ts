@@ -21,7 +21,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, eq, inArray, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant, type TenantTx } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import {
@@ -36,6 +36,7 @@ import {
 import { createPacket, getLabelPdf, trackingUrlFor } from '../lib/packeta';
 import { commitShipmentStock } from '../lib/inventory';
 import { renderOrderShippedEmail, sendEmail } from '../lib/email';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -61,6 +62,7 @@ export async function registerShipmentRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/orders/{orderPubId}/shipments
@@ -71,25 +73,29 @@ export async function registerShipmentRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const order = await findOrderByPubId(db, tenantId, req.params.orderPubId);
-      if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
-
-      const rows = await db
-        .select()
-        .from(schema.shipments)
-        .where(eq(schema.shipments.orderId, order.id))
-        .orderBy(asc(schema.shipments.createdAt));
-      const items = rows.length
-        ? await db
-            .select()
-            .from(schema.shipmentItems)
-            .where(
-              inArray(
-                schema.shipmentItems.shipmentId,
-                rows.map((r) => r.id),
-              ),
-            )
-        : [];
+      const result = await withTenant(rlsDb, tenantId, async (tx) => {
+        const order = await findOrderByPubId(tx, tenantId, req.params.orderPubId);
+        if (!order) return null;
+        const rows = await tx
+          .select()
+          .from(schema.shipments)
+          .where(eq(schema.shipments.orderId, order.id))
+          .orderBy(asc(schema.shipments.createdAt));
+        const items = rows.length
+          ? await tx
+              .select()
+              .from(schema.shipmentItems)
+              .where(
+                inArray(
+                  schema.shipmentItems.shipmentId,
+                  rows.map((r) => r.id),
+                ),
+              )
+          : [];
+        return { rows, items };
+      });
+      if (!result) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
+      const { rows, items } = result;
 
       return reply.send({
         data: {
@@ -435,7 +441,9 @@ export async function registerShipmentRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const shipment = await findShipment(db, tenantId, req.params.shipmentPubId);
+      const shipment = await withTenant(rlsDb, tenantId, (tx) =>
+        findShipment(tx, tenantId, req.params.shipmentPubId),
+      );
       if (!shipment || !shipment.labelPdfBase64) {
         return notFound(reply, 'LABEL_NOT_FOUND', 'Label not generated yet');
       }
@@ -776,7 +784,7 @@ export async function registerShipmentRoutes(
 // Helpers
 // =============================================================================
 
-async function findOrderByPubId(db: AppDb, tenantId: string, orderPubId: string) {
+async function findOrderByPubId(db: AppDb | TenantTx, tenantId: string, orderPubId: string) {
   const [order] = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)
@@ -785,7 +793,7 @@ async function findOrderByPubId(db: AppDb, tenantId: string, orderPubId: string)
   return order ?? null;
 }
 
-async function findShipment(db: AppDb, tenantId: string, shipmentPubId: string) {
+async function findShipment(db: AppDb | TenantTx, tenantId: string, shipmentPubId: string) {
   const [s] = await db
     .select()
     .from(schema.shipments)

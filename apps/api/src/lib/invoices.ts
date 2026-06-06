@@ -469,7 +469,7 @@ export async function getInvoiceForOrder(
 
 /** All invoices (regular + credit notes) for an order, oldest first. */
 export async function listInvoicesForOrder(
-  db: AppDb,
+  db: DbConn,
   orderId: string,
 ): Promise<(typeof schema.invoices.$inferSelect)[]> {
   return db

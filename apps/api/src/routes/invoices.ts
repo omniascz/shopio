@@ -14,9 +14,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { and, asc, eq } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant, type TenantTx } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import {
   InvoiceError,
   getInvoiceForOrder,
@@ -38,6 +39,7 @@ export async function registerInvoiceRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/orders/{orderPubId}/invoices
@@ -52,13 +54,16 @@ export async function registerInvoiceRoutes(
           error: { code: 'NO_ACTIVE_TENANT', message: 'Select a tenant first' },
         });
       }
-      const order = await findOrder(db, tenantId, req.params.orderPubId);
-      if (!order) {
+      const invoices = await withTenant(rlsDb, tenantId, async (tx) => {
+        const order = await findOrder(tx, tenantId, req.params.orderPubId);
+        if (!order) return null;
+        return listInvoicesForOrder(tx, order.id);
+      });
+      if (!invoices) {
         return reply.code(404).send({
           error: { code: 'ORDER_NOT_FOUND', message: 'Order not found' },
         });
       }
-      const invoices = await listInvoicesForOrder(db, order.id);
       return reply.send({ data: { invoices: invoices.map(serializeInvoiceSummary) } });
     },
   );
@@ -121,21 +126,26 @@ export async function registerInvoiceRoutes(
       }
       const [, pubId, format] = match;
 
-      const [invoice] = await db
-        .select()
-        .from(schema.invoices)
-        .where(and(eq(schema.invoices.tenantId, tenantId), eq(schema.invoices.pubId, pubId!)))
-        .limit(1);
-      if (!invoice) {
+      const found = await withTenant(rlsDb, tenantId, async (tx) => {
+        const [invoice] = await tx
+          .select()
+          .from(schema.invoices)
+          .where(and(eq(schema.invoices.tenantId, tenantId), eq(schema.invoices.pubId, pubId!)))
+          .limit(1);
+        if (!invoice) return null;
+        const items = await tx
+          .select()
+          .from(schema.invoiceItems)
+          .where(eq(schema.invoiceItems.invoiceId, invoice.id))
+          .orderBy(asc(schema.invoiceItems.position));
+        return { invoice, items };
+      });
+      if (!found) {
         return reply.code(404).send({
           error: { code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' },
         });
       }
-      const items = await db
-        .select()
-        .from(schema.invoiceItems)
-        .where(eq(schema.invoiceItems.invoiceId, invoice.id))
-        .orderBy(asc(schema.invoiceItems.position));
+      const { invoice, items } = found;
 
       if (format === 'xml') {
         return reply
@@ -209,7 +219,7 @@ export async function registerInvoiceRoutes(
 // Helpers
 // =============================================================================
 
-async function findOrder(db: AppDb, tenantId: string, orderPubId: string) {
+async function findOrder(db: AppDb | TenantTx, tenantId: string, orderPubId: string) {
   const [order] = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)

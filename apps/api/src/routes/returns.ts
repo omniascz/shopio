@@ -17,7 +17,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant, type TenantTx } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import {
@@ -29,6 +29,7 @@ import {
 import { issueCreditNote, type CreditNoteLine } from '../lib/invoices';
 import { createRefund, isStripeEnabled } from '../lib/stripe';
 import { restockReturn } from '../lib/inventory';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -69,6 +70,7 @@ export async function registerReturnRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/returns — global queue across orders (per `17` FLOW-RTN-002)
@@ -94,36 +96,38 @@ export async function registerReturnRoutes(
       const conditions = [eq(schema.returns.tenantId, tenantId)];
       if (status) conditions.push(eq(schema.returns.status, status));
 
-      const [rows, countRow, openRow] = await Promise.all([
-        db
-          .select({
-            ret: schema.returns,
-            orderPubId: schema.orders.pubId,
-            orderNumber: schema.orders.orderNumber,
-            customerEmail: schema.orders.customerEmail,
-            customerName: schema.orders.customerName,
-          })
-          .from(schema.returns)
-          .innerJoin(schema.orders, eq(schema.orders.id, schema.returns.orderId))
-          .where(and(...conditions))
-          .orderBy(desc(schema.returns.requestedAt))
-          .limit(limit)
-          .offset(offset),
-        db
-          .select({ count: dsql<number>`COUNT(*)::int` })
-          .from(schema.returns)
-          .where(and(...conditions)),
-        // Action-needed counter for the nav badge (requested + received)
-        db
-          .select({ count: dsql<number>`COUNT(*)::int` })
-          .from(schema.returns)
-          .where(
-            and(
-              eq(schema.returns.tenantId, tenantId),
-              inArray(schema.returns.status, ['requested', 'received']),
+      const [rows, countRow, openRow] = await withTenant(rlsDb, tenantId, (tx) =>
+        Promise.all([
+          tx
+            .select({
+              ret: schema.returns,
+              orderPubId: schema.orders.pubId,
+              orderNumber: schema.orders.orderNumber,
+              customerEmail: schema.orders.customerEmail,
+              customerName: schema.orders.customerName,
+            })
+            .from(schema.returns)
+            .innerJoin(schema.orders, eq(schema.orders.id, schema.returns.orderId))
+            .where(and(...conditions))
+            .orderBy(desc(schema.returns.requestedAt))
+            .limit(limit)
+            .offset(offset),
+          tx
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.returns)
+            .where(and(...conditions)),
+          // Action-needed counter for the nav badge (requested + received)
+          tx
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.returns)
+            .where(
+              and(
+                eq(schema.returns.tenantId, tenantId),
+                inArray(schema.returns.status, ['requested', 'received']),
+              ),
             ),
-          ),
-      ]);
+        ]),
+      );
 
       return reply.send({
         data: {
@@ -166,26 +170,30 @@ export async function registerReturnRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const order = await findOrder(db, tenantId, req.params.orderPubId);
-      if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
-
-      const rows = await db
-        .select()
-        .from(schema.returns)
-        .where(eq(schema.returns.orderId, order.id))
-        .orderBy(asc(schema.returns.requestedAt));
-      const items = rows.length
-        ? await db
-            .select()
-            .from(schema.returnItems)
-            .where(
-              inArray(
-                schema.returnItems.returnId,
-                rows.map((r) => r.id),
-              ),
-            )
-            .orderBy(asc(schema.returnItems.createdAt))
-        : [];
+      const result = await withTenant(rlsDb, tenantId, async (tx) => {
+        const order = await findOrder(tx, tenantId, req.params.orderPubId);
+        if (!order) return null;
+        const rows = await tx
+          .select()
+          .from(schema.returns)
+          .where(eq(schema.returns.orderId, order.id))
+          .orderBy(asc(schema.returns.requestedAt));
+        const items = rows.length
+          ? await tx
+              .select()
+              .from(schema.returnItems)
+              .where(
+                inArray(
+                  schema.returnItems.returnId,
+                  rows.map((r) => r.id),
+                ),
+              )
+              .orderBy(asc(schema.returnItems.createdAt))
+          : [];
+        return { rows, items };
+      });
+      if (!result) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
+      const { rows, items } = result;
 
       return reply.send({
         data: {
@@ -556,7 +564,7 @@ export async function registerReturnRoutes(
 // Helpers
 // =============================================================================
 
-async function findOrder(db: AppDb, tenantId: string, orderPubId: string) {
+async function findOrder(db: AppDb | TenantTx, tenantId: string, orderPubId: string) {
   const [order] = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)
