@@ -49,10 +49,19 @@ test.describe('Storefront — full purchase flow (mock payment mode)', () => {
     await page.getByLabel(/PSČ/i).fill('11000');
     // Country defaults to CZ — keep as-is
 
-    // 7. Submit
+    // 7. Shipping: the default rate (Zásilkovna pickup) requires a pickup point —
+    // pick one via the seeded fallback picker (no Packeta widget key in dev/CI).
+    await page
+      .getByRole('button', { name: /Vybrat výdejní místo|Hledat v seznamu/i })
+      .click();
+    // Seeded fallback points: Z-BOX Praha 5 — Anděl / Brno — Veveří / Ostrava
+    await page.getByRole('button', { name: /Z-BOX Praha/i }).first().click();
+    await expect(page.getByText(/✓ Výdejní místo:/i)).toBeVisible();
+
+    // 8. Submit
     await page.getByRole('button', { name: /Odeslat objednávku/i }).click();
 
-    // 8. Confirmation page (mock mode → goes directly; Stripe mode → would redirect)
+    // 9. Confirmation page (mock mode → goes directly; Stripe mode → would redirect)
     await expect(page).toHaveURL(/\/orders\/ORD-\d{4}-\d+/, { timeout: 10_000 });
     await expect(page.getByText(/Děkujeme za nákup/i)).toBeVisible();
     await expect(page.getByText(uniqueEmail)).toBeVisible();
