@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
-import { api, formatMoney, productBasePrice } from '../lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, formatMoney, productBasePrice, type ImportReport } from '../lib/api';
 
 const STATUSES = ['', 'draft', 'active', 'archived'];
 
 export function ProductsListPage() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
   const [offset, setOffset] = useState(0);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const limit = 20;
 
   const query = useQuery({
@@ -18,6 +23,24 @@ export function ProductsListPage() {
   });
 
   const total = query.data?.count ?? 0;
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImportError(null);
+    setImportReport(null);
+    setImporting(true);
+    try {
+      const report = await api.importProductsCsv(file);
+      setImportReport(report);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+    } catch (err) {
+      setImportError((err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <div>
@@ -30,20 +53,84 @@ export function ProductsListPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: '1.75rem' }}>Produkty</h1>
-        <Link
-          to="/products/new"
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            disabled={importing}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#fff',
+              color: '#0066ff',
+              border: '1px solid #0066ff',
+              borderRadius: 4,
+              fontSize: '0.875rem',
+              cursor: importing ? 'wait' : 'pointer',
+            }}
+          >
+            {importing ? 'Importuji…' : '⬆ Import CSV'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => void handleImport(e)}
+            style={{ display: 'none' }}
+          />
+          <Link
+            to="/products/new"
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#0066ff',
+              color: '#fff',
+              borderRadius: 4,
+              fontSize: '0.875rem',
+              textDecoration: 'none',
+            }}
+          >
+            + Nový produkt
+          </Link>
+        </div>
+      </header>
+
+      {importError && (
+        <p style={{ color: '#c00', fontSize: '0.875rem', margin: '0 0 1rem' }}>{importError}</p>
+      )}
+      {importReport && (
+        <div
           style={{
-            padding: '0.5rem 1rem',
-            background: '#0066ff',
-            color: '#fff',
-            borderRadius: 4,
+            background: '#f0f9f0',
+            border: '1px solid #c3e6c3',
+            borderRadius: 6,
+            padding: '0.75rem 1rem',
+            marginBottom: '1rem',
             fontSize: '0.875rem',
-            textDecoration: 'none',
           }}
         >
-          + Nový produkt
-        </Link>
-      </header>
+          <strong>Import dokončen:</strong> vytvořeno {importReport.created} z{' '}
+          {importReport.total_rows} řádků
+          {importReport.skipped.length > 0 && <> · přeskočeno {importReport.skipped.length}</>}
+          {importReport.errors.length > 0 && (
+            <span style={{ color: '#a03030' }}> · chyb {importReport.errors.length}</span>
+          )}
+          {(importReport.skipped.length > 0 || importReport.errors.length > 0) && (
+            <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem', color: '#666' }}>
+              {importReport.skipped.slice(0, 5).map((s) => (
+                <li key={`s${s.line}`}>ř. {s.line}: {s.reason}</li>
+              ))}
+              {importReport.errors.slice(0, 5).map((er) => (
+                <li key={`e${er.line}`} style={{ color: '#a03030' }}>
+                  ř. {er.line}: {er.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#888' }}>
+            Formát: sloupce title/nazev*, price/cena*, slug, sku, stock/sklad, weight_grams,
+            category/kategorie, vendor, brand · oddělovač , nebo ;
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
         <input

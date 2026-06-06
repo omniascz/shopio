@@ -24,6 +24,7 @@ import { schema } from '@shopio/db';
 import { PERMISSIONS, can, generatePubId, type PermissionCode } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
 import { indexProduct, removeProductFromIndex } from '../lib/search';
+import { mapImportRows, parseCsv } from '../lib/csv';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -874,6 +875,172 @@ export async function registerProductRoutes(
       });
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // POST /products/import — CSV catalog import (multipart file)
+  // ---------------------------------------------------------------------------
+  app.post('/api/2026-05-20/products/import', { preHandler: requireAuth }, async (req, reply) => {
+    const auth = req.auth!;
+    if (!ensureTenant(auth, reply)) return;
+    if (!ensurePermission(auth, PERMISSIONS.PRODUCT_CREATE, reply)) return;
+
+    const file = await req.file({ limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
+    if (!file) {
+      return reply.code(422).send({
+        error: { code: 'NO_FILE', message: 'Multipart CSV file required' },
+      });
+    }
+    const text = (await file.toBuffer()).toString('utf8');
+
+    let mapped;
+    try {
+      mapped = mapImportRows(parseCsv(text));
+    } catch (err) {
+      return reply.code(422).send({
+        error: { code: 'CSV_INVALID', message: (err as Error).message },
+      });
+    }
+
+    const created: { line: number; slug: string }[] = [];
+    const skipped: { line: number; reason: string }[] = [];
+    const errors = [...mapped.errors];
+    const categoryCache = new Map<string, string>(); // name → id
+
+    for (const { line, row } of mapped.rows) {
+      try {
+        const slug = row.slug ?? slugify(row.title);
+
+        // Idempotence: existing slug → skip (re-runs are safe)
+        const [existing] = await db
+          .select({ id: schema.products.id })
+          .from(schema.products)
+          .where(and(eq(schema.products.tenantId, auth.tenantId), eq(schema.products.slug, slug)))
+          .limit(1);
+        if (existing) {
+          skipped.push({ line, reason: `Slug "${slug}" už existuje` });
+          continue;
+        }
+
+        // Resolve/create the category by name (cached per import run)
+        let categoryId: string | null = null;
+        if (row.category) {
+          const cached = categoryCache.get(row.category);
+          if (cached) {
+            categoryId = cached;
+          } else {
+            const catSlug = slugify(row.category);
+            const [existingCat] = await db
+              .select({ id: schema.categories.id })
+              .from(schema.categories)
+              .where(
+                and(
+                  eq(schema.categories.tenantId, auth.tenantId),
+                  eq(schema.categories.slug, catSlug),
+                ),
+              )
+              .limit(1);
+            if (existingCat) {
+              categoryId = existingCat.id;
+            } else {
+              const [cat] = await db
+                .insert(schema.categories)
+                .values({
+                  tenantId: auth.tenantId,
+                  pubId: generatePubId('cat'),
+                  slug: catSlug,
+                  name: row.category,
+                  path: catSlug, // root category — matches POST /categories convention
+                  status: 'active',
+                })
+                .returning({ id: schema.categories.id });
+              categoryId = cat!.id;
+            }
+            categoryCache.set(row.category, categoryId);
+          }
+        }
+
+        const productId = await db.transaction(async (tx) => {
+          const [product] = await tx
+            .insert(schema.products)
+            .values({
+              tenantId: auth.tenantId,
+              pubId: generatePubId('prd'),
+              slug,
+              title: row.title,
+              descriptionHtml: row.description,
+              basePriceAmount: row.priceMinor,
+              basePriceCurrency: 'CZK',
+              status: 'active',
+              publishedAt: new Date(),
+              vendor: row.vendor,
+              brandName: row.brand,
+              createdByUserId: auth.userId,
+            })
+            .returning({ id: schema.products.id });
+
+          const [variant] = await tx
+            .insert(schema.productVariants)
+            .values({
+              tenantId: auth.tenantId,
+              productId: product!.id,
+              pubId: generatePubId('prv'),
+              sku: row.sku,
+              title: 'Default',
+              priceAmount: row.priceMinor,
+              priceCurrency: 'CZK',
+              weightGrams: row.weightGrams,
+              stockOnHand: row.stock,
+            })
+            .returning({ id: schema.productVariants.id });
+
+          if (row.stock > 0) {
+            await tx.insert(schema.stockMovements).values({
+              tenantId: auth.tenantId,
+              variantId: variant!.id,
+              quantityDelta: row.stock,
+              reason: 'initial_load',
+              referenceType: 'manual',
+              resultingStockOnHand: row.stock,
+              actorUserId: auth.userId,
+              note: 'CSV import',
+            });
+          }
+
+          if (categoryId) {
+            await tx.insert(schema.productCategories).values({
+              tenantId: auth.tenantId,
+              productId: product!.id,
+              categoryId,
+            });
+          }
+          return product!.id;
+        });
+
+        void indexProduct(config, db, productId, app.log);
+        created.push({ line, slug });
+      } catch (err) {
+        const message =
+          (err as { code?: string }).code === '23505'
+            ? 'Duplicitní SKU nebo slug'
+            : (err as Error).message;
+        errors.push({ line, message });
+      }
+    }
+
+    app.log.info(
+      { tenantId: auth.tenantId, created: created.length, skipped: skipped.length, errors: errors.length },
+      'products.import_complete',
+    );
+    return reply.send({
+      data: {
+        created: created.length,
+        created_slugs: created.map((c) => c.slug),
+        skipped,
+        errors,
+        total_rows: mapped.rows.length + mapped.errors.length,
+      },
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // DELETE /products/{id} — archive (soft)

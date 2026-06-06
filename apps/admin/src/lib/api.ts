@@ -166,6 +166,14 @@ export interface ProductVariantDetail {
   position?: number;
 }
 
+export interface ImportReport {
+  created: number;
+  created_slugs: string[];
+  skipped: { line: number; reason: string }[];
+  errors: { line: number; message: string }[];
+  total_rows: number;
+}
+
 export interface MediaItem {
   id: string;
   kind?: string;
@@ -679,6 +687,24 @@ class ApiClient {
 
   async deleteProductMedia(productId: string, mediaId: string): Promise<void> {
     await this.request(`/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
+  }
+
+  async importProductsCsv(file: File): Promise<ImportReport> {
+    const form = new FormData();
+    form.append('file', file);
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const res = await fetch(`${API_BASE}/api/${API_VERSION}/products/import`, {
+      method: 'POST',
+      headers,
+      body: form,
+      credentials: 'include',
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new ApiError(json?.error?.message ?? `Import failed (${res.status})`, res.status, json?.error?.code);
+    }
+    return json.data as ImportReport;
   }
 
   // ---------------------------------------------------------------------------

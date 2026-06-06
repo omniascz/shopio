@@ -118,6 +118,20 @@ export async function getTenant(tenantSlug: string): Promise<Tenant | null> {
   return data?.tenant ?? null;
 }
 
+export interface StorefrontCategory {
+  id: string;
+  slug: string;
+  name: string;
+  depth: number;
+}
+
+export async function getCategories(tenantSlug: string): Promise<StorefrontCategory[]> {
+  const data = await shopioFetch<{ categories: StorefrontCategory[] }>(
+    `/storefront/${tenantSlug}/categories`,
+  );
+  return data?.categories ?? [];
+}
+
 export async function getProducts(
   tenantSlug: string,
   options: { q?: string; categorySlug?: string; limit?: number; offset?: number } = {},

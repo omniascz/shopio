@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { formatMoney, getProducts, getTenant } from '@/lib/api';
+import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
-  searchParams?: Promise<{ q?: string }>;
+  searchParams?: Promise<{ q?: string; kategorie?: string }>;
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -21,8 +21,13 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
   const tenant = await getTenant(tenantSlug);
   if (!tenant) notFound();
 
-  const q = (await searchParams)?.q?.trim() || undefined;
-  const { products } = await getProducts(tenantSlug, { limit: 24, ...(q && { q }) });
+  const sp = await searchParams;
+  const q = sp?.q?.trim() || undefined;
+  const categorySlug = sp?.kategorie?.trim() || undefined;
+  const [{ products }, categories] = await Promise.all([
+    getProducts(tenantSlug, { limit: 24, ...(q && { q }), ...(categorySlug && { categorySlug }) }),
+    getCategories(tenantSlug),
+  ]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
@@ -96,6 +101,28 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
             Hledat
           </button>
         </form>
+        {categories.length > 0 && (
+          <nav
+            aria-label="Kategorie"
+            style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}
+          >
+            <CategoryChip
+              href={`/s/${tenantSlug}${q ? `?q=${encodeURIComponent(q)}` : ''}`}
+              active={!categorySlug}
+            >
+              Vše
+            </CategoryChip>
+            {categories.map((c) => (
+              <CategoryChip
+                key={c.id}
+                href={`/s/${tenantSlug}?kategorie=${encodeURIComponent(c.slug)}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
+                active={categorySlug === c.slug}
+              >
+                {c.name}
+              </CategoryChip>
+            ))}
+          </nav>
+        )}
         {q && (
           <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--sf-muted, #666)' }}>
             Výsledky pro „{q}" ({products.length}) ·{' '}
@@ -217,5 +244,32 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
         )}
       </main>
     </div>
+  );
+}
+
+function CategoryChip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        padding: '0.375rem 0.875rem',
+        borderRadius: 999,
+        fontSize: '0.8125rem',
+        textDecoration: 'none',
+        border: `1px solid ${active ? 'var(--sf-accent, #111)' : 'var(--shopio-color-border-default, #ddd)'}`,
+        background: active ? 'var(--sf-accent, #111)' : 'transparent',
+        color: active ? '#fff' : 'inherit',
+      }}
+    >
+      {children}
+    </Link>
   );
 }
