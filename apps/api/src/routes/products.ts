@@ -191,20 +191,22 @@ export async function registerProductRoutes(
     let depth = 0;
     let parentId: string | null = null;
     if (input.parentId) {
-      const [parent] = await db
-        .select({
-          id: schema.categories.id,
-          path: schema.categories.path,
-          depth: schema.categories.depth,
-        })
-        .from(schema.categories)
-        .where(
-          and(
-            eq(schema.categories.tenantId, auth.tenantId),
-            eq(schema.categories.id, input.parentId),
-          ),
-        )
-        .limit(1);
+      const [parent] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({
+            id: schema.categories.id,
+            path: schema.categories.path,
+            depth: schema.categories.depth,
+          })
+          .from(schema.categories)
+          .where(
+            and(
+              eq(schema.categories.tenantId, auth.tenantId!),
+              eq(schema.categories.id, input.parentId!),
+            ),
+          )
+          .limit(1),
+      );
       if (!parent) {
         return reply.code(422).send({
           error: { code: 'PARENT_NOT_FOUND', message: 'Parent category not found' },
@@ -216,10 +218,11 @@ export async function registerProductRoutes(
     }
 
     try {
-      const [cat] = await db
+      const [cat] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
         .insert(schema.categories)
         .values({
-          tenantId: auth.tenantId,
+          tenantId: auth.tenantId!,
           pubId: generatePubId('cat'),
           slug,
           name: input.name,
@@ -231,7 +234,8 @@ export async function registerProductRoutes(
           iconName: input.iconName ?? null,
           status: 'active',
         })
-        .returning();
+        .returning(),
+      );
 
       return reply.code(201).send({
         data: {
@@ -315,15 +319,17 @@ export async function registerProductRoutes(
 
     // Validate categories belong to tenant
     if (input.categoryIds.length > 0) {
-      const valid = await db
-        .select({ id: schema.categories.id })
-        .from(schema.categories)
-        .where(
-          and(
-            eq(schema.categories.tenantId, auth.tenantId),
-            inArray(schema.categories.id, input.categoryIds),
+      const valid = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({ id: schema.categories.id })
+          .from(schema.categories)
+          .where(
+            and(
+              eq(schema.categories.tenantId, auth.tenantId!),
+              inArray(schema.categories.id, input.categoryIds),
+            ),
           ),
-        );
+      );
       if (valid.length !== input.categoryIds.length) {
         return reply.code(422).send({
           error: { code: 'INVALID_CATEGORIES', message: 'One or more categories not in tenant' },
@@ -332,7 +338,7 @@ export async function registerProductRoutes(
     }
 
     try {
-      const result = await db.transaction(async (tx) => {
+      const result = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
         const [product] = await tx
           .insert(schema.products)
           .values({
@@ -602,16 +608,18 @@ export async function registerProductRoutes(
       const { id } = req.params;
       const isPubId = id.startsWith('prd_');
 
-      const [existing] = await db
-        .select({ id: schema.products.id, status: schema.products.status })
-        .from(schema.products)
-        .where(
-          and(
-            eq(schema.products.tenantId, auth.tenantId),
-            isPubId ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
-          ),
-        )
-        .limit(1);
+      const [existing] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({ id: schema.products.id, status: schema.products.status })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, auth.tenantId!),
+              isPubId ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
+            ),
+          )
+          .limit(1),
+      );
 
       if (!existing) {
         return reply.code(404).send({
@@ -627,7 +635,7 @@ export async function registerProductRoutes(
         updates.publishedAt = new Date();
       }
 
-      const updated = await db.transaction(async (tx) => {
+      const updated = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
         const [row] = await tx
           .update(schema.products)
           .set(updates)
@@ -645,7 +653,7 @@ export async function registerProductRoutes(
                 .from(schema.categories)
                 .where(
                   and(
-                    eq(schema.categories.tenantId, auth.tenantId),
+                    eq(schema.categories.tenantId, auth.tenantId!),
                     or(
                       inArray(schema.categories.pubId, categoryIds),
                       ...(uuidLike.length ? [inArray(schema.categories.id, uuidLike)] : []),
@@ -659,7 +667,7 @@ export async function registerProductRoutes(
           if (valid.length) {
             await tx.insert(schema.productCategories).values(
               valid.map((c, idx) => ({
-                tenantId: auth.tenantId,
+                tenantId: auth.tenantId!,
                 productId: existing.id,
                 categoryId: c.id,
                 position: idx,
@@ -670,14 +678,16 @@ export async function registerProductRoutes(
         return row!;
       });
 
-      const catRows = await db
-        .select({ pubId: schema.categories.pubId })
-        .from(schema.productCategories)
-        .innerJoin(
-          schema.categories,
-          eq(schema.categories.id, schema.productCategories.categoryId),
-        )
-        .where(eq(schema.productCategories.productId, existing.id));
+      const catRows = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({ pubId: schema.categories.pubId })
+          .from(schema.productCategories)
+          .innerJoin(
+            schema.categories,
+            eq(schema.categories.id, schema.productCategories.categoryId),
+          )
+          .where(eq(schema.productCategories.productId, existing.id)),
+      );
 
       void indexProduct(config, db, existing.id, app.log);
       return reply.send({
@@ -702,23 +712,25 @@ export async function registerProductRoutes(
       const input = parsed.data;
 
       const { id } = req.params;
-      const [product] = await db
-        .select({ id: schema.products.id })
-        .from(schema.products)
-        .where(
-          and(
-            eq(schema.products.tenantId, auth.tenantId),
-            id.startsWith('prd_') ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
-          ),
-        )
-        .limit(1);
+      const [product] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({ id: schema.products.id })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, auth.tenantId!),
+              id.startsWith('prd_') ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
+            ),
+          )
+          .limit(1),
+      );
       if (!product) {
         return reply.code(404).send({
           error: { code: 'PRODUCT_NOT_FOUND', message: 'Product not found' },
         });
       }
 
-      const created = await db.transaction(async (tx) => {
+      const created = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
         const [agg] = await tx
           .select({ maxPos: dsql<number>`COALESCE(MAX(${schema.productVariants.position}), -1)::int` })
           .from(schema.productVariants)
@@ -727,7 +739,7 @@ export async function registerProductRoutes(
         const [variant] = await tx
           .insert(schema.productVariants)
           .values({
-            tenantId: auth.tenantId,
+            tenantId: auth.tenantId!,
             productId: product.id,
             pubId: generatePubId('prv'),
             sku: input.sku ?? null,
@@ -748,7 +760,7 @@ export async function registerProductRoutes(
         // Initial stock → ledger baseline (per `09`)
         if (input.stockOnHand > 0) {
           await tx.insert(schema.stockMovements).values({
-            tenantId: auth.tenantId,
+            tenantId: auth.tenantId!,
             variantId: variant!.id,
             quantityDelta: input.stockOnHand,
             reason: 'initial_load',
@@ -796,32 +808,34 @@ export async function registerProductRoutes(
       const input = parsed.data;
 
       const { id, variantId } = req.params;
-      const [variant] = await db
-        .select({
-          id: schema.productVariants.id,
-          productId: schema.productVariants.productId,
-        })
-        .from(schema.productVariants)
-        .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
-        .where(
-          and(
-            eq(schema.productVariants.tenantId, auth.tenantId),
-            variantId.startsWith('prv_')
-              ? eq(schema.productVariants.pubId, variantId)
-              : eq(schema.productVariants.id, variantId),
-            id.startsWith('prd_')
-              ? eq(schema.products.pubId, id)
-              : eq(schema.products.id, id),
-          ),
-        )
-        .limit(1);
+      const [variant] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({
+            id: schema.productVariants.id,
+            productId: schema.productVariants.productId,
+          })
+          .from(schema.productVariants)
+          .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
+          .where(
+            and(
+              eq(schema.productVariants.tenantId, auth.tenantId!),
+              variantId.startsWith('prv_')
+                ? eq(schema.productVariants.pubId, variantId)
+                : eq(schema.productVariants.id, variantId),
+              id.startsWith('prd_')
+                ? eq(schema.products.pubId, id)
+                : eq(schema.products.id, id),
+            ),
+          )
+          .limit(1),
+      );
       if (!variant) {
         return reply.code(404).send({
           error: { code: 'VARIANT_NOT_FOUND', message: 'Variant not found' },
         });
       }
 
-      const updated = await db.transaction(async (tx) => {
+      const updated = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
         // Stock set goes through the movements ledger (per `09`:
         // reason='adjustment') — lock the row, compute the delta.
         if (input.stockOnHand !== undefined) {
@@ -835,7 +849,7 @@ export async function registerProductRoutes(
           const delta = input.stockOnHand - locked!.stockOnHand;
           if (delta !== 0) {
             await tx.insert(schema.stockMovements).values({
-              tenantId: auth.tenantId,
+              tenantId: auth.tenantId!,
               variantId: variant.id,
               quantityDelta: delta,
               reason: 'adjustment',
@@ -913,11 +927,13 @@ export async function registerProductRoutes(
         const slug = row.slug ?? slugify(row.title);
 
         // Idempotence: existing slug → skip (re-runs are safe)
-        const [existing] = await db
-          .select({ id: schema.products.id })
-          .from(schema.products)
-          .where(and(eq(schema.products.tenantId, auth.tenantId), eq(schema.products.slug, slug)))
-          .limit(1);
+        const [existing] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+          tx
+            .select({ id: schema.products.id })
+            .from(schema.products)
+            .where(and(eq(schema.products.tenantId, auth.tenantId!), eq(schema.products.slug, slug)))
+            .limit(1),
+        );
         if (existing) {
           skipped.push({ line, reason: `Slug "${slug}" už existuje` });
           continue;
@@ -931,41 +947,45 @@ export async function registerProductRoutes(
             categoryId = cached;
           } else {
             const catSlug = slugify(row.category);
-            const [existingCat] = await db
-              .select({ id: schema.categories.id })
-              .from(schema.categories)
-              .where(
-                and(
-                  eq(schema.categories.tenantId, auth.tenantId),
-                  eq(schema.categories.slug, catSlug),
-                ),
-              )
-              .limit(1);
+            const [existingCat] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+              tx
+                .select({ id: schema.categories.id })
+                .from(schema.categories)
+                .where(
+                  and(
+                    eq(schema.categories.tenantId, auth.tenantId!),
+                    eq(schema.categories.slug, catSlug),
+                  ),
+                )
+                .limit(1),
+            );
             if (existingCat) {
               categoryId = existingCat.id;
             } else {
-              const [cat] = await db
-                .insert(schema.categories)
-                .values({
-                  tenantId: auth.tenantId,
-                  pubId: generatePubId('cat'),
-                  slug: catSlug,
-                  name: row.category,
-                  path: catSlug, // root category — matches POST /categories convention
-                  status: 'active',
-                })
-                .returning({ id: schema.categories.id });
+              const [cat] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+                tx
+                  .insert(schema.categories)
+                  .values({
+                    tenantId: auth.tenantId!,
+                    pubId: generatePubId('cat'),
+                    slug: catSlug,
+                    name: row.category!,
+                    path: catSlug, // root category — matches POST /categories convention
+                    status: 'active',
+                  })
+                  .returning({ id: schema.categories.id }),
+              );
               categoryId = cat!.id;
             }
             categoryCache.set(row.category, categoryId);
           }
         }
 
-        const productId = await db.transaction(async (tx) => {
+        const productId = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
           const [product] = await tx
             .insert(schema.products)
             .values({
-              tenantId: auth.tenantId,
+              tenantId: auth.tenantId!,
               pubId: generatePubId('prd'),
               slug,
               title: row.title,
@@ -983,7 +1003,7 @@ export async function registerProductRoutes(
           const [variant] = await tx
             .insert(schema.productVariants)
             .values({
-              tenantId: auth.tenantId,
+              tenantId: auth.tenantId!,
               productId: product!.id,
               pubId: generatePubId('prv'),
               sku: row.sku,
@@ -997,7 +1017,7 @@ export async function registerProductRoutes(
 
           if (row.stock > 0) {
             await tx.insert(schema.stockMovements).values({
-              tenantId: auth.tenantId,
+              tenantId: auth.tenantId!,
               variantId: variant!.id,
               quantityDelta: row.stock,
               reason: 'initial_load',
@@ -1010,7 +1030,7 @@ export async function registerProductRoutes(
 
           if (categoryId) {
             await tx.insert(schema.productCategories).values({
-              tenantId: auth.tenantId,
+              tenantId: auth.tenantId!,
               productId: product!.id,
               categoryId,
             });
@@ -1058,16 +1078,18 @@ export async function registerProductRoutes(
       const { id } = req.params;
       const isPubId = id.startsWith('prd_');
 
-      const result = await db
-        .update(schema.products)
-        .set({ status: 'archived', updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.products.tenantId, auth.tenantId),
-            isPubId ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
-          ),
-        )
-        .returning({ id: schema.products.id });
+      const result = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .update(schema.products)
+          .set({ status: 'archived', updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.products.tenantId, auth.tenantId!),
+              isPubId ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
+            ),
+          )
+          .returning({ id: schema.products.id }),
+      );
 
       if (result.length === 0) {
         return reply.code(404).send({
