@@ -31,6 +31,7 @@ export function AppShell() {
         <nav style={{ display: 'flex', flexDirection: 'column' }}>
           <NavLink to="/">Přehled</NavLink>
           <NavLink to="/orders">Objednávky</NavLink>
+          <NavLink to="/returns">Vratky</NavLink>
           <NavLink to="/products">Produkty</NavLink>
           <NavLink to="/settings">Nastavení</NavLink>
         </nav>

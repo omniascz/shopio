@@ -16,7 +16,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, eq, inArray, sql as dsql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
@@ -69,6 +69,93 @@ export async function registerReturnRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+
+  // ---------------------------------------------------------------------------
+  // GET /admin/returns — global queue across orders (per `17` FLOW-RTN-002)
+  // ---------------------------------------------------------------------------
+  app.get(
+    '/api/2026-05-20/admin/returns',
+    { preHandler: [requirePermission(PERMISSIONS.ORDER_VIEW)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const Query = z.object({
+        status: z
+          .enum(['requested', 'approved', 'received', 'refunded', 'rejected', 'cancelled'])
+          .optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+      });
+      const parsed = Query.safeParse(req.query);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const { status, limit, offset } = parsed.data;
+
+      const conditions = [eq(schema.returns.tenantId, tenantId)];
+      if (status) conditions.push(eq(schema.returns.status, status));
+
+      const [rows, countRow, openRow] = await Promise.all([
+        db
+          .select({
+            ret: schema.returns,
+            orderPubId: schema.orders.pubId,
+            orderNumber: schema.orders.orderNumber,
+            customerEmail: schema.orders.customerEmail,
+            customerName: schema.orders.customerName,
+          })
+          .from(schema.returns)
+          .innerJoin(schema.orders, eq(schema.orders.id, schema.returns.orderId))
+          .where(and(...conditions))
+          .orderBy(desc(schema.returns.requestedAt))
+          .limit(limit)
+          .offset(offset),
+        db
+          .select({ count: dsql<number>`COUNT(*)::int` })
+          .from(schema.returns)
+          .where(and(...conditions)),
+        // Action-needed counter for the nav badge (requested + received)
+        db
+          .select({ count: dsql<number>`COUNT(*)::int` })
+          .from(schema.returns)
+          .where(
+            and(
+              eq(schema.returns.tenantId, tenantId),
+              inArray(schema.returns.status, ['requested', 'received']),
+            ),
+          ),
+      ]);
+
+      return reply.send({
+        data: {
+          returns: rows.map((r) => ({
+            id: r.ret.pubId,
+            number: r.ret.number,
+            status: r.ret.status,
+            reason_code: r.ret.reasonCode,
+            customer_note: r.ret.customerNote,
+            requested_refund: {
+              amount: r.ret.requestedRefundAmount.toString(),
+              currency: r.ret.currency,
+            },
+            actual_refund: r.ret.actualRefundAmount
+              ? { amount: r.ret.actualRefundAmount.toString(), currency: r.ret.currency }
+              : null,
+            requested_at: r.ret.requestedAt,
+            order: {
+              id: r.orderPubId,
+              number: r.orderNumber,
+              customer_email: r.customerEmail,
+              customer_name: r.customerName,
+            },
+          })),
+          total: countRow[0]?.count ?? 0,
+          action_needed: openRow[0]?.count ?? 0,
+          offset,
+          limit,
+        },
+      });
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // GET /admin/orders/{orderPubId}/returns

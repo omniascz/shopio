@@ -21,6 +21,7 @@ import { OrderDetailPage } from './pages/order-detail';
 import { ProductsListPage } from './pages/products-list';
 import { ProductCreatePage, ProductEditPage } from './pages/product-edit';
 import { SettingsPage } from './pages/settings';
+import { ReturnsListPage } from './pages/returns-list';
 import { useAuth } from './lib/auth-store';
 
 function requireAuth() {
@@ -113,6 +114,12 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const returnsListRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/returns',
+  component: ReturnsListPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -125,6 +132,7 @@ const routeTree = rootRoute.addChildren([
     productCreateRoute,
     productEditRoute,
     settingsRoute,
+    returnsListRoute,
   ]),
 ]);
 

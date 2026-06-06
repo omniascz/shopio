@@ -117,6 +117,23 @@ export interface ReturnDetail {
   }[];
 }
 
+export interface ReturnQueueItem {
+  id: string;
+  number: string;
+  status: string;
+  reason_code: string;
+  customer_note: string | null;
+  requested_refund: Money;
+  actual_refund: Money | null;
+  requested_at: string;
+  order: {
+    id: string;
+    number: string;
+    customer_email: string;
+    customer_name: string | null;
+  };
+}
+
 export interface ShipmentDetail {
   id: string;
   number: string;
@@ -490,6 +507,22 @@ class ApiClient {
       method: 'POST',
       ...(body && { body: JSON.stringify(body) }),
     });
+  }
+
+  async listReturns(
+    params: { status?: string | undefined; limit?: number; offset?: number } = {},
+  ): Promise<{
+    returns: ReturnQueueItem[];
+    total: number;
+    action_needed: number;
+    offset: number;
+    limit: number;
+  }> {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    }
+    return this.request(qs.toString() ? `/admin/returns?${qs}` : '/admin/returns');
   }
 
   async refundReturn(
