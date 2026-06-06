@@ -24,6 +24,7 @@ import { registerMediaRoutes } from './routes/media';
 import {
   registerCustomerAuthRoutes,
   registerCustomerPasswordResetRoutes,
+  registerCustomerReturnRoutes,
 } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
 
@@ -105,6 +106,7 @@ export async function buildServer() {
   registerSearchAdminRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });
+  await registerCustomerReturnRoutes(server, { config, db });
 
   // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
   // BullMQ takes over in a later wave. Releases expired unpaid holds and

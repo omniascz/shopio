@@ -18,15 +18,13 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
-import { PERMISSIONS, generatePubId } from '@shopio/authz';
+import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import {
   ReturnError,
-  computeReturnLine,
   computeShippingRefund,
-  formatReturnNumber,
+  createReturn,
   isValidReturnTransition,
-  returnableQuantity,
 } from '../lib/returns';
 import { issueCreditNote, type CreditNoteLine } from '../lib/invoices';
 import { createRefund, isStripeEnabled } from '../lib/stripe';
@@ -130,119 +128,21 @@ export async function registerReturnRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const input = parsed.data;
 
-      const [order] = await db
-        .select()
-        .from(schema.orders)
-        .where(
-          and(eq(schema.orders.tenantId, tenantId), eq(schema.orders.pubId, req.params.orderPubId)),
-        )
-        .limit(1);
+      const order = await findOrder(db, tenantId, req.params.orderPubId);
       if (!order) return notFound(reply, 'ORDER_NOT_FOUND', 'Order not found');
 
-      // RULE-RTN-001 subset: only paid-side orders can be returned
-      if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded') {
-        return reply.code(422).send({
-          error: { code: 'ORDER_NOT_REFUNDABLE', message: 'Order has no captured payment' },
-        });
-      }
-
-      const orderItems = await db
-        .select()
-        .from(schema.orderItems)
-        .where(eq(schema.orderItems.orderId, order.id));
-      const itemsByPubId = new Map(orderItems.map((it) => [it.pubId, it]));
-
-      // Prior holds per order item (RULE-RTN-009 subset)
-      const priorItems = await db
-        .select({
-          orderItemId: schema.returnItems.orderItemId,
-          quantity: schema.returnItems.quantity,
-          status: schema.returns.status,
-        })
-        .from(schema.returnItems)
-        .innerJoin(schema.returns, eq(schema.returns.id, schema.returnItems.returnId))
-        .where(eq(schema.returns.orderId, order.id));
-
       try {
-        const result = await db.transaction(async (tx) => {
-          const lines = input.items.map((reqItem) => {
-            const orderItem = itemsByPubId.get(reqItem.orderItemId);
-            if (!orderItem) {
-              throw new ReturnError('ORDER_ITEM_NOT_FOUND', `Unknown item ${reqItem.orderItemId}`);
-            }
-            const remaining = returnableQuantity(
-              orderItem.quantity,
-              priorItems.filter((p) => p.orderItemId === orderItem.id),
-            );
-            if (reqItem.quantity > remaining) {
-              throw new ReturnError(
-                'QUANTITY_EXCEEDS_RETURNABLE',
-                `${orderItem.productTitleSnapshot}: returnable ${remaining}, requested ${reqItem.quantity}`,
-              );
-            }
-            return { orderItem, computed: computeReturnLine(orderItem, reqItem.quantity) };
-          });
-
-          const requestedRefund = lines.reduce((s, l) => s + l.computed.lineGrossAmount, 0n);
-
-          // RMA number — per-tenant count per year. Advisory lock serializes
-          // concurrent creates so COUNT+1 can't collide on uq_returns_number.
-          const year = new Date().getFullYear();
-          await tx.execute(
-            dsql`SELECT pg_advisory_xact_lock(hashtext(${`rma:${tenantId}:${year}`}))`,
-          );
-          const [cnt] = await tx
-            .select({ count: dsql<number>`COUNT(*)::int` })
-            .from(schema.returns)
-            .where(
-              and(
-                eq(schema.returns.tenantId, tenantId),
-                dsql`EXTRACT(YEAR FROM ${schema.returns.requestedAt}) = ${year}`,
-              ),
-            );
-          const number = formatReturnNumber(year, (cnt?.count ?? 0) + 1);
-
-          const [ret] = await tx
-            .insert(schema.returns)
-            .values({
-              tenantId,
-              pubId: generatePubId('ret'),
-              orderId: order.id,
-              number,
-              status: 'requested',
-              reasonCode: input.reasonCode,
-              customerNote: input.customerNote ?? null,
-              staffNote: input.staffNote ?? null,
-              currency: order.currency,
-              requestedRefundAmount: requestedRefund,
-              createdByUserId: auth.userId,
-            })
-            .returning();
-          if (!ret) throw new ReturnError('RETURN_INSERT_FAILED', 'Could not create return');
-
-          const items = await tx
-            .insert(schema.returnItems)
-            .values(
-              lines.map((l) => ({
-                tenantId,
-                returnId: ret.id,
-                pubId: generatePubId('rti'),
-                orderItemId: l.orderItem.id,
-                variantId: l.orderItem.variantId,
-                titleSnapshot: `${l.orderItem.productTitleSnapshot} — ${l.orderItem.variantTitleSnapshot}`,
-                skuSnapshot: l.orderItem.skuSnapshot,
-                quantity: l.computed.quantity,
-                unitGrossAmount: l.computed.unitGrossAmount,
-                lineGrossAmount: l.computed.lineGrossAmount,
-                lineNetAmount: l.computed.lineNetAmount,
-                lineTaxAmount: l.computed.lineTaxAmount,
-                taxClassCode: l.computed.taxClassCode,
-                taxRateBasisPoints: l.computed.taxRateBasisPoints,
-              })),
-            )
-            .returning();
-
-          return { ret, items };
+        const result = await createReturn(db, {
+          tenantId,
+          orderId: order.id,
+          items: input.items.map((it) => ({
+            orderItemPubId: it.orderItemId,
+            quantity: it.quantity,
+          })),
+          reasonCode: input.reasonCode,
+          customerNote: input.customerNote ?? null,
+          staffNote: input.staffNote ?? null,
+          createdByUserId: auth.userId,
         });
 
         app.log.info(

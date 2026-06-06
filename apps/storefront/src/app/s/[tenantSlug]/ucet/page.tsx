@@ -8,15 +8,20 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  customerCreateReturn,
   customerForgotPassword,
   customerLogin,
   customerLogout,
   customerMe,
   customerOrders,
   customerRegister,
+  customerReturns,
   formatMoney,
+  getOrder,
   type CustomerOrder,
   type CustomerProfile,
+  type CustomerReturn,
+  type OrderDetail,
 } from '@/lib/api';
 
 interface Props {
@@ -36,12 +41,20 @@ export default function AccountPage({ params }: Props) {
   const { tenantSlug } = use(params);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [returns, setReturns] = useState<CustomerReturn[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
     const me = await customerMe(tenantSlug);
     setCustomer(me);
-    setOrders(me ? await customerOrders(tenantSlug) : []);
+    if (me) {
+      const [o, r] = await Promise.all([customerOrders(tenantSlug), customerReturns(tenantSlug)]);
+      setOrders(o);
+      setReturns(r);
+    } else {
+      setOrders([]);
+      setReturns([]);
+    }
     setLoading(false);
   }
 
@@ -66,6 +79,8 @@ export default function AccountPage({ params }: Props) {
           tenantSlug={tenantSlug}
           customer={customer}
           orders={orders}
+          returns={returns}
+          onChanged={() => void refresh()}
           onLogout={() => void customerLogout(tenantSlug).then(refresh)}
         />
       ) : (
@@ -75,15 +90,28 @@ export default function AccountPage({ params }: Props) {
   );
 }
 
+const RETURN_STATUS_LABELS: Record<string, string> = {
+  requested: 'Čeká na schválení',
+  approved: 'Schváleno — pošlete zboží zpět',
+  received: 'Zboží přijato',
+  refunded: 'Refundováno',
+  rejected: 'Zamítnuto',
+  cancelled: 'Zrušeno',
+};
+
 function LoggedIn({
   tenantSlug,
   customer,
   orders,
+  returns,
+  onChanged,
   onLogout,
 }: {
   tenantSlug: string;
   customer: CustomerProfile;
   orders: CustomerOrder[];
+  returns: CustomerReturn[];
+  onChanged: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -149,7 +177,213 @@ function LoggedIn({
           </ul>
         )}
       </section>
+
+      <ReturnsSection
+        tenantSlug={tenantSlug}
+        email={customer.email}
+        orders={orders}
+        returns={returns}
+        onChanged={onChanged}
+      />
     </>
+  );
+}
+
+function ReturnsSection({
+  tenantSlug,
+  email,
+  orders,
+  returns,
+  onChanged,
+}: {
+  tenantSlug: string;
+  email: string;
+  orders: CustomerOrder[];
+  returns: CustomerReturn[];
+  onChanged: () => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [orderNumber, setOrderNumber] = useState('');
+  const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [reason, setReason] = useState('changed_mind');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Returnable orders = paid-side ones
+  const eligible = orders.filter(
+    (o) => o.payment_status === 'paid' || o.payment_status === 'refunded',
+  );
+
+  async function pickOrder(num: string) {
+    setOrderNumber(num);
+    setOrderDetail(null);
+    setQuantities({});
+    setError(null);
+    if (!num) return;
+    const detail = await getOrder(tenantSlug, num, email);
+    setOrderDetail(detail);
+  }
+
+  async function submit() {
+    setError(null);
+    setBusy(true);
+    try {
+      await customerCreateReturn(tenantSlug, orderNumber, {
+        items: Object.entries(quantities)
+          .filter(([, q]) => q > 0)
+          .map(([orderItemId, quantity]) => ({ orderItemId, quantity })),
+        reasonCode: reason,
+        ...(note && { note }),
+      });
+      setCreating(false);
+      setOrderNumber('');
+      setOrderDetail(null);
+      setQuantities({});
+      setNote('');
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const anySelected = Object.values(quantities).some((q) => q > 0);
+
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: '1.125rem', margin: '0 0 1rem' }}>Vratky</h2>
+
+      {returns.length === 0 ? (
+        <p style={{ color: 'var(--sf-muted, #666)', fontSize: '0.875rem' }}>Žádné vratky.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', margin: '0 0 1rem', padding: 0 }}>
+          {returns.map((r) => (
+            <li
+              key={r.number}
+              style={{ padding: '0.625rem 0', borderBottom: '1px solid rgba(128,128,128,0.2)' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <strong>{r.number}</strong>
+                <span style={{ fontSize: '0.8125rem' }}>
+                  {RETURN_STATUS_LABELS[r.status] ?? r.status}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--sf-muted, #666)' }}>
+                {r.order_number && <>k objednávce {r.order_number} · </>}
+                {r.items.map((i) => `${i.title} ×${i.quantity}`).join(', ')} ·{' '}
+                {formatMoney(r.actual_refund ?? r.requested_refund)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!creating ? (
+        eligible.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            style={{ ...secondaryBtnStyle, color: 'var(--sf-accent, #0066cc)' }}
+          >
+            + Vrátit zboží
+          </button>
+        )
+      ) : (
+        <div style={{ borderTop: '1px solid rgba(128,128,128,0.2)', paddingTop: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
+            <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Objednávka</span>
+            <select
+              value={orderNumber}
+              onChange={(e) => void pickOrder(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 320 }}
+            >
+              <option value="">— vyberte —</option>
+              {eligible.map((o) => (
+                <option key={o.number} value={o.number}>
+                  {o.number} · {formatMoney(o.total)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {orderDetail && (
+            <>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <tbody>
+                  {orderDetail.items.map((it) => (
+                    <tr key={it.id}>
+                      <td style={{ padding: '0.25rem 0' }}>
+                        {it.product_title} — {it.variant_title}
+                      </td>
+                      <td style={{ textAlign: 'right', width: 120 }}>
+                        <input
+                          type="number"
+                          min={0}
+                          max={it.quantity}
+                          value={quantities[it.id] ?? 0}
+                          onChange={(e) =>
+                            setQuantities((prev) => ({
+                              ...prev,
+                              [it.id]: Math.max(0, Math.min(it.quantity, Number(e.target.value))),
+                            }))
+                          }
+                          style={{ ...inputStyle, width: 64, display: 'inline-block', padding: '0.25rem 0.375rem' }}
+                        />{' '}
+                        / {it.quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', gap: '0.5rem', margin: '0.75rem 0', flexWrap: 'wrap' }}>
+                <select value={reason} onChange={(e) => setReason(e.target.value)} style={{ ...inputStyle, maxWidth: 220 }}>
+                  <option value="changed_mind">Odstoupení od smlouvy (14 dní)</option>
+                  <option value="damaged">Poškozené zboží</option>
+                  <option value="wrong_item">Přišlo jiné zboží</option>
+                  <option value="not_as_described">Neodpovídá popisu</option>
+                  <option value="other">Jiný důvod</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Poznámka (volitelné)"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+                />
+              </div>
+            </>
+          )}
+
+          {error && <p style={{ color: '#c00', fontSize: '0.875rem' }}>{error}</p>}
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              disabled={!anySelected || busy}
+              onClick={() => void submit()}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--sf-accent, #111)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: '0.875rem',
+                cursor: !anySelected || busy ? 'not-allowed' : 'pointer',
+                opacity: !anySelected || busy ? 0.6 : 1,
+              }}
+            >
+              {busy ? 'Odesílám…' : 'Odeslat žádost o vrácení'}
+            </button>
+            <button type="button" onClick={() => setCreating(false)} style={secondaryBtnStyle}>
+              Zrušit
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

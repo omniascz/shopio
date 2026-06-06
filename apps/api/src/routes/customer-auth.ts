@@ -31,6 +31,7 @@ import {
   verifyPassword,
 } from '@shopio/authz';
 import { renderPasswordResetEmail, sendEmail } from '../lib/email';
+import { ReturnError, createReturn } from '../lib/returns';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -409,6 +410,179 @@ export async function registerCustomerPasswordResetRoutes(
       return reply.send({ data: { message: 'Heslo bylo změněno. Přihlaste se novým heslem.' } });
     },
   );
+}
+
+// =============================================================================
+// Customer return portal (per `17` FLOW-RTN-001 customer-initiated, MVP)
+// =============================================================================
+
+const CustomerReturnBody = z.object({
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string(), // oit_ pub id (from the order confirmation payload)
+        quantity: z.number().int().min(1).max(999),
+      }),
+    )
+    .min(1),
+  reasonCode: z
+    .enum(['changed_mind', 'damaged', 'wrong_item', 'not_as_described', 'other'])
+    .default('changed_mind'),
+  note: z.string().max(2000).optional(),
+});
+
+export async function registerCustomerReturnRoutes(
+  app: FastifyInstance,
+  opts: PluginOptions,
+): Promise<void> {
+  const { db } = opts;
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/me/orders/{orderNumber}/returns
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string; orderNumber: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/orders/:orderNumber/returns',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({
+          error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' },
+        });
+      }
+
+      const parsed = CustomerReturnBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const input = parsed.data;
+
+      // Ownership: linked account OR same verified e-mail
+      const [order] = await db
+        .select({
+          id: schema.orders.id,
+          customerId: schema.orders.customerId,
+          customerEmail: schema.orders.customerEmail,
+        })
+        .from(schema.orders)
+        .where(
+          and(
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.orderNumber, req.params.orderNumber),
+          ),
+        )
+        .limit(1);
+      if (
+        !order ||
+        (order.customerId !== customer.id && order.customerEmail !== customer.email)
+      ) {
+        return notFound(reply, 'ORDER_NOT_FOUND');
+      }
+
+      try {
+        const result = await createReturn(db, {
+          tenantId: tenant.id,
+          orderId: order.id,
+          items: input.items.map((it) => ({
+            orderItemPubId: it.orderItemId,
+            quantity: it.quantity,
+          })),
+          reasonCode: input.reasonCode,
+          customerNote: input.note ?? null,
+        });
+        app.log.info(
+          { returnId: result.ret.id, customerId: customer.id, number: result.ret.number },
+          'return.customer_created',
+        );
+        return reply.code(201).send({ data: serializeCustomerReturn(result.ret, result.items) });
+      } catch (err) {
+        if (err instanceof ReturnError) {
+          return reply.code(422).send({ error: { code: err.code, message: err.message } });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/me/returns
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/returns',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({
+          error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' },
+        });
+      }
+
+      const rows = await db
+        .select({
+          ret: schema.returns,
+          orderNumber: schema.orders.orderNumber,
+          orderCustomerId: schema.orders.customerId,
+          orderEmail: schema.orders.customerEmail,
+        })
+        .from(schema.returns)
+        .innerJoin(schema.orders, eq(schema.orders.id, schema.returns.orderId))
+        .where(
+          and(
+            eq(schema.returns.tenantId, tenant.id),
+            or(
+              eq(schema.orders.customerId, customer.id),
+              eq(schema.orders.customerEmail, customer.email),
+            ),
+          ),
+        )
+        .orderBy(desc(schema.returns.requestedAt))
+        .limit(50);
+
+      const items = rows.length
+        ? await db
+            .select()
+            .from(schema.returnItems)
+            .where(
+              or(...rows.map((r) => eq(schema.returnItems.returnId, r.ret.id)))!,
+            )
+        : [];
+
+      return reply.send({
+        data: {
+          returns: rows.map((r) => ({
+            ...serializeCustomerReturn(
+              r.ret,
+              items.filter((i) => i.returnId === r.ret.id),
+            ),
+            order_number: r.orderNumber,
+          })),
+        },
+      });
+    },
+  );
+}
+
+function serializeCustomerReturn(
+  ret: typeof schema.returns.$inferSelect,
+  items: (typeof schema.returnItems.$inferSelect)[],
+) {
+  return {
+    number: ret.number,
+    status: ret.status,
+    reason_code: ret.reasonCode,
+    requested_refund: { amount: ret.requestedRefundAmount.toString(), currency: ret.currency },
+    actual_refund: ret.actualRefundAmount
+      ? { amount: ret.actualRefundAmount.toString(), currency: ret.currency }
+      : null,
+    requested_at: ret.requestedAt,
+    refunded_at: ret.refundedAt,
+    items: items.map((i) => ({
+      title: i.titleSnapshot,
+      quantity: i.quantity,
+      line_gross: { amount: i.lineGrossAmount.toString(), currency: ret.currency },
+    })),
+  };
 }
 
 // =============================================================================

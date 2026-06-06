@@ -445,6 +445,45 @@ export async function customerResetPassword(
   return data?.message ?? 'Heslo bylo změněno.';
 }
 
+export interface CustomerReturn {
+  number: string;
+  status: string;
+  reason_code: string;
+  requested_refund: Money;
+  actual_refund: Money | null;
+  requested_at: string;
+  refunded_at: string | null;
+  order_number?: string;
+  items: { title: string; quantity: number; line_gross: Money }[];
+}
+
+export async function customerReturns(tenantSlug: string): Promise<CustomerReturn[]> {
+  try {
+    const data = await customerFetch<{ returns: CustomerReturn[] }>(
+      `/storefront/${tenantSlug}/me/returns`,
+    );
+    return data?.returns ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function customerCreateReturn(
+  tenantSlug: string,
+  orderNumber: string,
+  body: {
+    items: { orderItemId: string; quantity: number }[];
+    reasonCode?: string;
+    note?: string;
+  },
+): Promise<CustomerReturn> {
+  const data = await customerFetch<CustomerReturn>(
+    `/storefront/${tenantSlug}/me/orders/${orderNumber}/returns`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+  return data!;
+}
+
 export async function customerOrders(tenantSlug: string): Promise<CustomerOrder[]> {
   try {
     const data = await customerFetch<{ orders: CustomerOrder[] }>(
