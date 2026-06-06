@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
+import { RatingBadge } from '@/components/stars';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
@@ -228,6 +229,11 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
                   >
                     {p.title}
                   </div>
+                  {p.rating && p.rating.count > 0 && (
+                    <div style={{ marginBottom: '0.375rem' }}>
+                      <RatingBadge average={p.rating.average} count={p.rating.count} size={13} />
+                    </div>
+                  )}
                   <div
                     style={{
                       fontSize: '1rem',

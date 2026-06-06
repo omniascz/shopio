@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct } from '@/lib/api';
 import { AddToCart } from '@/components/add-to-cart';
+import { RatingBadge } from '@/components/stars';
+import { ProductReviews } from '@/components/product-reviews';
 
 interface Props {
   params: Promise<{ tenantSlug: string; productSlug: string }>;
@@ -52,6 +54,14 @@ function productJsonLd(
     }),
     ...(product.variants[0]?.sku && { sku: product.variants[0].sku }),
     ...(product.brand_name && { brand: { '@type': 'Brand', name: product.brand_name } }),
+    ...(product.rating.count > 0 &&
+      product.rating.average !== null && {
+        aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: product.rating.average,
+          reviewCount: product.rating.count,
+        },
+      }),
     offers: {
       '@type': 'AggregateOffer',
       priceCurrency: product.variants[0]?.price.currency ?? 'CZK',
@@ -208,6 +218,14 @@ export default async function ProductPage({ params }: Props) {
               {product.title}
             </h1>
 
+            {product.rating.count > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <a href="#recenze" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <RatingBadge average={product.rating.average} count={product.rating.count} size={16} />
+                </a>
+              </div>
+            )}
+
             <div
               style={{
                 fontSize: '1.75rem',
@@ -283,6 +301,15 @@ export default async function ProductPage({ params }: Props) {
               </div>
             )}
           </div>
+        </div>
+
+        <div id="recenze">
+          <ProductReviews
+            tenantSlug={tenantSlug}
+            productSlug={product.slug}
+            rating={product.rating}
+            reviews={product.reviews}
+          />
         </div>
       </main>
     </div>

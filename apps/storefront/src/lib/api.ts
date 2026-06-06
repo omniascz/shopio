@@ -36,6 +36,22 @@ export interface ProductListItem {
   brand_name: string | null;
   published_at: string | null;
   primary_image: { url: string; alt: string | null } | null;
+  rating?: RatingSummary;
+}
+
+export interface RatingSummary {
+  average: number | null;
+  count: number;
+}
+
+export interface ProductReview {
+  id: string;
+  author: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  verified_purchase: boolean;
+  created_at: string;
 }
 
 export interface ProductVariant {
@@ -74,6 +90,8 @@ export interface ProductDetail {
   variants: ProductVariant[];
   media: ProductMedia[];
   categories: { slug: string; name: string; path: string }[];
+  rating: RatingSummary;
+  reviews: ProductReview[];
   tenant: { slug: string; display_name: string; default_currency: string };
 }
 
@@ -496,6 +514,18 @@ export async function customerCreateReturn(
 ): Promise<CustomerReturn> {
   const data = await customerFetch<CustomerReturn>(
     `/storefront/${tenantSlug}/me/orders/${orderNumber}/returns`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+  return data!;
+}
+
+export async function customerCreateReview(
+  tenantSlug: string,
+  productSlug: string,
+  body: { rating: number; title?: string; body?: string },
+): Promise<{ id: string; status: string; verified_purchase: boolean }> {
+  const data = await customerFetch<{ id: string; status: string; verified_purchase: boolean }>(
+    `/storefront/${tenantSlug}/products/${productSlug}/reviews`,
     { method: 'POST', body: JSON.stringify(body) },
   );
   return data!;

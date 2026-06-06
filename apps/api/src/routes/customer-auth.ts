@@ -542,6 +542,105 @@ export async function registerCustomerVerificationRoutes(
 }
 
 // =============================================================================
+// Customer product reviews (per `19` — verified-purchase trust signal)
+// =============================================================================
+
+const ReviewBody = z.object({
+  rating: z.number().int().min(1).max(5),
+  title: z.string().max(120).optional(),
+  body: z.string().max(4000).optional(),
+});
+
+export async function registerCustomerReviewRoutes(
+  app: FastifyInstance,
+  opts: PluginOptions,
+): Promise<void> {
+  const { db } = opts;
+
+  // POST /storefront/{tenantSlug}/products/{productSlug}/reviews
+  app.post<{ Params: { tenantSlug: string; productSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/products/:productSlug/reviews',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({
+          error: { code: 'NOT_LOGGED_IN', message: 'Pro recenzi se přihlaste' },
+        });
+      }
+
+      const parsed = ReviewBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const input = parsed.data;
+
+      const [product] = await db
+        .select({ id: schema.products.id })
+        .from(schema.products)
+        .where(
+          and(
+            eq(schema.products.tenantId, tenant.id),
+            eq(schema.products.slug, req.params.productSlug),
+          ),
+        )
+        .limit(1);
+      if (!product) return notFound(reply, 'PRODUCT_NOT_FOUND');
+
+      // Verified purchase: a paid order of this customer containing the product
+      const [purchase] = await db
+        .select({ id: schema.orders.id })
+        .from(schema.orders)
+        .innerJoin(schema.orderItems, eq(schema.orderItems.orderId, schema.orders.id))
+        .where(
+          and(
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.customerId, customer.id),
+            eq(schema.orders.paymentStatus, 'paid'),
+            eq(schema.orderItems.productId, product.id),
+          ),
+        )
+        .limit(1);
+
+      try {
+        const [review] = await db
+          .insert(schema.productReviews)
+          .values({
+            tenantId: tenant.id,
+            pubId: generatePubId('rev'),
+            productId: product.id,
+            customerId: customer.id,
+            authorName: customer.fullName ?? customer.email.split('@')[0]!,
+            rating: input.rating,
+            title: input.title ?? null,
+            body: input.body ?? null,
+            verifiedPurchase: Boolean(purchase),
+          })
+          .returning();
+        app.log.info(
+          { reviewId: review!.id, productId: product.id, verified: Boolean(purchase) },
+          'review.created',
+        );
+        return reply.code(201).send({
+          data: {
+            id: review!.pubId,
+            rating: review!.rating,
+            verified_purchase: review!.verifiedPurchase,
+            status: review!.status,
+          },
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code === '23505') {
+          return reply.code(409).send({
+            error: { code: 'ALREADY_REVIEWED', message: 'Tento produkt jste už hodnotili' },
+          });
+        }
+        throw err;
+      }
+    },
+  );
+}
+
+// =============================================================================
 // Customer return portal (per `17` FLOW-RTN-001 customer-initiated, MVP)
 // =============================================================================
 

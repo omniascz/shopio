@@ -27,4 +27,6 @@ export * from './shipments';
 export * from './inventory';
 // Customers (Wave 1 — `18-customer-management.md` MVP)
 export * from './customers';
+// Reviews (Wave 1 — `19-marketing-seo.md` reviews MVP)
+export * from './reviews';
 // Future: customers, inventory, payments, ...

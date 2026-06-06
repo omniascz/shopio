@@ -21,11 +21,13 @@ import { setTenantStatusChecker } from './plugins/auth-middleware';
 import { schema } from '@shopio/db';
 import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
+import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import {
   registerCustomerAuthRoutes,
   registerCustomerPasswordResetRoutes,
   registerCustomerReturnRoutes,
   registerCustomerVerificationRoutes,
+  registerCustomerReviewRoutes,
 } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
 
@@ -105,10 +107,12 @@ export async function buildServer() {
   await registerSettingsRoutes(server, { config, db });
   await registerMediaRoutes(server, { config, db });
   registerSearchAdminRoutes(server, { config, db });
+  await registerReviewAdminRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });
   await registerCustomerReturnRoutes(server, { config, db });
   await registerCustomerVerificationRoutes(server, { config, db });
+  await registerCustomerReviewRoutes(server, { config, db });
 
   // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
   // BullMQ takes over in a later wave. Releases expired unpaid holds and

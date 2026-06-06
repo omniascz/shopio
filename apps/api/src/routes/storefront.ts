@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { searchProducts } from '../lib/search';
+import { listPublishedReviews, ratingSummaries, ratingSummary } from '../lib/reviews';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -244,11 +245,13 @@ export async function registerStorefrontRoutes(
             )
         : [];
       const mediaByProduct = new Map(primaryMedia.map((m) => [m.productId, m]));
+      const ratings = await ratingSummaries(db, productIds);
 
       return reply.send({
         data: {
           products: rows.map((r) => {
             const media = mediaByProduct.get(r.id);
+            const rating = ratings.get(r.id);
             return {
               id: r.pubId,
               slug: r.slug,
@@ -260,6 +263,7 @@ export async function registerStorefrontRoutes(
               brand_name: r.brandName,
               published_at: r.publishedAt,
               primary_image: media ? { url: media.url, alt: media.alt } : null,
+              rating: rating ? { average: rating.average, count: rating.count } : { average: null, count: 0 },
             };
           }),
           count: rows.length,
@@ -294,7 +298,7 @@ export async function registerStorefrontRoutes(
 
       if (!product) return notFound(reply, 'product');
 
-      const [variants, media, catRows] = await Promise.all([
+      const [variants, media, catRows, reviewSummary, reviews] = await Promise.all([
         db
           .select()
           .from(schema.productVariants)
@@ -317,6 +321,8 @@ export async function registerStorefrontRoutes(
             eq(schema.productCategories.categoryId, schema.categories.id),
           )
           .where(eq(schema.productCategories.productId, product.id)),
+        ratingSummary(db, product.id),
+        listPublishedReviews(db, product.id, 50),
       ]);
 
       return reply.send({
@@ -365,6 +371,16 @@ export async function registerStorefrontRoutes(
             slug: c.slug,
             name: c.name,
             path: c.path,
+          })),
+          rating: { average: reviewSummary.average, count: reviewSummary.count },
+          reviews: reviews.map((r) => ({
+            id: r.pubId,
+            author: r.authorName,
+            rating: r.rating,
+            title: r.title,
+            body: r.body,
+            verified_purchase: r.verifiedPurchase,
+            created_at: r.createdAt,
           })),
           tenant: {
             slug: tenant.slug,
