@@ -426,6 +426,25 @@ export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
 }
 
+export async function customerForgotPassword(tenantSlug: string, email: string): Promise<string> {
+  const data = await customerFetch<{ message: string }>(
+    `/storefront/${tenantSlug}/auth/forgot-password`,
+    { method: 'POST', body: JSON.stringify({ email }) },
+  );
+  return data?.message ?? 'Pokud účet existuje, poslali jsme odkaz na obnovu hesla.';
+}
+
+export async function customerResetPassword(
+  tenantSlug: string,
+  body: { token: string; password: string },
+): Promise<string> {
+  const data = await customerFetch<{ message: string }>(
+    `/storefront/${tenantSlug}/auth/reset-password`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+  return data?.message ?? 'Heslo bylo změněno.';
+}
+
 export async function customerOrders(tenantSlug: string): Promise<CustomerOrder[]> {
   try {
     const data = await customerFetch<{ orders: CustomerOrder[] }>(

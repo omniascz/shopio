@@ -30,6 +30,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '@shopio/authz';
+import { renderPasswordResetEmail, sendEmail } from '../lib/email';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -245,6 +246,167 @@ export async function registerCustomerAuthRoutes(
           })),
         },
       });
+    },
+  );
+}
+
+// =============================================================================
+// Password reset (per `18` + `30 §RULE-SEC-014` — no enumeration)
+// =============================================================================
+
+const RESET_TOKEN_TTL_MINUTES = 60;
+
+const ForgotPasswordBody = z.object({
+  email: z.string().email().toLowerCase(),
+});
+
+const ResetPasswordBody = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/i),
+  password: z.string().min(1).max(200),
+});
+
+export async function registerCustomerPasswordResetRoutes(
+  app: FastifyInstance,
+  opts: PluginOptions,
+): Promise<void> {
+  const { db, config } = opts;
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/auth/forgot-password — always 200
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/auth/forgot-password',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+
+      const parsed = ForgotPasswordBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const { email } = parsed.data;
+
+      // Uniform response regardless of account existence
+      const respond = () =>
+        reply.send({
+          data: { message: 'Pokud účet existuje, poslali jsme odkaz na obnovu hesla.' },
+        });
+
+      const [customer] = await db
+        .select({
+          id: schema.customers.id,
+          status: schema.customers.status,
+        })
+        .from(schema.customers)
+        .where(and(eq(schema.customers.tenantId, tenant.id), eq(schema.customers.email, email)))
+        .limit(1);
+      if (!customer || customer.status !== 'active') return respond();
+
+      const raw = randomBytes(32).toString('hex');
+      await db.insert(schema.customerAuthTokens).values({
+        tenantId: tenant.id,
+        customerId: customer.id,
+        tokenHash: hashToken(raw),
+        purpose: 'password_reset',
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
+      });
+
+      const [tenantRow] = await db
+        .select({ displayName: schema.tenants.displayName })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenant.id))
+        .limit(1);
+      const resetUrl = `${config.SHOPIO_BASE_URL}/s/${req.params.tenantSlug}/ucet/obnova?token=${raw}`;
+      const { subject, text, html } = renderPasswordResetEmail({
+        tenantName: tenantRow?.displayName ?? req.params.tenantSlug,
+        resetUrl,
+        validityText: '1 hodinu',
+      });
+      // Best-effort — the response must stay uniform even when SMTP is down
+      void sendEmail(config, { to: email, subject, text, html }).catch((err) =>
+        app.log.error({ err }, 'customer.password_reset_email_failed'),
+      );
+
+      app.log.info({ customerId: customer.id, tenantId: tenant.id }, 'customer.password_reset_requested');
+      return respond();
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/auth/reset-password
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/auth/reset-password',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+
+      const parsed = ResetPasswordBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const { token, password } = parsed.data;
+
+      const [row] = await db
+        .select()
+        .from(schema.customerAuthTokens)
+        .where(
+          and(
+            eq(schema.customerAuthTokens.tokenHash, hashToken(token)),
+            eq(schema.customerAuthTokens.tenantId, tenant.id),
+            eq(schema.customerAuthTokens.purpose, 'password_reset'),
+            isNull(schema.customerAuthTokens.usedAt),
+            gt(schema.customerAuthTokens.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+      if (!row) {
+        return reply.code(400).send({
+          error: { code: 'TOKEN_INVALID', message: 'Odkaz je neplatný nebo vypršel' },
+        });
+      }
+
+      try {
+        assertPasswordPolicy(password);
+      } catch (err) {
+        if (err instanceof PasswordPolicyError) {
+          return reply.code(422).send({
+            error: { code: 'WEAK_PASSWORD', message: err.message },
+          });
+        }
+        throw err;
+      }
+
+      const passwordHash = await hashPassword(password, config.SHOPIO_SESSION_PEPPER);
+      await db.transaction(async (tx) => {
+        // Single-use claim — concurrent submits lose on the usedAt guard
+        const [claimed] = await tx
+          .update(schema.customerAuthTokens)
+          .set({ usedAt: new Date() })
+          .where(
+            and(
+              eq(schema.customerAuthTokens.id, row.id),
+              isNull(schema.customerAuthTokens.usedAt),
+            ),
+          )
+          .returning({ id: schema.customerAuthTokens.id });
+        if (!claimed) throw new Error('TOKEN_RACE');
+
+        await tx
+          .update(schema.customers)
+          .set({ passwordHash, updatedAt: new Date() })
+          .where(eq(schema.customers.id, row.customerId));
+
+        // Revoke every live session — a reset means the old credential is burned
+        await tx
+          .update(schema.customerSessions)
+          .set({ revokedAt: new Date() })
+          .where(
+            and(
+              eq(schema.customerSessions.customerId, row.customerId),
+              isNull(schema.customerSessions.revokedAt),
+            ),
+          );
+      });
+
+      app.log.info({ customerId: row.customerId, tenantId: tenant.id }, 'customer.password_reset_done');
+      return reply.send({ data: { message: 'Heslo bylo změněno. Přihlaste se novým heslem.' } });
     },
   );
 }

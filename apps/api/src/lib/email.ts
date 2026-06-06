@@ -285,6 +285,57 @@ export function renderOrderPaidEmail(ctx: OrderEmailContext): {
   return { subject, text, html };
 }
 
+export interface PasswordResetEmailContext {
+  tenantName: string;
+  resetUrl: string;
+  /** Validity window for the copy (e.g. "1 hodinu"). */
+  validityText: string;
+}
+
+export function renderPasswordResetEmail(ctx: PasswordResetEmailContext): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const subject = `Obnova hesla — ${ctx.tenantName}`;
+
+  const text = [
+    'Dobrý den,',
+    '',
+    `obdrželi jsme žádost o obnovu hesla k vašemu účtu v obchodě ${ctx.tenantName}.`,
+    `Nové heslo si nastavíte na tomto odkazu (platí ${ctx.validityText}):`,
+    '',
+    ctx.resetUrl,
+    '',
+    'Pokud jste o obnovu nežádali, tento e-mail ignorujte — heslo zůstává beze změny.',
+  ].join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="cs">
+<head><meta charset="UTF-8"/><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#222;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="padding:24px 28px;background:#ede7f6;border-bottom:1px solid #d1c4e9;">
+      <h1 style="margin:0;font-size:22px;">🔑 Obnova hesla</h1>
+      <p style="margin:8px 0 0;color:#5e35b1;font-size:14px;">${escapeHtml(ctx.tenantName)}</p>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="margin:0 0 16px;">Obdrželi jsme žádost o obnovu hesla k vašemu účtu.</p>
+      <div style="margin:24px 0;text-align:center;">
+        <a href="${ctx.resetUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:4px;font-weight:500;">
+          Nastavit nové heslo
+        </a>
+      </div>
+      <p style="margin:0 0 8px;color:#666;font-size:13px;">Odkaz platí ${escapeHtml(ctx.validityText)}.</p>
+      <p style="margin:0;color:#666;font-size:13px;">Pokud jste o obnovu nežádali, tento e-mail ignorujte — heslo zůstává beze změny.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
+
 export interface OrderShippedEmailContext {
   tenantName: string;
   tenantSlug: string;

@@ -93,6 +93,33 @@ export const customerSessions = pgTable(
   }),
 );
 
+/** One-time tokens for password reset / e-mail verification flows. */
+export const customerAuthTokens = pgTable(
+  'customer_auth_tokens',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'cascade' }),
+    /** sha256(raw token) — raw value only ever appears in the e-mailed link. */
+    tokenHash: text('token_hash').notNull(),
+    purpose: text('purpose', { enum: ['password_reset', 'email_verify'] }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenUnique: uniqueIndex('uq_customer_auth_tokens_token').on(t.tokenHash),
+    customerIdx: index('idx_customer_auth_tokens_customer').on(t.customerId, t.purpose),
+  }),
+);
+
 export type Customer = typeof customers.$inferSelect;
 export type NewCustomer = typeof customers.$inferInsert;
 export type CustomerSession = typeof customerSessions.$inferSelect;
+export type CustomerAuthToken = typeof customerAuthTokens.$inferSelect;

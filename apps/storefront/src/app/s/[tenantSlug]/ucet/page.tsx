@@ -8,6 +8,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  customerForgotPassword,
   customerLogin,
   customerLogout,
   customerMe,
@@ -158,11 +159,13 @@ function AuthForms({ tenantSlug, onAuthed }: { tenantSlug: string; onAuthed: () 
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setBusy(true);
     try {
       if (mode === 'login') {
@@ -175,6 +178,22 @@ function AuthForms({ tenantSlug, onAuthed }: { tenantSlug: string; onAuthed: () 
         });
       }
       onAuthed();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForgot() {
+    setError(null);
+    if (!email) {
+      setError('Vyplňte e-mail a klikněte znovu na „Zapomenuté heslo".');
+      return;
+    }
+    setBusy(true);
+    try {
+      setInfo(await customerForgotPassword(tenantSlug, email));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -230,10 +249,31 @@ function AuthForms({ tenantSlug, onAuthed }: { tenantSlug: string; onAuthed: () 
         {error && (
           <p style={{ color: '#c00', fontSize: '0.875rem', margin: '0 0 1rem' }}>{error}</p>
         )}
+        {info && (
+          <p style={{ color: '#2e7d32', fontSize: '0.875rem', margin: '0 0 1rem' }}>{info}</p>
+        )}
 
         <button type="submit" disabled={busy} style={primaryBtnStyle(busy)}>
           {busy ? 'Pracuji…' : mode === 'login' ? 'Přihlásit se' : 'Vytvořit účet'}
         </button>
+        {mode === 'login' && (
+          <button
+            type="button"
+            onClick={() => void handleForgot()}
+            disabled={busy}
+            style={{
+              display: 'block',
+              margin: '0.75rem auto 0',
+              background: 'none',
+              border: 'none',
+              color: 'var(--sf-accent, #0066cc)',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+            }}
+          >
+            Zapomenuté heslo?
+          </button>
+        )}
       </form>
       <p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: 'var(--sf-muted, #666)' }}>
         Po registraci uvidíte i dřívější objednávky zadané na stejný e-mail.
