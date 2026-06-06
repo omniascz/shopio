@@ -35,6 +35,9 @@ const ConfigSchema = z.object({
 
   // Database
   DATABASE_URL: z.string().url(),
+  /** Non-superuser role connection for RLS-enforced tenant queries (per `30`).
+   *  Falls back to DATABASE_URL when unset (RLS dormant — superuser bypasses). */
+  DATABASE_URL_APP: optionalNonEmpty(z.string().url()),
 
   // Secrets
   SHOPIO_JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 chars'),

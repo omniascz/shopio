@@ -11,7 +11,9 @@ import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
+import { withTenant } from '@shopio/db';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -52,7 +54,10 @@ export async function registerCouponAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  // RLS-enforced pool (per `30`): tenant-isolation policies confine every query
+  // run via withTenant; the explicit tenant filters below are kept as
+  // defense-in-depth.
+  const rlsDb = getRlsDb(opts.config);
 
   app.get(
     '/api/2026-05-20/admin/coupons',
@@ -60,12 +65,14 @@ export async function registerCouponAdminRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const rows = await db
-        .select()
-        .from(schema.coupons)
-        .where(eq(schema.coupons.tenantId, tenantId))
-        .orderBy(desc(schema.coupons.createdAt))
-        .limit(200);
+      const rows = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select()
+          .from(schema.coupons)
+          .where(eq(schema.coupons.tenantId, tenantId))
+          .orderBy(desc(schema.coupons.createdAt))
+          .limit(200),
+      );
       return reply.send({ data: { coupons: rows.map(serialize) } });
     },
   );
@@ -86,24 +93,26 @@ export async function registerCouponAdminRoutes(
       }
 
       try {
-        const [coupon] = await db
-          .insert(schema.coupons)
-          .values({
-            tenantId,
-            pubId: generatePubId('cpn'),
-            code: input.code,
-            description: input.description ?? null,
-            kind: input.kind,
-            value: input.value,
-            currency: input.currency ?? null,
-            maxDiscountAmount: input.maxDiscountAmount ?? null,
-            minPurchaseAmount: input.minPurchaseAmount,
-            maxUsesTotal: input.maxUsesTotal ?? null,
-            maxUsesPerCustomer: input.maxUsesPerCustomer ?? null,
-            startsAt: input.startsAt ? new Date(input.startsAt) : null,
-            endsAt: input.endsAt ? new Date(input.endsAt) : null,
-          })
-          .returning();
+        const [coupon] = await withTenant(rlsDb, tenantId, (tx) =>
+          tx
+            .insert(schema.coupons)
+            .values({
+              tenantId,
+              pubId: generatePubId('cpn'),
+              code: input.code,
+              description: input.description ?? null,
+              kind: input.kind,
+              value: input.value,
+              currency: input.currency ?? null,
+              maxDiscountAmount: input.maxDiscountAmount ?? null,
+              minPurchaseAmount: input.minPurchaseAmount,
+              maxUsesTotal: input.maxUsesTotal ?? null,
+              maxUsesPerCustomer: input.maxUsesPerCustomer ?? null,
+              startsAt: input.startsAt ? new Date(input.startsAt) : null,
+              endsAt: input.endsAt ? new Date(input.endsAt) : null,
+            })
+            .returning(),
+        );
         return reply.code(201).send({ data: serialize(coupon!) });
       } catch (err) {
         if ((err as { code?: string }).code === '23505') {
@@ -133,11 +142,13 @@ export async function registerCouponAdminRoutes(
       if (i.startsAt !== undefined) updates.startsAt = i.startsAt ? new Date(i.startsAt) : null;
       if (i.endsAt !== undefined) updates.endsAt = i.endsAt ? new Date(i.endsAt) : null;
 
-      const [updated] = await db
-        .update(schema.coupons)
-        .set(updates)
-        .where(and(eq(schema.coupons.tenantId, tenantId), eq(schema.coupons.pubId, req.params.pubId)))
-        .returning();
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.coupons)
+          .set(updates)
+          .where(and(eq(schema.coupons.tenantId, tenantId), eq(schema.coupons.pubId, req.params.pubId)))
+          .returning(),
+      );
       if (!updated) return notFound2(reply, 'COUPON_NOT_FOUND');
       return reply.send({ data: serialize(updated) });
     },
@@ -149,11 +160,13 @@ export async function registerCouponAdminRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const [updated] = await db
-        .update(schema.coupons)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(schema.coupons.tenantId, tenantId), eq(schema.coupons.pubId, req.params.pubId)))
-        .returning({ id: schema.coupons.id });
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.coupons)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(and(eq(schema.coupons.tenantId, tenantId), eq(schema.coupons.pubId, req.params.pubId)))
+          .returning({ id: schema.coupons.id }),
+      );
       if (!updated) return notFound2(reply, 'COUPON_NOT_FOUND');
       return reply.code(204).send();
     },

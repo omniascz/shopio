@@ -141,6 +141,13 @@
       "when": 1780752768813,
       "tag": "0019_cms_content",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780752800000,
+      "tag": "0020_rls_tenant_isolation",
+      "breakpoints": true
     }
   ]
 }
