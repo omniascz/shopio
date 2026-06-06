@@ -234,6 +234,7 @@ export interface ProductDetail {
   variants: ProductVariantDetail[];
   media: MediaItem[];
   category_ids: string[];
+  attributes: { name: string; value: string }[];
 }
 
 export interface ShopSettings {
@@ -659,6 +660,7 @@ class ApiClient {
       vendor: string | null;
       brandName: string | null;
       categoryIds: string[];
+      attributes: { name: string; value: string }[];
     }>,
   ): Promise<ProductDetail> {
     return this.request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) });

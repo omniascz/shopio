@@ -48,6 +48,12 @@ export const products = pgTable(
     // Vendor / brand (FK Fáze 2)
     vendor: text('vendor'),
     brandName: text('brand_name'),
+    /** Structured spec parameters (per `06` PIM, MVP): ordered key→value pairs
+     * shown as a "Specifikace" table and indexed as Meilisearch facets.
+     * [{ name: "Materiál", value: "Kamenina" }, …] */
+    attributes: jsonb('attributes')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     // Audit
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

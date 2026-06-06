@@ -5,7 +5,7 @@ import { RatingBadge } from '@/components/stars';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
-  searchParams?: Promise<{ q?: string; kategorie?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -22,13 +22,45 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
   const tenant = await getTenant(tenantSlug);
   if (!tenant) notFound();
 
-  const sp = await searchParams;
-  const q = sp?.q?.trim() || undefined;
-  const categorySlug = sp?.kategorie?.trim() || undefined;
-  const [{ products }, categories] = await Promise.all([
-    getProducts(tenantSlug, { limit: 24, ...(q && { q }), ...(categorySlug && { categorySlug }) }),
+  const sp = (await searchParams) ?? {};
+  const q = typeof sp.q === 'string' ? sp.q.trim() || undefined : undefined;
+  const categorySlug = typeof sp.kategorie === 'string' ? sp.kategorie.trim() || undefined : undefined;
+
+  // Active facet selections from `facet.<Name>=value` query params
+  const selectedFacets: Record<string, string[]> = {};
+  for (const [key, val] of Object.entries(sp)) {
+    if (!key.startsWith('facet.') || val == null) continue;
+    selectedFacets[key.slice('facet.'.length)] = Array.isArray(val) ? val : [val];
+  }
+
+  const [{ products, facets }, categories] = await Promise.all([
+    getProducts(tenantSlug, {
+      limit: 24,
+      ...(q && { q }),
+      ...(categorySlug && { categorySlug }),
+      facets: selectedFacets,
+    }),
     getCategories(tenantSlug),
   ]);
+
+  // Helper to build a URL with one facet value toggled, preserving the rest
+  function facetHref(name: string, value: string): string {
+    const next = new URLSearchParams();
+    if (q) next.set('q', q);
+    if (categorySlug) next.set('kategorie', categorySlug);
+    const current = selectedFacets[name] ?? [];
+    const isActive = current.includes(value);
+    for (const [n, vals] of Object.entries(selectedFacets)) {
+      for (const v of vals) {
+        if (n === name && v === value) continue; // toggle off
+        next.append(`facet.${n}`, v);
+      }
+    }
+    if (!isActive) next.append(`facet.${name}`, value);
+    const qs = next.toString();
+    return `/s/${tenantSlug}${qs ? `?${qs}` : ''}`;
+  }
+  const anyFacetActive = Object.values(selectedFacets).some((v) => v.length > 0);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
@@ -132,6 +164,68 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
             </Link>
           </p>
         )}
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+          {facets.length > 0 && (
+            <aside
+              style={{
+                flex: '0 0 220px',
+                position: 'sticky',
+                top: '1rem',
+                fontSize: '0.875rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+                <strong>Filtry</strong>
+                {anyFacetActive && (
+                  <Link
+                    href={`/s/${tenantSlug}${q ? `?q=${encodeURIComponent(q)}` : ''}`}
+                    style={{ fontSize: '0.8125rem', color: 'var(--sf-accent, #0066cc)' }}
+                  >
+                    zrušit
+                  </Link>
+                )}
+              </div>
+              {facets.map((f) => (
+                <div key={f.name} style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.375rem', fontSize: '0.8125rem' }}>
+                    {f.name}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {f.values.map((v) => {
+                      const active = (selectedFacets[f.name] ?? []).includes(v.value);
+                      return (
+                        <Link
+                          key={v.value}
+                          href={facetHref(f.name, v.value)}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: '0.5rem',
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: 6,
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            background: active ? 'var(--sf-accent, #111)' : 'transparent',
+                            border: active ? 'none' : '1px solid var(--shopio-color-border-default, rgba(128,128,128,0.25))',
+                          }}
+                        >
+                          <span style={{ color: active ? '#fff' : 'inherit' }}>
+                            {active ? '✓ ' : ''}
+                            {v.value}
+                          </span>
+                          <span style={{ color: active ? 'rgba(255,255,255,0.8)' : 'var(--sf-muted, #888)' }}>
+                            {v.count}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </aside>
+          )}
+
+          <div style={{ flex: 1, minWidth: 0 }}>
         {products.length === 0 ? (
           <div
             style={{
@@ -141,11 +235,11 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
             }}
           >
             <p style={{ fontSize: '1.125rem' }}>
-              {q ? `Pro „${q}" jsme nic nenašli.` : 'Tady zatím nic není.'}
+              {q || anyFacetActive ? 'Nic neodpovídá zvoleným filtrům.' : 'Tady zatím nic není.'}
             </p>
             <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-              {q
-                ? 'Zkuste jiný výraz.'
+              {q || anyFacetActive
+                ? 'Zkuste upravit výběr.'
                 : 'Storefront se naplní po publikování prvního produktu.'}
             </p>
           </div>
@@ -248,6 +342,8 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
             ))}
           </div>
         )}
+          </div>
+        </div>
       </main>
     </div>
   );

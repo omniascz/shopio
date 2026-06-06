@@ -18,6 +18,7 @@ import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { searchProducts } from '../lib/search';
 import { listPublishedReviews, ratingSummaries, ratingSummary } from '../lib/reviews';
+import { facetDistribution } from '../lib/search';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -132,14 +133,28 @@ export async function registerStorefrontRoutes(
       }
       const { q, categorySlug, limit, offset, sort } = parsed.data;
 
-      // Full-text path (per `08`): Meilisearch when configured + reachable;
-      // hit ids resolved back to rows in relevance order. Falls back to the
-      // ILIKE conditions below when search is unavailable.
+      // Facet filters from query: `facet.Materiál=Kamenina` (repeat or
+      // comma-separate for multi-value). Per `08` facet semantics.
+      const facets: Record<string, string[]> = {};
+      for (const [key, raw] of Object.entries(req.query as Record<string, unknown>)) {
+        if (!key.startsWith('facet.')) continue;
+        const name = key.slice('facet.'.length);
+        const values = (Array.isArray(raw) ? raw : [raw])
+          .flatMap((v) => String(v).split(','))
+          .map((v) => v.trim())
+          .filter(Boolean);
+        if (values.length) facets[name] = values;
+      }
+      const hasFacets = Object.keys(facets).length > 0;
+
+      // Full-text / facet path (per `08`): Meilisearch when configured +
+      // reachable; hit ids resolved back to rows. Falls back to ILIKE below
+      // when search is unavailable (facets then ignored — DB has no index).
       let searchIds: string[] | null = null;
-      if (q) {
+      if (q || hasFacets) {
         const hits = await searchProducts(
           config,
-          { tenantId: tenant.id, q, categorySlug, limit, offset },
+          { tenantId: tenant.id, q: q ?? '', categorySlug, facets, limit, offset },
           app.log,
         );
         if (hits) searchIds = hits.ids;
@@ -247,6 +262,40 @@ export async function registerStorefrontRoutes(
       const mediaByProduct = new Map(primaryMedia.map((m) => [m.productId, m]));
       const ratings = await ratingSummaries(db, productIds);
 
+      // Available filters for the sidebar: distinct attribute names across the
+      // tenant's active catalog → Meili facet distribution for the current view.
+      let facetFilters: { name: string; values: { value: string; count: number }[] }[] = [];
+      const [facetNamesRow] = await db
+        .select({
+          names: dsql<string[]>`COALESCE(ARRAY_AGG(DISTINCT elem->>'name') FILTER (WHERE elem->>'name' IS NOT NULL), '{}')`,
+        })
+        .from(schema.products)
+        .leftJoin(
+          dsql`LATERAL jsonb_array_elements(${schema.products.attributes}) AS elem`,
+          dsql`true`,
+        )
+        .where(
+          and(eq(schema.products.tenantId, tenant.id), eq(schema.products.status, 'active')),
+        );
+      const facetNames = facetNamesRow?.names ?? [];
+      if (facetNames.length > 0) {
+        const dist = await facetDistribution(
+          config,
+          { tenantId: tenant.id, q: q ?? '', categorySlug, facets, facetNames },
+          app.log,
+        );
+        if (dist) {
+          facetFilters = facetNames
+            .map((name) => ({
+              name,
+              values: Object.entries(dist[name] ?? {})
+                .map(([value, count]) => ({ value, count }))
+                .sort((a, b) => b.count - a.count),
+            }))
+            .filter((f) => f.values.length > 0);
+        }
+      }
+
       return reply.send({
         data: {
           products: rows.map((r) => {
@@ -267,6 +316,7 @@ export async function registerStorefrontRoutes(
             };
           }),
           count: rows.length,
+          facets: facetFilters,
           offset,
           limit,
         },
@@ -343,6 +393,7 @@ export async function registerStorefrontRoutes(
           vendor: product.vendor,
           brand_name: product.brandName,
           published_at: product.publishedAt,
+          attributes: product.attributes,
           variants: variants.map((v) => ({
             id: v.pubId,
             sku: v.sku,

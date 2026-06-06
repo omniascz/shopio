@@ -303,6 +303,38 @@ export default async function ProductPage({ params }: Props) {
           </div>
         </div>
 
+        {product.attributes.length > 0 && (
+          <section style={{ marginTop: '3rem' }}>
+            <h2 style={{ fontSize: '1.25rem', margin: '0 0 1rem' }}>Specifikace</h2>
+            <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 560 }}>
+              <tbody>
+                {product.attributes.map((a, i) => (
+                  <tr
+                    key={a.name + i}
+                    style={{
+                      background: i % 2 ? 'var(--shopio-color-surface-2, rgba(128,128,128,0.05))' : 'transparent',
+                    }}
+                  >
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '0.5rem 1rem 0.5rem 0.5rem',
+                        fontWeight: 500,
+                        color: 'var(--sf-muted, #666)',
+                        width: '40%',
+                        verticalAlign: 'top',
+                      }}
+                    >
+                      {a.name}
+                    </th>
+                    <td style={{ padding: '0.5rem' }}>{a.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
         <div id="recenze">
           <ProductReviews
             tenantSlug={tenantSlug}

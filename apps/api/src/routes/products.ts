@@ -91,6 +91,10 @@ const CreateProductBody = z.object({
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).default('draft'),
   vendor: z.string().max(120).optional(),
   brandName: z.string().max(120).optional(),
+  attributes: z
+    .array(z.object({ name: z.string().min(1).max(80), value: z.string().min(1).max(200) }))
+    .max(50)
+    .default([]),
   variants: z.array(VariantInput).min(1).max(100),
   media: z.array(MediaInput).max(50).default([]),
   categoryIds: z.array(z.string().uuid()).max(20).default([]),
@@ -113,6 +117,11 @@ const UpdateProductBody = z.object({
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).optional(),
   vendor: z.string().max(120).nullable().optional(),
   brandName: z.string().max(120).nullable().optional(),
+  /** Spec parameters (replace whole list). */
+  attributes: z
+    .array(z.object({ name: z.string().min(1).max(80), value: z.string().min(1).max(200) }))
+    .max(50)
+    .optional(),
   /** Full replacement of category assignments (M:M sync). Accepts category
    * pub_ids (cat_…) or internal UUIDs. */
   categoryIds: z.array(z.string().min(1)).max(20).optional(),
@@ -333,6 +342,7 @@ export async function registerProductRoutes(
             status: input.status,
             vendor: input.vendor ?? null,
             brandName: input.brandName ?? null,
+            attributes: input.attributes,
             publishedAt: input.status === 'active' ? new Date() : null,
             createdByUserId: auth.userId,
           })
@@ -1131,6 +1141,7 @@ function serializeProduct(
     status: product.status,
     vendor: product.vendor,
     brand_name: product.brandName,
+    attributes: product.attributes,
     published_at: product.publishedAt,
     created_at: product.createdAt,
     updated_at: product.updatedAt,

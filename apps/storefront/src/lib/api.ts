@@ -90,9 +90,15 @@ export interface ProductDetail {
   variants: ProductVariant[];
   media: ProductMedia[];
   categories: { slug: string; name: string; path: string }[];
+  attributes: { name: string; value: string }[];
   rating: RatingSummary;
   reviews: ProductReview[];
   tenant: { slug: string; display_name: string; default_currency: string };
+}
+
+export interface FacetFilter {
+  name: string;
+  values: { value: string; count: number }[];
 }
 
 class StorefrontApiError extends Error {
@@ -152,21 +158,37 @@ export async function getCategories(tenantSlug: string): Promise<StorefrontCateg
 
 export async function getProducts(
   tenantSlug: string,
-  options: { q?: string; categorySlug?: string; limit?: number; offset?: number } = {},
-): Promise<{ products: ProductListItem[]; count: number; offset: number; limit: number }> {
+  options: {
+    q?: string;
+    categorySlug?: string;
+    limit?: number;
+    offset?: number;
+    facets?: Record<string, string[]>;
+  } = {},
+): Promise<{
+  products: ProductListItem[];
+  count: number;
+  facets: FacetFilter[];
+  offset: number;
+  limit: number;
+}> {
   const params = new URLSearchParams();
   if (options.q) params.set('q', options.q);
   if (options.categorySlug) params.set('categorySlug', options.categorySlug);
   if (options.limit !== undefined) params.set('limit', String(options.limit));
   if (options.offset !== undefined) params.set('offset', String(options.offset));
+  for (const [name, values] of Object.entries(options.facets ?? {})) {
+    for (const v of values) params.append(`facet.${name}`, v);
+  }
   const qs = params.toString();
   const data = await shopioFetch<{
     products: ProductListItem[];
     count: number;
+    facets: FacetFilter[];
     offset: number;
     limit: number;
   }>(`/storefront/${tenantSlug}/products${qs ? '?' + qs : ''}`);
-  return data ?? { products: [], count: 0, offset: 0, limit: options.limit ?? 20 };
+  return data ?? { products: [], count: 0, facets: [], offset: 0, limit: options.limit ?? 20 };
 }
 
 export async function getProduct(

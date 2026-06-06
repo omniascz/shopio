@@ -237,6 +237,7 @@ export function ProductEditPage() {
       </header>
 
       <ProductFieldsForm product={product} onSaved={invalidate} />
+      <AttributesPanel product={product} onSaved={invalidate} />
       <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
       <CategoriesPanel product={product} onSaved={invalidate} />
@@ -247,6 +248,96 @@ export function ProductEditPage() {
 // =============================================================================
 // Media
 // =============================================================================
+
+function AttributesPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const [rows, setRows] = useState<{ name: string; value: string }[]>(
+    product.attributes.length ? product.attributes : [],
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRows(product.attributes);
+  }, [product.id, product.attributes]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      api.updateProduct(product.id, {
+        attributes: rows.filter((r) => r.name.trim() && r.value.trim()),
+      }),
+    onSuccess: onSaved,
+    onError: (err) => setError((err as Error).message),
+  });
+
+  function update(i: number, key: 'name' | 'value', val: string) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [key]: val } : r)));
+  }
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Parametry (specifikace)</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Zobrazí se jako tabulka na detailu produktu a slouží jako filtry v katalogu.
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0.5rem' }}>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td style={{ padding: '0.25rem 0.25rem 0.25rem 0', width: '40%' }}>
+                <input
+                  value={r.name}
+                  placeholder="Materiál"
+                  onChange={(e) => update(i, 'name', e.target.value)}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={{ padding: '0.25rem' }}>
+                <input
+                  value={r.value}
+                  placeholder="Kamenina"
+                  onChange={(e) => update(i, 'value', e.target.value)}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={{ width: 32, textAlign: 'right' }}>
+                <button
+                  type="button"
+                  onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))}
+                  style={{ ...smallBtnStyle, background: '#fff5f5', borderColor: '#ffcccc', color: '#a03030' }}
+                >
+                  ✕
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        type="button"
+        onClick={() => setRows((prev) => [...prev, { name: '', value: '' }])}
+        style={{ ...smallBtnStyle, marginRight: '0.5rem' }}
+      >
+        + Přidat parametr
+      </button>
+      {error && <p style={errorStyle}>{error}</p>}
+      <div style={{ marginTop: '0.75rem' }}>
+        <button
+          type="button"
+          disabled={saveMutation.isPending}
+          onClick={() => {
+            setError(null);
+            saveMutation.mutate();
+          }}
+          style={primaryBtnStyle}
+        >
+          {saveMutation.isPending ? 'Ukládám…' : 'Uložit parametry'}
+        </button>
+        {saveMutation.isSuccess && (
+          <span style={{ marginLeft: '0.75rem', color: '#2e7d32', fontSize: '0.875rem' }}>✓ Uloženo</span>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function MediaPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
   const [error, setError] = useState<string | null>(null);

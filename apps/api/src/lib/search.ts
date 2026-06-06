@@ -47,7 +47,11 @@ async function ensureIndexSettings(config: ShopioConfig): Promise<Meilisearch | 
   const index = client.index(INDEX_UID);
   await index.updateSettings({
     searchableAttributes: ['title', 'description_text', 'sku_list', 'vendor', 'brand', 'category_names'],
-    filterableAttributes: ['tenant_id', 'status', 'in_stock', 'category_slugs'],
+    // Facets are flattened into a single `facet_pairs` string array
+    // ("Name<US>Value"). Filtering/faceting a flat array sidesteps Meili's
+    // limits on nested + non-ASCII attribute paths; the value (which carries
+    // the special chars) is quoted, the attribute name never is.
+    filterableAttributes: ['tenant_id', 'status', 'in_stock', 'category_slugs', 'brand', 'facet_pairs'],
     sortableAttributes: ['price_min', 'updated_at_ts'],
     displayedAttributes: ['id', 'pub_id', 'slug', 'title', 'price_min', 'price_max', 'currency', 'in_stock', 'primary_image_url'],
   });
@@ -73,7 +77,15 @@ interface ProductDocument {
   sku_list: string[];
   category_slugs: string[];
   category_names: string[];
+  /** Spec parameters flattened to "Name<US>Value" strings for faceting. */
+  facet_pairs: string[];
   updated_at_ts: number;
+}
+
+/** Unit separator — safe joiner for facet "Name<sep>Value" pairs. */
+const FACET_SEP = String.fromCharCode(0x1f);
+function packFacet(name: string, value: string): string {
+  return `${name}${FACET_SEP}${value}`;
 }
 
 function stripHtml(html: string | null): string {
@@ -121,6 +133,12 @@ export async function buildProductDocument(
     (v) => v.stockOnHand - v.stockReserved > 0 || v.allowBackorder,
   );
 
+  const attrs = (product.attributes ?? []) as { name?: string; value?: string }[];
+  const facetPairs: string[] = [];
+  for (const a of attrs) {
+    if (a?.name && a?.value) facetPairs.push(packFacet(a.name, a.value));
+  }
+
   return {
     id: product.id,
     tenant_id: product.tenantId,
@@ -139,6 +157,7 @@ export async function buildProductDocument(
     sku_list: variants.map((v) => v.sku).filter((s): s is string => Boolean(s)),
     category_slugs: cats.map((c) => c.slug),
     category_names: cats.map((c) => c.name),
+    facet_pairs: facetPairs,
     updated_at_ts: product.updatedAt.getTime(),
   };
 }
@@ -215,9 +234,32 @@ export interface SearchHit {
   title: string;
 }
 
+/** Meili filter literal — escape embedded double quotes. */
+function quote(v: string): string {
+  return `"${v.replace(/"/g, '\\"')}"`;
+}
+
+function buildFilter(params: {
+  tenantId: string;
+  categorySlug?: string | undefined;
+  facets?: Record<string, string[]> | undefined;
+}): string[] {
+  const filter: string[] = [`tenant_id = ${quote(params.tenantId)}`, `status = ${quote('active')}`];
+  if (params.categorySlug) filter.push(`category_slugs = ${quote(params.categorySlug)}`);
+  // Multiple values of the same facet = OR; different facets = AND (standard
+  // e-shop filter semantics). Filter on the flat `facet_pairs` array — only
+  // the value (carrying special chars) is quoted, never an attribute path.
+  for (const [name, values] of Object.entries(params.facets ?? {})) {
+    if (values.length === 0) continue;
+    const clause = values.map((v) => `facet_pairs = ${quote(packFacet(name, v))}`).join(' OR ');
+    filter.push(`(${clause})`);
+  }
+  return filter;
+}
+
 /**
- * Tenant-scoped full-text search. Returns null when Meilisearch is
- * unavailable (callers fall back to the DB path).
+ * Tenant-scoped full-text search with facet filtering. Returns null when
+ * Meilisearch is unavailable (callers fall back to the DB path).
  */
 export async function searchProducts(
   config: ShopioConfig,
@@ -225,6 +267,7 @@ export async function searchProducts(
     tenantId: string;
     q: string;
     categorySlug?: string | undefined;
+    facets?: Record<string, string[]> | undefined;
     limit: number;
     offset: number;
   },
@@ -233,13 +276,8 @@ export async function searchProducts(
   try {
     const client = await ensureIndexSettings(config);
     if (!client) return null;
-    const filter = [
-      `tenant_id = "${params.tenantId}"`,
-      `status = "active"`,
-      ...(params.categorySlug ? [`category_slugs = "${params.categorySlug}"`] : []),
-    ];
     const res = await client.index(INDEX_UID).search(params.q, {
-      filter,
+      filter: buildFilter(params),
       limit: params.limit,
       offset: params.offset,
       attributesToRetrieve: ['id'],
@@ -250,6 +288,55 @@ export async function searchProducts(
     };
   } catch (err) {
     log?.warn({ err }, 'search.query_failed_fallback_db');
+    return null;
+  }
+}
+
+/**
+ * Available facets for the current catalog view (value → count), so the
+ * storefront can render the filter sidebar. Returns null when Meili is off.
+ */
+export async function facetDistribution(
+  config: ShopioConfig,
+  params: {
+    tenantId: string;
+    q?: string | undefined;
+    categorySlug?: string | undefined;
+    facets?: Record<string, string[]> | undefined;
+    facetNames: string[];
+  },
+  log?: FastifyBaseLogger,
+): Promise<Record<string, Record<string, number>> | null> {
+  if (params.facetNames.length === 0) return {};
+  try {
+    const client = await ensureIndexSettings(config);
+    if (!client) return null;
+    // Distribution must reflect OTHER active facets but NOT the facet being
+    // counted (so its own options stay visible) — for the flat-array MVP we
+    // count against all currently-selected facets; refine to per-facet
+    // exclusion later. Here we request distribution unfiltered by facets so
+    // every option + count is shown for the category/search scope.
+    const res = await client.index(INDEX_UID).search(params.q ?? '', {
+      filter: buildFilter({
+        tenantId: params.tenantId,
+        categorySlug: params.categorySlug,
+      }),
+      limit: 0,
+      facets: ['facet_pairs'],
+    });
+    const out: Record<string, Record<string, number>> = {};
+    const wanted = new Set(params.facetNames);
+    for (const [pair, count] of Object.entries(res.facetDistribution?.facet_pairs ?? {})) {
+      const sep = pair.indexOf(FACET_SEP);
+      if (sep === -1) continue;
+      const name = pair.slice(0, sep);
+      const value = pair.slice(sep + 1);
+      if (!wanted.has(name)) continue;
+      (out[name] ??= {})[value] = count as number;
+    }
+    return out;
+  } catch (err) {
+    log?.warn({ err }, 'search.facets_failed');
     return null;
   }
 }
