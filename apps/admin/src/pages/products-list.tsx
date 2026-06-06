@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, formatMoney, productBasePrice } from '../lib/api';
 
@@ -29,22 +30,19 @@ export function ProductsListPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: '1.75rem' }}>Produkty</h1>
-        <button
-          type="button"
-          disabled
-          title="Vytvoření z UI — Fáze 1 wave 2"
+        <Link
+          to="/products/new"
           style={{
             padding: '0.5rem 1rem',
-            background: '#999',
+            background: '#0066ff',
             color: '#fff',
-            border: 'none',
             borderRadius: 4,
             fontSize: '0.875rem',
-            cursor: 'not-allowed',
+            textDecoration: 'none',
           }}
         >
           + Nový produkt
-        </button>
+        </Link>
       </header>
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -101,7 +99,13 @@ export function ProductsListPage() {
               {query.data.products.map((p) => (
                 <tr key={p.id}>
                   <td style={tdStyle}>
-                    <div style={{ fontWeight: 500 }}>{p.title}</div>
+                    <Link
+                      to="/products/$productId"
+                      params={{ productId: p.id }}
+                      style={{ fontWeight: 500, color: '#0066ff', textDecoration: 'none' }}
+                    >
+                      {p.title}
+                    </Link>
                     {p.vendor && (
                       <div style={{ fontSize: '0.8125rem', color: '#666' }}>{p.vendor}</div>
                     )}
@@ -130,9 +134,7 @@ export function ProductsListPage() {
         )}
       </div>
 
-      <p style={{ color: '#666', fontSize: '0.8125rem', marginTop: '1rem' }}>
-        Celkem: {total}. Vytváření a editace produktů přes UI — Fáze 1 wave 2.
-      </p>
+      <p style={{ color: '#666', fontSize: '0.8125rem', marginTop: '1rem' }}>Celkem: {total}.</p>
     </div>
   );
 }

@@ -113,6 +113,24 @@ const UpdateProductBody = z.object({
   brandName: z.string().max(120).nullable().optional(),
 });
 
+const UpdateVariantBody = z.object({
+  title: z.string().min(1).max(255).optional(),
+  sku: z.string().max(64).nullable().optional(),
+  priceAmount: z
+    .union([z.bigint(), z.number(), z.string()])
+    .transform((v) => BigInt(v))
+    .optional(),
+  compareAtAmount: z
+    .union([z.bigint(), z.number(), z.string(), z.null()])
+    .transform((v) => (v === null || v === '' ? null : BigInt(v)))
+    .optional(),
+  weightGrams: z.number().int().nonnegative().nullable().optional(),
+  allowBackorder: z.boolean().optional(),
+  /** Absolute stock level — recorded as an `adjustment` ledger movement. */
+  stockOnHand: z.number().int().nonnegative().optional(),
+  stockNote: z.string().max(500).optional(),
+});
+
 const ListProductsQuery = z.object({
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).optional(),
   q: z.string().max(255).optional(),
@@ -604,6 +622,105 @@ export async function registerProductRoutes(
 
       return reply.send({
         data: serializeProduct(updated!, [], [], []),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /products/{id}/variants/{variantId} — price/stock/detail edit
+  // ---------------------------------------------------------------------------
+  app.patch<{ Params: { id: string; variantId: string } }>(
+    '/api/2026-05-20/products/:id/variants/:variantId',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const auth = req.auth!;
+      if (!ensureTenant(auth, reply)) return;
+      if (!ensurePermission(auth, PERMISSIONS.PRODUCT_EDIT, reply)) return;
+
+      const parsed = UpdateVariantBody.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(422).send(zodErr(parsed.error));
+      }
+      const input = parsed.data;
+
+      const { id, variantId } = req.params;
+      const [variant] = await db
+        .select({
+          id: schema.productVariants.id,
+          productId: schema.productVariants.productId,
+        })
+        .from(schema.productVariants)
+        .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
+        .where(
+          and(
+            eq(schema.productVariants.tenantId, auth.tenantId),
+            variantId.startsWith('prv_')
+              ? eq(schema.productVariants.pubId, variantId)
+              : eq(schema.productVariants.id, variantId),
+            id.startsWith('prd_')
+              ? eq(schema.products.pubId, id)
+              : eq(schema.products.id, id),
+          ),
+        )
+        .limit(1);
+      if (!variant) {
+        return reply.code(404).send({
+          error: { code: 'VARIANT_NOT_FOUND', message: 'Variant not found' },
+        });
+      }
+
+      const updated = await db.transaction(async (tx) => {
+        // Stock set goes through the movements ledger (per `09`:
+        // reason='adjustment') — lock the row, compute the delta.
+        if (input.stockOnHand !== undefined) {
+          const [locked] = await tx
+            .select({
+              stockOnHand: schema.productVariants.stockOnHand,
+            })
+            .from(schema.productVariants)
+            .where(eq(schema.productVariants.id, variant.id))
+            .for('update');
+          const delta = input.stockOnHand - locked!.stockOnHand;
+          if (delta !== 0) {
+            await tx.insert(schema.stockMovements).values({
+              tenantId: auth.tenantId,
+              variantId: variant.id,
+              quantityDelta: delta,
+              reason: 'adjustment',
+              referenceType: 'manual',
+              resultingStockOnHand: input.stockOnHand,
+              actorUserId: auth.userId,
+              note: input.stockNote ?? null,
+            });
+          }
+        }
+
+        // Strip undefined (exactOptionalPropertyTypes) + non-column keys
+        const fields = Object.fromEntries(
+          Object.entries(input).filter(([k, v]) => k !== 'stockNote' && v !== undefined),
+        ) as Partial<typeof schema.productVariants.$inferInsert>;
+        const [row] = await tx
+          .update(schema.productVariants)
+          .set({ ...fields, updatedAt: new Date() })
+          .where(eq(schema.productVariants.id, variant.id))
+          .returning();
+        return row!;
+      });
+
+      return reply.send({
+        data: {
+          id: updated.pubId,
+          sku: updated.sku,
+          title: updated.title,
+          price_amount: updated.priceAmount.toString(),
+          price_currency: updated.priceCurrency,
+          compare_at_amount: updated.compareAtAmount?.toString() ?? null,
+          weight_grams: updated.weightGrams,
+          stock_on_hand: updated.stockOnHand,
+          stock_reserved: updated.stockReserved,
+          stock_available: updated.stockOnHand - updated.stockReserved,
+          allow_backorder: updated.allowBackorder,
+        },
       });
     },
   );

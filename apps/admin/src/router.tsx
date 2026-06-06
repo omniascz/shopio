@@ -19,6 +19,7 @@ import { DashboardPage } from './pages/dashboard';
 import { OrdersListPage } from './pages/orders-list';
 import { OrderDetailPage } from './pages/order-detail';
 import { ProductsListPage } from './pages/products-list';
+import { ProductCreatePage, ProductEditPage } from './pages/product-edit';
 import { useAuth } from './lib/auth-store';
 
 function requireAuth() {
@@ -93,6 +94,18 @@ const productsListRoute = createRoute({
   component: ProductsListPage,
 });
 
+const productCreateRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/products/new',
+  component: ProductCreatePage,
+});
+
+const productEditRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/products/$productId',
+  component: ProductEditPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -102,6 +115,8 @@ const routeTree = rootRoute.addChildren([
     ordersListRoute,
     orderDetailRoute,
     productsListRoute,
+    productCreateRoute,
+    productEditRoute,
   ]),
 ]);
 

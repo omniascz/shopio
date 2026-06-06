@@ -148,6 +148,39 @@ export interface ProductListItem {
   published_at: string | null;
 }
 
+export interface ProductVariantDetail {
+  id: string;
+  sku: string | null;
+  barcode?: string | null;
+  title: string;
+  price_amount: string;
+  price_currency: string;
+  compare_at_amount: string | null;
+  weight_grams: number | null;
+  requires_shipping?: boolean;
+  stock_on_hand: number;
+  stock_reserved: number;
+  stock_available: number;
+  allow_backorder: boolean;
+  option_values?: Record<string, string>;
+  position?: number;
+}
+
+export interface ProductDetail {
+  id: string;
+  slug: string;
+  title: string;
+  description_html: string | null;
+  status: string;
+  base_price_amount: string | null;
+  base_price_currency: string | null;
+  vendor: string | null;
+  brand_name: string | null;
+  published_at: string | null;
+  variants: ProductVariantDetail[];
+  media: { id: string; url: string; alt: string | null; is_primary: boolean }[];
+}
+
 export function productBasePrice(p: ProductListItem): Money | null {
   if (!p.base_price_amount || !p.base_price_currency) return null;
   return { amount: p.base_price_amount, currency: p.base_price_currency };
@@ -466,6 +499,71 @@ class ApiClient {
     }
     const path = qs.toString() ? `/products?${qs}` : '/products';
     return this.request(path);
+  }
+
+  async getProduct(idOrSlug: string): Promise<ProductDetail> {
+    return this.request(`/products/${idOrSlug}`);
+  }
+
+  async createProduct(body: {
+    title: string;
+    slug?: string;
+    descriptionHtml?: string;
+    basePriceAmount?: string;
+    basePriceCurrency?: string;
+    status?: string;
+    vendor?: string;
+    brandName?: string;
+    variants: {
+      title?: string;
+      sku?: string;
+      priceAmount: string;
+      priceCurrency: string;
+      stockOnHand?: number;
+      weightGrams?: number;
+    }[];
+  }): Promise<ProductDetail> {
+    return this.request('/products', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async updateProduct(
+    id: string,
+    body: Partial<{
+      title: string;
+      slug: string;
+      descriptionHtml: string;
+      basePriceAmount: string;
+      basePriceCurrency: string;
+      status: string;
+      vendor: string | null;
+      brandName: string | null;
+    }>,
+  ): Promise<ProductDetail> {
+    return this.request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async updateVariant(
+    productId: string,
+    variantId: string,
+    body: Partial<{
+      title: string;
+      sku: string | null;
+      priceAmount: string;
+      compareAtAmount: string | null;
+      weightGrams: number | null;
+      allowBackorder: boolean;
+      stockOnHand: number;
+      stockNote: string;
+    }>,
+  ): Promise<ProductVariantDetail> {
+    return this.request(`/products/${productId}/variants/${variantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async archiveProduct(id: string): Promise<void> {
+    await this.request(`/products/${id}`, { method: 'DELETE' });
   }
 }
 
