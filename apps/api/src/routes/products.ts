@@ -20,11 +20,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, or, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS, can, generatePubId, type PermissionCode } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
 import { indexProduct, removeProductFromIndex } from '../lib/search';
 import { mapImportRows, parseCsv } from '../lib/csv';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -168,6 +169,7 @@ export async function registerProductRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // POST /categories
@@ -261,21 +263,23 @@ export async function registerProductRoutes(
     const auth = req.auth!;
     if (!ensureTenant(auth, reply)) return;
 
-    const rows = await db
-      .select({
-        id: schema.categories.id,
-        pubId: schema.categories.pubId,
-        slug: schema.categories.slug,
-        name: schema.categories.name,
-        path: schema.categories.path,
-        parentId: schema.categories.parentId,
-        depth: schema.categories.depth,
-        sortOrder: schema.categories.sortOrder,
-        status: schema.categories.status,
-      })
-      .from(schema.categories)
-      .where(eq(schema.categories.tenantId, auth.tenantId))
-      .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder));
+    const rows = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+      tx
+        .select({
+          id: schema.categories.id,
+          pubId: schema.categories.pubId,
+          slug: schema.categories.slug,
+          name: schema.categories.name,
+          path: schema.categories.path,
+          parentId: schema.categories.parentId,
+          depth: schema.categories.depth,
+          sortOrder: schema.categories.sortOrder,
+          status: schema.categories.status,
+        })
+        .from(schema.categories)
+        .where(eq(schema.categories.tenantId, auth.tenantId!))
+        .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder)),
+    );
 
     return reply.send({
       data: {
@@ -454,49 +458,6 @@ export async function registerProductRoutes(
       );
     }
 
-    // Optional category filter (JOIN if specified)
-    const baseQuery = categoryId
-      ? db
-          .select({
-            id: schema.products.id,
-            pubId: schema.products.pubId,
-            slug: schema.products.slug,
-            title: schema.products.title,
-            descriptionHtml: schema.products.descriptionHtml,
-            basePriceAmount: schema.products.basePriceAmount,
-            basePriceCurrency: schema.products.basePriceCurrency,
-            status: schema.products.status,
-            vendor: schema.products.vendor,
-            brandName: schema.products.brandName,
-            publishedAt: schema.products.publishedAt,
-            createdAt: schema.products.createdAt,
-            updatedAt: schema.products.updatedAt,
-          })
-          .from(schema.products)
-          .innerJoin(
-            schema.productCategories,
-            eq(schema.productCategories.productId, schema.products.id),
-          )
-          .where(and(...conditions, eq(schema.productCategories.categoryId, categoryId)))
-      : db
-          .select({
-            id: schema.products.id,
-            pubId: schema.products.pubId,
-            slug: schema.products.slug,
-            title: schema.products.title,
-            descriptionHtml: schema.products.descriptionHtml,
-            basePriceAmount: schema.products.basePriceAmount,
-            basePriceCurrency: schema.products.basePriceCurrency,
-            status: schema.products.status,
-            vendor: schema.products.vendor,
-            brandName: schema.products.brandName,
-            publishedAt: schema.products.publishedAt,
-            createdAt: schema.products.createdAt,
-            updatedAt: schema.products.updatedAt,
-          })
-          .from(schema.products)
-          .where(and(...conditions));
-
     const orderClause =
       sort === 'recent'
         ? desc(schema.products.createdAt)
@@ -504,7 +465,35 @@ export async function registerProductRoutes(
           ? asc(schema.products.createdAt)
           : asc(schema.products.title);
 
-    const rows = await baseQuery.orderBy(orderClause).limit(limit).offset(offset);
+    const cols = {
+      id: schema.products.id,
+      pubId: schema.products.pubId,
+      slug: schema.products.slug,
+      title: schema.products.title,
+      descriptionHtml: schema.products.descriptionHtml,
+      basePriceAmount: schema.products.basePriceAmount,
+      basePriceCurrency: schema.products.basePriceCurrency,
+      status: schema.products.status,
+      vendor: schema.products.vendor,
+      brandName: schema.products.brandName,
+      publishedAt: schema.products.publishedAt,
+      createdAt: schema.products.createdAt,
+      updatedAt: schema.products.updatedAt,
+    };
+    const rows = await withTenant(rlsDb, auth.tenantId!, (tx) => {
+      // Optional category filter (JOIN if specified)
+      const baseQuery = categoryId
+        ? tx
+            .select(cols)
+            .from(schema.products)
+            .innerJoin(
+              schema.productCategories,
+              eq(schema.productCategories.productId, schema.products.id),
+            )
+            .where(and(...conditions, eq(schema.productCategories.categoryId, categoryId)))
+        : tx.select(cols).from(schema.products).where(and(...conditions));
+      return baseQuery.orderBy(orderClause).limit(limit).offset(offset);
+    });
 
     return reply.send({
       data: {
@@ -542,50 +531,53 @@ export async function registerProductRoutes(
       const { idOrSlug } = req.params;
       const isPubId = idOrSlug.startsWith('prd_');
 
-      const [product] = await db
-        .select()
-        .from(schema.products)
-        .where(
-          and(
-            eq(schema.products.tenantId, auth.tenantId),
-            isPubId ? eq(schema.products.pubId, idOrSlug) : eq(schema.products.slug, idOrSlug),
-          ),
-        )
-        .limit(1);
+      const found = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, auth.tenantId!),
+              isPubId ? eq(schema.products.pubId, idOrSlug) : eq(schema.products.slug, idOrSlug),
+            ),
+          )
+          .limit(1);
+        if (!product) return null;
+        const [variants, media, catRows] = await Promise.all([
+          tx
+            .select()
+            .from(schema.productVariants)
+            .where(eq(schema.productVariants.productId, product.id))
+            .orderBy(asc(schema.productVariants.position)),
+          tx
+            .select()
+            .from(schema.productMedia)
+            .where(eq(schema.productMedia.productId, product.id))
+            .orderBy(asc(schema.productMedia.position)),
+          tx
+            .select({ pubId: schema.categories.pubId })
+            .from(schema.productCategories)
+            .innerJoin(
+              schema.categories,
+              eq(schema.categories.id, schema.productCategories.categoryId),
+            )
+            .where(eq(schema.productCategories.productId, product.id)),
+        ]);
+        return { product, variants, media, catRows };
+      });
 
-      if (!product) {
+      if (!found) {
         return reply.code(404).send({
           error: { code: 'PRODUCT_NOT_FOUND', message: 'Product does not exist' },
         });
       }
 
-      const [variants, media, catRows] = await Promise.all([
-        db
-          .select()
-          .from(schema.productVariants)
-          .where(eq(schema.productVariants.productId, product.id))
-          .orderBy(asc(schema.productVariants.position)),
-        db
-          .select()
-          .from(schema.productMedia)
-          .where(eq(schema.productMedia.productId, product.id))
-          .orderBy(asc(schema.productMedia.position)),
-        db
-          .select({ pubId: schema.categories.pubId })
-          .from(schema.productCategories)
-          .innerJoin(
-            schema.categories,
-            eq(schema.categories.id, schema.productCategories.categoryId),
-          )
-          .where(eq(schema.productCategories.productId, product.id)),
-      ]);
-
       return reply.send({
         data: serializeProduct(
-          product,
-          variants,
-          media,
-          catRows.map((r) => r.pubId),
+          found.product,
+          found.variants,
+          found.media,
+          found.catRows.map((r) => r.pubId),
         ),
       });
     },
