@@ -56,6 +56,10 @@ const ConfigSchema = z.object({
    * label generation runs in mock mode (fake barcode + placeholder PDF). */
   PACKETA_API_PASSWORD: z.string().min(8).optional(),
 
+  // Meilisearch (optional — storefront search falls back to ILIKE when absent)
+  MEILISEARCH_HOST: z.string().url().optional(),
+  MEILISEARCH_API_KEY: z.string().optional(),
+
   // Object storage (MinIO in dev; S3-compatible in prod) — product media
   SHOPIO_S3_ENDPOINT: z.string().url().default('http://localhost:9100'),
   SHOPIO_S3_REGION: z.string().default('us-east-1'),

@@ -16,6 +16,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
+import { searchProducts } from '../lib/search';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -36,7 +37,7 @@ export async function registerStorefrontRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug} — tenant info
@@ -130,13 +131,31 @@ export async function registerStorefrontRoutes(
       }
       const { q, categorySlug, limit, offset, sort } = parsed.data;
 
+      // Full-text path (per `08`): Meilisearch when configured + reachable;
+      // hit ids resolved back to rows in relevance order. Falls back to the
+      // ILIKE conditions below when search is unavailable.
+      let searchIds: string[] | null = null;
+      if (q) {
+        const hits = await searchProducts(
+          config,
+          { tenantId: tenant.id, q, categorySlug, limit, offset },
+          app.log,
+        );
+        if (hits) searchIds = hits.ids;
+      }
+
       // Filter: only active + published products
       const conditions = [
         eq(schema.products.tenantId, tenant.id),
         eq(schema.products.status, 'active'),
         dsql`${schema.products.publishedAt} IS NOT NULL`,
       ];
-      if (q) {
+      if (searchIds) {
+        if (searchIds.length === 0) {
+          return reply.send({ data: { products: [], count: 0, offset, limit } });
+        }
+        conditions.push(inArray(schema.products.id, searchIds));
+      } else if (q) {
         conditions.push(
           dsql`(${schema.products.title} ILIKE ${'%' + q + '%'} OR ${schema.products.slug} ILIKE ${'%' + q + '%'})`,
         );
@@ -199,7 +218,13 @@ export async function registerStorefrontRoutes(
             ? asc(schema.products.publishedAt)
             : asc(schema.products.title);
 
-      const rows = await baseQuery.orderBy(order).limit(limit).offset(offset);
+      // Meilisearch already paginated the hit set — don't offset twice.
+      // (Hits re-sort by the catalog order within the page; pure relevance
+      // ordering lands with the dedicated search endpoint wave.)
+      const rows = await baseQuery
+        .orderBy(order)
+        .limit(limit)
+        .offset(searchIds ? 0 : offset);
 
       // Fetch primary media for each product (one batch query)
       const productIds = rows.map((r) => r.id);

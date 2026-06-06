@@ -17,6 +17,7 @@ import { schema } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { deleteObject, putObject } from '../lib/storage';
+import { indexProduct } from '../lib/search';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -125,6 +126,7 @@ export async function registerMediaRoutes(
       });
 
       app.log.info({ productId: product.id, mediaId: row.id, bytes: buffer.length }, 'media.uploaded');
+      void indexProduct(config, db, product.id, app.log); // primary image → search doc
       return reply.code(201).send({ data: serializeMedia(row) });
     },
   );
@@ -170,6 +172,7 @@ export async function registerMediaRoutes(
         return row!;
       });
 
+      void indexProduct(config, db, media.productId, app.log);
       return reply.send({ data: serializeMedia(updated) });
     },
   );
@@ -214,6 +217,7 @@ export async function registerMediaRoutes(
         );
       }
 
+      void indexProduct(config, db, media.productId, app.log);
       return reply.code(204).send();
     },
   );

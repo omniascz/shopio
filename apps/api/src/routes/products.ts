@@ -23,6 +23,7 @@ import { and, asc, desc, eq, inArray, or, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS, can, generatePubId, type PermissionCode } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
+import { indexProduct, removeProductFromIndex } from '../lib/search';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -156,7 +157,7 @@ export async function registerProductRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
   // POST /categories
@@ -402,6 +403,7 @@ export async function registerProductRoutes(
         { productId: result.product.id, tenantId: auth.tenantId },
         'products.create.success',
       );
+      void indexProduct(config, db, result.product.id, app.log);
 
       return reply.code(201).send({
         data: serializeProduct(result.product, result.variants, result.media, input.categoryIds),
@@ -674,6 +676,7 @@ export async function registerProductRoutes(
         )
         .where(eq(schema.productCategories.productId, existing.id));
 
+      void indexProduct(config, db, existing.id, app.log);
       return reply.send({
         data: serializeProduct(updated, [], [], catRows.map((r) => r.pubId)),
       });
@@ -754,6 +757,7 @@ export async function registerProductRoutes(
         return variant!;
       });
 
+      void indexProduct(config, db, product.id, app.log);
       return reply.code(201).send({
         data: {
           id: created.pubId,
@@ -852,6 +856,7 @@ export async function registerProductRoutes(
         return row!;
       });
 
+      void indexProduct(config, db, variant.productId, app.log);
       return reply.send({
         data: {
           id: updated.pubId,
@@ -893,7 +898,7 @@ export async function registerProductRoutes(
             isPubId ? eq(schema.products.pubId, id) : eq(schema.products.id, id),
           ),
         )
-        .returning({ id: schema.products.pubId });
+        .returning({ id: schema.products.id });
 
       if (result.length === 0) {
         return reply.code(404).send({
@@ -901,6 +906,7 @@ export async function registerProductRoutes(
         });
       }
 
+      void removeProductFromIndex(config, result[0]!.id, app.log);
       return reply.code(204).send();
     },
   );

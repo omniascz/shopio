@@ -4,6 +4,7 @@ import { formatMoney, getProducts, getTenant } from '@/lib/api';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
+  searchParams?: Promise<{ q?: string }>;
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -15,12 +16,13 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
-export default async function TenantCatalogPage({ params }: Props) {
+export default async function TenantCatalogPage({ params, searchParams }: Props) {
   const { tenantSlug } = await params;
   const tenant = await getTenant(tenantSlug);
   if (!tenant) notFound();
 
-  const { products } = await getProducts(tenantSlug, { limit: 24 });
+  const q = (await searchParams)?.q?.trim() || undefined;
+  const { products } = await getProducts(tenantSlug, { limit: 24, ...(q && { q }) });
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
@@ -60,6 +62,48 @@ export default async function TenantCatalogPage({ params }: Props) {
       </header>
 
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '2rem' }}>
+        <form
+          method="get"
+          style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', maxWidth: 480 }}
+        >
+          <input
+            type="search"
+            name="q"
+            defaultValue={q ?? ''}
+            placeholder="Hledat produkty…"
+            style={{
+              flex: 1,
+              padding: '0.625rem 0.875rem',
+              border: '1px solid var(--shopio-color-border-default, #ddd)',
+              borderRadius: 6,
+              fontSize: '0.9375rem',
+              background: 'inherit',
+              color: 'inherit',
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: '0.625rem 1.125rem',
+              background: 'var(--sf-accent, #111)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: '0.9375rem',
+              cursor: 'pointer',
+            }}
+          >
+            Hledat
+          </button>
+        </form>
+        {q && (
+          <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--sf-muted, #666)' }}>
+            Výsledky pro „{q}" ({products.length}) ·{' '}
+            <Link href={`/s/${tenantSlug}`} style={{ color: 'var(--sf-accent, #0066cc)' }}>
+              zrušit
+            </Link>
+          </p>
+        )}
         {products.length === 0 ? (
           <div
             style={{
@@ -68,9 +112,13 @@ export default async function TenantCatalogPage({ params }: Props) {
               color: 'var(--shopio-color-fg-muted)',
             }}
           >
-            <p style={{ fontSize: '1.125rem' }}>Tady zatím nic není.</p>
+            <p style={{ fontSize: '1.125rem' }}>
+              {q ? `Pro „${q}" jsme nic nenašli.` : 'Tady zatím nic není.'}
+            </p>
             <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-              Storefront se naplní po publikování prvního produktu.
+              {q
+                ? 'Zkuste jiný výraz.'
+                : 'Storefront se naplní po publikování prvního produktu.'}
             </p>
           </div>
         ) : (

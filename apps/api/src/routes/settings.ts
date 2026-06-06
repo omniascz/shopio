@@ -19,6 +19,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { isSearchEnabled, reindexTenant } from '../lib/search';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -394,6 +395,37 @@ export async function registerSettingsRoutes(
 // =============================================================================
 // Helpers
 // =============================================================================
+
+export function registerSearchAdminRoutes(
+  app: FastifyInstance,
+  opts: PluginOptions,
+): void {
+  const { db, config } = opts;
+
+  // POST /admin/search/reindex — backfill the tenant's products into Meilisearch
+  app.post(
+    '/api/2026-05-20/admin/search/reindex',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      if (!isSearchEnabled(config)) {
+        return reply.code(503).send({
+          error: { code: 'SEARCH_NOT_CONFIGURED', message: 'Meilisearch is not configured' },
+        });
+      }
+      try {
+        const count = await reindexTenant(config, db, tenantId, app.log);
+        return reply.send({ data: { indexed: count } });
+      } catch (err) {
+        app.log.error({ err, tenantId }, 'search.reindex_failed');
+        return reply.code(502).send({
+          error: { code: 'SEARCH_ERROR', message: 'Reindex failed — is Meilisearch running?' },
+        });
+      }
+    },
+  );
+}
 
 function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
   const settings = (tenant.settings ?? {}) as {
