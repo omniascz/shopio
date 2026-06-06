@@ -230,6 +230,11 @@ export interface Cart {
   currency: string;
   item_count: number;
   subtotal: Money;
+  /** Applied coupon code + its goods discount (per `10`). */
+  coupon_code: string | null;
+  coupon_kind: 'percentage' | 'fixed' | 'free_shipping' | null;
+  discount: Money;
+  total: Money;
   /** Whether prices already include VAT (CZ B2C default). */
   tax_included: boolean;
   /** VAT contained in the subtotal (estimate at tenant's home country). */
@@ -593,6 +598,17 @@ async function cartFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function fetchCart(tenantSlug: string): Promise<Cart> {
   return cartFetch<Cart>(`/storefront/${tenantSlug}/cart`);
+}
+
+export async function applyCoupon(tenantSlug: string, code: string): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/coupon`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function removeCoupon(tenantSlug: string): Promise<Cart> {
+  return cartFetch<Cart>(`/storefront/${tenantSlug}/cart/coupon`, { method: 'DELETE' });
 }
 
 export async function addToCart(

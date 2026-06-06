@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
 import {
+  applyCoupon,
   checkout,
   customerMe,
   fetchPickupPoints,
   fetchShippingRates,
   formatMoney,
   formatVatRate,
+  removeCoupon,
+  type Cart,
   type CustomerProfile,
   type Money,
   type PickupPoint,
@@ -254,9 +257,13 @@ export default function CheckoutPage({ params }: Props) {
   }
 
   const goodsGross = BigInt(cart.subtotal.amount);
-  const shippingGross = selectedOption ? BigInt(selectedOption.amount) : 0n;
+  const rawShipping = selectedOption ? BigInt(selectedOption.amount) : 0n;
+  const goodsDiscount = BigInt(cart.discount.amount);
+  // free_shipping coupon waives the carriage; goods coupons reduce the goods total
+  const freeShipping = cart.coupon_kind === 'free_shipping';
+  const shippingGross = freeShipping ? 0n : rawShipping;
   const totalMoney: Money = {
-    amount: (goodsGross + shippingGross).toString(),
+    amount: (goodsGross - goodsDiscount + shippingGross).toString(),
     currency: cart.currency,
   };
 
@@ -550,6 +557,25 @@ export default function CheckoutPage({ params }: Props) {
             ))}
           </ul>
           <SummaryRow label={`Mezisoučet${cart.tax_included ? ' (vč. DPH)' : ''}`} value={formatMoney(cart.subtotal)} />
+          {(goodsDiscount > 0n || freeShipping) && cart.coupon_code && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.875rem',
+                color: '#2e7d32',
+                margin: '0.25rem 0',
+              }}
+            >
+              <span>Sleva ({cart.coupon_code})</span>
+              <span>
+                {freeShipping
+                  ? 'doprava zdarma'
+                  : `−${formatMoney({ amount: goodsDiscount.toString(), currency: cart.currency })}`}
+              </span>
+            </div>
+          )}
+          <CouponInput tenantSlug={tenantSlug} cart={cart} />
           <SummaryRow
             label="Doprava"
             value={
@@ -646,6 +672,91 @@ function ShippingMethodRow({
         )}
       </span>
     </label>
+  );
+}
+
+function CouponInput({ tenantSlug, cart }: { tenantSlug: string; cart: Cart }) {
+  const { refresh } = useCart();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function apply() {
+    setError(null);
+    setBusy(true);
+    try {
+      await applyCoupon(tenantSlug, code.trim());
+      setCode('');
+      await refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await removeCoupon(tenantSlug);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (cart.coupon_code) {
+    return (
+      <div style={{ margin: '0.5rem 0', fontSize: '0.8125rem' }}>
+        <button
+          type="button"
+          onClick={() => void remove()}
+          disabled={busy}
+          style={{ background: 'none', border: 'none', color: '#c00', cursor: 'pointer', padding: 0 }}
+        >
+          ✕ odebrat slevový kód
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ margin: '0.5rem 0' }}>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <input
+          type="text"
+          placeholder="Slevový kód"
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          style={{
+            flex: 1,
+            padding: '0.5rem 0.625rem',
+            border: '1px solid rgba(128,128,128,0.4)',
+            borderRadius: 4,
+            fontSize: '0.8125rem',
+            background: 'transparent',
+            color: 'inherit',
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => void apply()}
+          disabled={!code.trim() || busy}
+          style={{
+            padding: '0.5rem 0.875rem',
+            background: 'transparent',
+            border: '1px solid var(--sf-accent, #111)',
+            color: 'var(--sf-accent, #111)',
+            borderRadius: 4,
+            fontSize: '0.8125rem',
+            cursor: 'pointer',
+          }}
+        >
+          Použít
+        </button>
+      </div>
+      {error && <p style={{ color: '#c00', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>{error}</p>}
+    </div>
   );
 }
 

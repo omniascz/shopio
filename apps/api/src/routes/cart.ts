@@ -42,6 +42,7 @@ import {
   availableQuantity,
   reserveStock,
 } from '../lib/inventory';
+import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
 import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
@@ -303,6 +304,67 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
   );
 
   // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/cart/coupon  — apply a coupon code
+  // DELETE /storefront/{tenantSlug}/cart/coupon — remove it
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/cart/coupon',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+
+      const parsed = z.object({ code: z.string().min(1).max(60) }).safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+
+      const sessionId = ensureSession(req, reply, isProd);
+      const cart = await getActiveCart(db, tenant.id, sessionId);
+      if (!cart) return notFound(reply, 'cart');
+      const items = await listCartItems(db, cart.id);
+      const goodsGross = items.reduce((s, it) => s + it.unitPriceAmount * BigInt(it.quantity), 0n);
+
+      const customer = await resolveCustomer(db, req, tenant.id);
+      try {
+        const { coupon } = await validateCoupon(db, {
+          tenantId: tenant.id,
+          code: parsed.data.code,
+          goodsGross,
+          customerId: customer?.id ?? null,
+        });
+        await db
+          .update(schema.carts)
+          .set({ couponCode: coupon.code, updatedAt: new Date() })
+          .where(eq(schema.carts.id, cart.id));
+        const fresh = { ...cart, couponCode: coupon.code };
+        return reply.send({ data: await buildCartPayload(db, tenant, fresh, items) });
+      } catch (err) {
+        if (err instanceof CouponError) {
+          return reply.code(422).send({ error: { code: err.code, message: err.message } });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/cart/coupon',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const sessionId = ensureSession(req, reply, isProd);
+      const cart = await getActiveCart(db, tenant.id, sessionId);
+      if (!cart) return notFound(reply, 'cart');
+      await db
+        .update(schema.carts)
+        .set({ couponCode: null, updatedAt: new Date() })
+        .where(eq(schema.carts.id, cart.id));
+      const items = await listCartItems(db, cart.id);
+      return reply.send({
+        data: await buildCartPayload(db, tenant, { ...cart, couponCode: null }, items),
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/shipping/rates
   // Priced shipping options for the current cart + ship-to country.
   // ---------------------------------------------------------------------------
@@ -449,27 +511,61 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       }
       const shippingGross = shippingOption ? BigInt(shippingOption.amount) : 0n;
 
+      const grossGoods = items.reduce(
+        (sum, it) => sum + it.unitPriceAmount * BigInt(it.quantity),
+        0n,
+      );
+
+      // Coupon (per `10`): re-validate the cart's code, compute the discount,
+      // and distribute it across lines so the VAT base reflects the lowered
+      // selling price (EU rule). Invalid-at-checkout → 422 so the customer
+      // can remove it. No coupon → zero discount.
+      let validatedCoupon: typeof schema.coupons.$inferSelect | null = null;
+      let goodsDiscount = 0n;
+      let shippingDiscount = 0n;
+      if (cart.couponCode) {
+        try {
+          const res = await validateCoupon(db, {
+            tenantId: tenant.id,
+            code: cart.couponCode,
+            goodsGross: grossGoods,
+            customerId: customer?.id ?? null,
+          });
+          validatedCoupon = res.coupon;
+          const d = computeDiscount(res.coupon, { goodsGross: grossGoods, shippingGross });
+          goodsDiscount = d.goodsDiscount;
+          shippingDiscount = d.shippingDiscount;
+        } catch (err) {
+          if (err instanceof CouponError) {
+            return reply.code(422).send({ error: { code: err.code, message: err.message } });
+          }
+          throw err;
+        }
+      }
+      const lineDiscounts = distributeDiscount(
+        items.map((it) => it.unitPriceAmount * BigInt(it.quantity)),
+        goodsDiscount,
+      );
+      const discountByRef = new Map(items.map((it, i) => [it.pubId, lineDiscounts[i] ?? 0n]));
+      const effectiveShipping = shippingGross - shippingDiscount;
+
       // VAT computation — place of supply = ship-to country (per `15 §4` STAGE 1),
-      // falling back to the tenant home country. Shipping is taxed as a line via the
-      // tenant's shipping_tax_class. Pure; rate lookup is read-only so it runs before
-      // the placement transaction.
+      // falling back to the tenant home country. Discount lowers each line's
+      // taxable amount; shipping is taxed on the post-discount charge.
       const rates = await resolveRates(db, tenant.id, country, tenant.countryCode);
       const tax = computeTax({
         lines: items.map((it) => ({
           ref: it.pubId,
-          amount: it.unitPriceAmount * BigInt(it.quantity),
+          amount: it.unitPriceAmount * BigInt(it.quantity) - (discountByRef.get(it.pubId) ?? 0n),
           taxClassCode: it.taxClassCode,
         })),
-        shippingAmount: shippingGross,
+        shippingAmount: effectiveShipping,
         shippingTaxClass: tenant.shippingTaxClass,
         rates,
         priceIncludesTax: tenant.priceIncludesTax,
       });
       const taxByRef = new Map(tax.lines.map((l) => [l.ref, l]));
-      const grossGoods = items.reduce(
-        (sum, it) => sum + it.unitPriceAmount * BigInt(it.quantity),
-        0n,
-      );
+      const totalDiscount = goodsDiscount + shippingDiscount;
 
       // Atomic: revalidate stock + decrement + create order + clear cart
       try {
@@ -523,9 +619,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           // Generate order number (sequential per tenant per year)
           const orderNumber = await generateOrderNumber(tx, tenant.id);
 
-          // Totals — VAT-inclusive B2C model: subtotal + shipping are gross line
-          // items, tax is the VAT *contained* (shown "z toho DPH"), total = sum.
-          const total = grossGoods + shippingGross; // == tax.totals.grossAmount
+          // Totals — VAT-inclusive B2C model: subtotal + shipping are gross,
+          // discount lowers the payable; total = subtotal − discount + shipping.
+          const total = grossGoods - goodsDiscount + effectiveShipping;
 
           // Insert order
           const [order] = await tx
@@ -542,7 +638,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               billingAddress: input.shippingAddress,
               currency: cart.currency,
               subtotalAmount: grossGoods,
-              shippingAmount: shippingGross,
+              discountAmount: totalDiscount,
+              couponCode: validatedCoupon?.code ?? null,
+              shippingAmount: effectiveShipping,
               shippingMethod: shippingOption
                 ? {
                     rate_id: shippingOption.rate_id,
@@ -586,12 +684,13 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 quantity: it.quantity,
                 unitPriceAmount: it.unitPriceAmount,
                 unitPriceCurrency: it.unitPriceCurrency,
-                // net base; tax + gross snapshot from the engine
+                // net base; tax + gross snapshot from the engine (post-discount)
                 lineSubtotalAmount: lt?.baseAmount ?? lineGross,
+                lineDiscountAmount: discountByRef.get(it.pubId) ?? 0n,
                 taxClassCode: lt?.taxClassCode ?? it.taxClassCode,
                 taxRateBasisPoints: lt?.taxRateBasisPoints ?? 0,
                 lineTaxAmount: lt?.taxAmount ?? 0n,
-                lineTotalAmount: lineGross,
+                lineTotalAmount: lineGross - (discountByRef.get(it.pubId) ?? 0n),
               };
             }),
           );
@@ -605,6 +704,25 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             lines: items.map((it) => ({ variantId: it.variantId, quantity: it.quantity })),
             expiresAt: new Date(Date.now() + UNPAID_RESERVATION_TTL_HOURS * 60 * 60 * 1000),
           });
+
+          // Record coupon redemption + bump usage atomically (per `10` RULE-PRICING-010)
+          if (validatedCoupon && totalDiscount > 0n) {
+            await tx.insert(schema.couponRedemptions).values({
+              tenantId: tenant.id,
+              couponId: validatedCoupon.id,
+              orderId: order.id,
+              customerId: customer?.id ?? null,
+              amountSaved: totalDiscount,
+              currency: cart.currency,
+            });
+            await tx
+              .update(schema.coupons)
+              .set({
+                usageCount: dsql`${schema.coupons.usageCount} + 1`,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.coupons.id, validatedCoupon.id));
+          }
 
           // Convert cart
           await tx
@@ -1017,20 +1135,51 @@ async function buildCartPayload(
   cart: typeof schema.carts.$inferSelect,
   items: Awaited<ReturnType<typeof listCartItems>>,
 ) {
+  const goodsGross = items.reduce((s, it) => s + it.unitPriceAmount * BigInt(it.quantity), 0n);
+
+  // Coupon preview (goods discount only — shipping isn't known in the cart yet).
+  // Silently drop a now-invalid code so the cart still renders.
+  let discount = 0n;
+  let appliedCode: string | null = null;
+  let couponKind: string | null = null;
+  if (cart.couponCode && items.length > 0) {
+    try {
+      const { coupon } = await validateCoupon(db, {
+        tenantId: tenant.id,
+        code: cart.couponCode,
+        goodsGross,
+      });
+      appliedCode = coupon.code;
+      couponKind = coupon.kind;
+      discount = computeDiscount(coupon, { goodsGross, shippingGross: 0n }).goodsDiscount;
+    } catch {
+      // invalid now → show no discount; checkout will surface the reason
+      appliedCode = cart.couponCode;
+    }
+  }
+
   let tax: TaxResult | null = null;
   if (items.length > 0) {
+    const lineDiscounts = distributeDiscount(
+      items.map((it) => it.unitPriceAmount * BigInt(it.quantity)),
+      discount,
+    );
     const rates = await resolveRates(db, tenant.id, tenant.countryCode, tenant.countryCode);
     tax = computeTax({
-      lines: items.map((it) => ({
+      lines: items.map((it, i) => ({
         ref: it.pubId,
-        amount: it.unitPriceAmount * BigInt(it.quantity),
+        amount: it.unitPriceAmount * BigInt(it.quantity) - (lineDiscounts[i] ?? 0n),
         taxClassCode: it.taxClassCode,
       })),
       rates,
       priceIncludesTax: tenant.priceIncludesTax,
     });
   }
-  return serializeCart(cart, items, tax, tenant.priceIncludesTax);
+  return serializeCart(cart, items, tax, tenant.priceIncludesTax, {
+    discount,
+    appliedCode,
+    kind: couponKind,
+  });
 }
 
 function serializeCart(
@@ -1038,11 +1187,13 @@ function serializeCart(
   items: Awaited<ReturnType<typeof listCartItems>>,
   tax: TaxResult | null,
   priceIncludesTax: boolean,
+  coupon: { discount: bigint; appliedCode: string | null; kind: string | null },
 ) {
   let subtotal = 0n;
   for (const it of items) {
     subtotal += it.unitPriceAmount * BigInt(it.quantity);
   }
+  const total = subtotal - coupon.discount;
   return {
     id: cart.pubId,
     status: cart.status,
@@ -1050,6 +1201,10 @@ function serializeCart(
     item_count: items.reduce((sum, i) => sum + i.quantity, 0),
     // subtotal = gross sum (what the customer pays when prices are VAT-inclusive)
     subtotal: { amount: subtotal.toString(), currency: cart.currency },
+    coupon_code: coupon.appliedCode,
+    coupon_kind: coupon.kind,
+    discount: { amount: coupon.discount.toString(), currency: cart.currency },
+    total: { amount: total.toString(), currency: cart.currency },
     tax_included: priceIncludesTax,
     tax: { amount: (tax?.totals.taxAmount ?? 0n).toString(), currency: cart.currency },
     net_subtotal: {

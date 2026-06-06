@@ -166,6 +166,24 @@ export interface ShipmentDetail {
   items: { id: string; title: string; sku: string | null; quantity: number }[];
 }
 
+export interface CouponItem {
+  id: string;
+  code: string;
+  description: string | null;
+  kind: 'percentage' | 'fixed' | 'free_shipping';
+  value: string;
+  currency: string | null;
+  max_discount_amount: string | null;
+  min_purchase_amount: string;
+  max_uses_total: number | null;
+  max_uses_per_customer: number | null;
+  usage_count: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -602,6 +620,36 @@ class ApiClient {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Coupons
+  // ---------------------------------------------------------------------------
+  async listCoupons(): Promise<{ coupons: CouponItem[] }> {
+    return this.request('/admin/coupons');
+  }
+
+  async createCoupon(body: {
+    code: string;
+    kind: string;
+    value?: string;
+    currency?: string;
+    description?: string;
+    minPurchaseAmount?: string;
+    maxDiscountAmount?: string;
+    maxUsesTotal?: number | null;
+    maxUsesPerCustomer?: number | null;
+    endsAt?: string | null;
+  }): Promise<CouponItem> {
+    return this.request('/admin/coupons', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async updateCoupon(id: string, body: { isActive?: boolean }): Promise<CouponItem> {
+    return this.request(`/admin/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    await this.request(`/admin/coupons/${id}`, { method: 'DELETE' });
   }
 
   // ---------------------------------------------------------------------------

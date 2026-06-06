@@ -22,6 +22,7 @@ import { schema } from '@shopio/db';
 import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
 import { registerReviewAdminRoutes } from './routes/reviews-admin';
+import { registerCouponAdminRoutes } from './routes/coupons-admin';
 import {
   registerCustomerAuthRoutes,
   registerCustomerPasswordResetRoutes,
@@ -108,6 +109,7 @@ export async function buildServer() {
   await registerMediaRoutes(server, { config, db });
   registerSearchAdminRoutes(server, { config, db });
   await registerReviewAdminRoutes(server, { config, db });
+  await registerCouponAdminRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });
   await registerCustomerReturnRoutes(server, { config, db });

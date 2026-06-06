@@ -47,6 +47,8 @@ export const carts = pgTable(
     statusEnteredAt: timestamp('status_entered_at', { withTimezone: true }).notNull().defaultNow(),
     /** Currency snapshot from tenant default at creation. */
     currency: text('currency').notNull(),
+    /** Applied coupon code, re-validated at checkout (per `10`). */
+    couponCode: text('coupon_code'),
     /** Audit. */
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

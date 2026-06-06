@@ -58,7 +58,9 @@ export const orders = pgTable(
     subtotalAmount: bigint('subtotal_amount', { mode: 'bigint' }).notNull(), // sum of line subtotals
     discountAmount: bigint('discount_amount', { mode: 'bigint' })
       .notNull()
-      .default(sql`0`), // future
+      .default(sql`0`),
+    /** Applied coupon code snapshot (per `10`), null = none. */
+    couponCode: text('coupon_code'),
     shippingAmount: bigint('shipping_amount', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),

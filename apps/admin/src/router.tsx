@@ -22,6 +22,7 @@ import { ProductsListPage } from './pages/products-list';
 import { ProductCreatePage, ProductEditPage } from './pages/product-edit';
 import { SettingsPage } from './pages/settings';
 import { ReturnsListPage } from './pages/returns-list';
+import { CouponsListPage } from './pages/coupons-list';
 import { useAuth } from './lib/auth-store';
 
 function requireAuth() {
@@ -120,6 +121,12 @@ const returnsListRoute = createRoute({
   component: ReturnsListPage,
 });
 
+const couponsListRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/coupons',
+  component: CouponsListPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -133,6 +140,7 @@ const routeTree = rootRoute.addChildren([
     productEditRoute,
     settingsRoute,
     returnsListRoute,
+    couponsListRoute,
   ]),
 ]);
 

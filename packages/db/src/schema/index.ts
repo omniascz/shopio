@@ -29,4 +29,6 @@ export * from './inventory';
 export * from './customers';
 // Reviews (Wave 1 — `19-marketing-seo.md` reviews MVP)
 export * from './reviews';
+// Coupons / promotions (Wave 1 — `10-pricing-promotions.md` MVP)
+export * from './coupons';
 // Future: customers, inventory, payments, ...
