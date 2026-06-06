@@ -15,6 +15,7 @@ import { registerWebhookRoutes } from './routes/webhooks';
 import { registerInvoiceRoutes } from './routes/invoices';
 import { registerReturnRoutes } from './routes/returns';
 import { registerShipmentRoutes } from './routes/shipments';
+import { registerSettingsRoutes } from './routes/settings';
 import { sweepExpiredReservations } from './lib/inventory';
 
 export async function buildServer() {
@@ -79,6 +80,7 @@ export async function buildServer() {
   await registerInvoiceRoutes(server, { config, db });
   await registerReturnRoutes(server, { config, db });
   await registerShipmentRoutes(server, { config, db });
+  await registerSettingsRoutes(server, { config, db });
 
   // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
   // BullMQ takes over in a later wave. Releases expired unpaid holds and

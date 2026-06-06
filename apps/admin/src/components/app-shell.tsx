@@ -32,6 +32,7 @@ export function AppShell() {
           <NavLink to="/">Přehled</NavLink>
           <NavLink to="/orders">Objednávky</NavLink>
           <NavLink to="/products">Produkty</NavLink>
+          <NavLink to="/settings">Nastavení</NavLink>
         </nav>
 
         <div

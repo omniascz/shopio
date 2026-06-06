@@ -28,6 +28,8 @@ export interface CreatePacketInput {
   /** Mock-mode barcode seed — MUST be unique per shipment (shipment number),
    * not per order, so split shipments don't collide on the tracking unique. */
   mockSeed?: string | undefined;
+  /** Tenant REST API password override (admin settings); env fallback. */
+  apiPassword?: string | null | undefined;
   name: string;
   surname: string;
   email: string;
@@ -65,6 +67,14 @@ export function isPacketaEnabled(config: ShopioConfig): boolean {
   return Boolean(config.PACKETA_API_PASSWORD);
 }
 
+/** Tenant-level password (admin settings) wins over the platform env. */
+export function resolveApiPassword(
+  config: ShopioConfig,
+  tenantApiPassword?: string | null,
+): string | null {
+  return tenantApiPassword ?? config.PACKETA_API_PASSWORD ?? null;
+}
+
 function xmlEsc(v: string): string {
   return v
     .replaceAll('&', '&amp;')
@@ -84,7 +94,8 @@ export async function createPacket(
   config: ShopioConfig,
   input: CreatePacketInput,
 ): Promise<CreatePacketResult> {
-  if (!isPacketaEnabled(config)) {
+  const apiPassword = resolveApiPassword(config, input.apiPassword);
+  if (!apiPassword) {
     // Deterministic mock — same shipment retries produce the same barcode.
     const digest = createHash('sha256')
       .update(`packeta:${input.mockSeed ?? input.number}`)
@@ -107,7 +118,7 @@ export async function createPacket(
 
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <createPacket>
-  <apiPassword>${xmlEsc(config.PACKETA_API_PASSWORD!)}</apiPassword>
+  <apiPassword>${xmlEsc(apiPassword)}</apiPassword>
   <packetAttributes>
     <number>${xmlEsc(input.number)}</number>
     <name>${xmlEsc(input.name)}</name>
@@ -162,15 +173,18 @@ export async function getLabelPdf(
     orderNumber: string;
     recipientName: string;
     destinationLine: string;
+    apiPassword?: string | null | undefined;
   },
 ): Promise<Buffer> {
   if (packet.provider === 'mock') {
     return renderMockLabel(packet.barcode, context);
   }
+  const apiPassword = resolveApiPassword(config, context.apiPassword);
+  if (!apiPassword) throw new PacketaError('NO_API_PASSWORD', 'Packeta password missing');
 
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <packetLabelPdf>
-  <apiPassword>${xmlEsc(config.PACKETA_API_PASSWORD!)}</apiPassword>
+  <apiPassword>${xmlEsc(apiPassword)}</apiPassword>
   <packetId>${xmlEsc(packet.carrierShipmentId)}</packetId>
   <format>A6 on A6</format>
   <offset>0</offset>

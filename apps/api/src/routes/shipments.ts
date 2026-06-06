@@ -324,6 +324,7 @@ export async function registerShipmentRoutes(
         .limit(1);
       const providerOptions = (providerConfig?.options ?? {}) as {
         home_delivery_carrier_id?: string;
+        api_password?: string;
       };
 
       const pickup = shipment.pickupPointSnapshot as { external_id?: string; name?: string } | null;
@@ -338,6 +339,7 @@ export async function registerShipmentRoutes(
         const packet = await createPacket(config, {
           number: order.orderNumber,
           mockSeed: shipment.number,
+          apiPassword: providerOptions.api_password ?? null,
           name: recipient.name,
           surname: recipient.surname,
           email: order.customerEmail,
@@ -358,6 +360,7 @@ export async function registerShipmentRoutes(
           orderNumber: order.orderNumber,
           recipientName: order.customerName ?? order.customerEmail,
           destinationLine,
+          apiPassword: providerOptions.api_password ?? null,
         });
 
         // Atomic claim: only the request that flips pending→label_generated

@@ -318,15 +318,29 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const metrics = cartMetrics(items);
 
       const options = await resolveShippingOptions(db, tenant.id, country, metrics);
+
+      // Packeta widget key: tenant provider config first (set in admin
+      // settings), platform env as fallback; otherwise the storefront uses
+      // the seeded pickup-point picker (see /shipping/pickup-points).
+      const [provider] = await db
+        .select({ options: schema.shippingProviderConfigs.options })
+        .from(schema.shippingProviderConfigs)
+        .where(
+          and(
+            eq(schema.shippingProviderConfigs.tenantId, tenant.id),
+            eq(schema.shippingProviderConfigs.carrierCode, 'zasilkovna'),
+            eq(schema.shippingProviderConfigs.isEnabled, true),
+          ),
+        )
+        .limit(1);
+      const widgetKey =
+        ((provider?.options ?? {}) as { api_key?: string }).api_key ?? config.PACKETA_API_KEY;
+
       return reply.send({
         data: {
           country,
           options,
-          // Packeta widget when configured; otherwise storefront uses the
-          // seeded pickup-point picker (see /shipping/pickup-points).
-          pickup_widget: config.PACKETA_API_KEY
-            ? { provider: 'packeta', api_key: config.PACKETA_API_KEY }
-            : null,
+          pickup_widget: widgetKey ? { provider: 'packeta', api_key: widgetKey } : null,
         },
       });
     },

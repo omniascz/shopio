@@ -181,6 +181,47 @@ export interface ProductDetail {
   media: { id: string; url: string; alt: string | null; is_primary: boolean }[];
 }
 
+export interface ShopSettings {
+  slug: string;
+  display_name: string;
+  legal_entity_name: string | null;
+  country_code: string;
+  default_currency: string;
+  registration_number: string | null;
+  vat_id: string | null;
+  invoicing: {
+    address: { line1?: string; line2?: string; city?: string; postal_code?: string };
+    bank_account_iban: string | null;
+    bank_account_swift: string | null;
+  };
+  appearance: { theme: string; accent_color: string; logo_url: string | null };
+}
+
+export interface ShippingSettings {
+  zones: { id: string; name: string; country_codes: string[]; is_active: boolean }[];
+  rates: {
+    id: string;
+    zone_id: string;
+    carrier_code: string;
+    service_code: string;
+    display_name: string;
+    kind: string;
+    amount: string | null;
+    currency: string;
+    free_above_amount: string | null;
+    pickup_only: boolean;
+    is_active: boolean;
+  }[];
+  providers: {
+    carrier_code: string;
+    display_name: string;
+    is_enabled: boolean;
+    has_widget_key: boolean;
+    has_api_password: boolean;
+    sender_name: string | null;
+  }[];
+}
+
 export function productBasePrice(p: ProductListItem): Money | null {
   if (!p.base_price_amount || !p.base_price_currency) return null;
   return { amount: p.base_price_amount, currency: p.base_price_currency };
@@ -564,6 +605,72 @@ class ApiClient {
 
   async archiveProduct(id: string): Promise<void> {
     await this.request(`/products/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settings
+  // ---------------------------------------------------------------------------
+  async getSettings(): Promise<ShopSettings> {
+    return this.request('/admin/settings');
+  }
+
+  async updateSettings(body: {
+    displayName?: string;
+    legalEntityName?: string | null;
+    registrationNumber?: string | null;
+    vatId?: string | null;
+    invoicing?: {
+      address?: { line1?: string; line2?: string; city?: string; postal_code?: string };
+      bank_account_iban?: string;
+      bank_account_swift?: string;
+    };
+  }): Promise<ShopSettings> {
+    return this.request('/admin/settings', { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async updateAppearance(body: {
+    theme?: string;
+    accentColor?: string;
+    logoUrl?: string | null;
+  }): Promise<ShopSettings> {
+    return this.request('/admin/settings/appearance', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getShippingSettings(): Promise<ShippingSettings> {
+    return this.request('/admin/settings/shipping');
+  }
+
+  async updateShippingRate(
+    rateId: string,
+    body: {
+      displayName?: string;
+      amount?: string;
+      freeAboveAmount?: string | null;
+      isActive?: boolean;
+    },
+  ): Promise<unknown> {
+    return this.request(`/admin/settings/shipping/rates/${rateId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateShippingProvider(
+    carrierCode: string,
+    body: {
+      isEnabled?: boolean;
+      widgetApiKey?: string | null;
+      apiPassword?: string | null;
+      senderName?: string | null;
+    },
+  ): Promise<unknown> {
+    return this.request(`/admin/settings/shipping/providers/${carrierCode}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
   }
 }
 
