@@ -21,6 +21,8 @@ import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
+import { mapPacketaStatus, parsePacketaWebhook } from '../lib/packeta';
+import { timingSafeEqual } from 'node:crypto';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -66,6 +68,13 @@ export async function registerWebhookRoutes(
       done(err as Error, undefined);
     }
   });
+
+  // Packeta posts XML — keep the raw string for tolerant parsing.
+  app.addContentTypeParser(
+    ['text/xml', 'application/xml'],
+    { parseAs: 'string' },
+    (_req, body, done) => done(null, body),
+  );
 
   app.post(WEBHOOK_PATH, async (req, reply) => {
     if (!isStripeEnabled(config)) {
@@ -130,6 +139,120 @@ export async function registerWebhookRoutes(
 
     return reply.code(200).send({ received: true });
   });
+
+  // ---------------------------------------------------------------------------
+  // POST /webhooks/packeta/{tenantPubId}?secret= — carrier tracking events
+  //
+  // Per `14 §10` (JOB-PROCESS-SHIPPING-WEBHOOK-EVENT, sync MVP). Packeta has
+  // no signature scheme — authentication is the per-tenant secret in the URL
+  // (set in admin settings; constant-time compared). Always 200 for processed
+  // payloads (carrier retries on non-2xx); auth failures get 401.
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantPubId: string }; Querystring: { secret?: string } }>(
+    '/api/2026-05-20/webhooks/packeta/:tenantPubId',
+    async (req, reply) => {
+      const [tenant] = await db
+        .select({ id: schema.tenants.id })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.pubId, req.params.tenantPubId))
+        .limit(1);
+      if (!tenant) {
+        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Unknown endpoint' } });
+      }
+
+      const [provider] = await db
+        .select({ options: schema.shippingProviderConfigs.options })
+        .from(schema.shippingProviderConfigs)
+        .where(
+          and(
+            eq(schema.shippingProviderConfigs.tenantId, tenant.id),
+            eq(schema.shippingProviderConfigs.carrierCode, 'zasilkovna'),
+          ),
+        )
+        .limit(1);
+      const expected = ((provider?.options ?? {}) as { webhook_secret?: string }).webhook_secret;
+      const provided = req.query.secret ?? '';
+      if (
+        !expected ||
+        expected.length !== provided.length ||
+        !timingSafeEqual(Buffer.from(expected), Buffer.from(provided))
+      ) {
+        return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Bad secret' } });
+      }
+
+      const parsedBody = parsePacketaWebhook(req.body);
+      if (!parsedBody.barcode && !parsedBody.packetId) {
+        app.log.warn({ tenantId: tenant.id }, 'packeta.webhook.unparseable');
+        return reply.code(200).send({ received: true, matched: false });
+      }
+
+      // Resolve the shipment (tenant + carrier scoped)
+      const conditions = [
+        eq(schema.shipments.tenantId, tenant.id),
+        eq(schema.shipments.carrierCode, 'zasilkovna'),
+      ];
+      const matcher = parsedBody.barcode
+        ? eq(schema.shipments.trackingNumber, parsedBody.barcode)
+        : eq(schema.shipments.carrierShipmentId, parsedBody.packetId!);
+      const [shipment] = await db
+        .select()
+        .from(schema.shipments)
+        .where(and(...conditions, matcher))
+        .limit(1);
+      if (!shipment) {
+        app.log.warn(
+          { tenantId: tenant.id, barcode: parsedBody.barcode, packetId: parsedBody.packetId },
+          'packeta.webhook.shipment_not_found',
+        );
+        return reply.code(200).send({ received: true, matched: false });
+      }
+
+      const normalized = mapPacketaStatus(parsedBody.statusCode, parsedBody.statusText);
+
+      await db.transaction(async (tx) => {
+        await tx.insert(schema.shipmentEvents).values({
+          tenantId: tenant.id,
+          shipmentId: shipment.id,
+          status: normalized.kind,
+          description: normalized.description,
+          source: 'webhook',
+          isCustomerVisible: normalized.kind !== 'unknown',
+          raw: {
+            status_code: parsedBody.statusCode,
+            status_text: parsedBody.statusText,
+          },
+        });
+
+        // Delivered closes the shipment — atomic guard, only from handed_over
+        // (RULE-SHIP-021: never regress states from webhook data).
+        if (normalized.kind === 'delivered') {
+          await tx
+            .update(schema.shipments)
+            .set({
+              status: 'delivered',
+              statusEnteredAt: new Date(),
+              deliveredAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(eq(schema.shipments.id, shipment.id), eq(schema.shipments.status, 'handed_over')),
+            );
+        }
+      });
+
+      if (normalized.kind === 'returned') {
+        app.log.warn(
+          { shipmentId: shipment.id, number: shipment.number },
+          'packeta.webhook.shipment_returning_needs_attention',
+        );
+      }
+      app.log.info(
+        { shipmentId: shipment.id, kind: normalized.kind, code: parsedBody.statusCode },
+        'packeta.webhook.processed',
+      );
+      return reply.code(200).send({ received: true, matched: true });
+    },
+  );
 }
 
 // =============================================================================

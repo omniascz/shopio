@@ -235,6 +235,8 @@ export interface ShippingSettings {
     is_enabled: boolean;
     has_widget_key: boolean;
     has_api_password: boolean;
+    has_webhook_secret: boolean;
+    webhook_url: string | null;
     sender_name: string | null;
   }[];
 }
@@ -747,6 +749,7 @@ class ApiClient {
       isEnabled?: boolean;
       widgetApiKey?: string | null;
       apiPassword?: string | null;
+      webhookSecret?: string | null;
       senderName?: string | null;
     },
   ): Promise<unknown> {

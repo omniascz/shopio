@@ -83,6 +83,8 @@ const PatchProviderBody = z.object({
   widgetApiKey: z.string().max(120).nullable().optional(),
   /** Packeta REST API password (label generation). Same MVP caveat. */
   apiPassword: z.string().max(120).nullable().optional(),
+  /** Inbound tracking-webhook secret (?secret= on the webhook URL). */
+  webhookSecret: z.string().min(16).max(120).nullable().optional(),
   senderName: z.string().max(255).nullable().optional(),
 });
 
@@ -95,7 +97,7 @@ export async function registerSettingsRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
   // GET /admin/settings
@@ -229,6 +231,12 @@ export async function registerSettingsRoutes(
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
 
+      const [tenantRow] = await db
+        .select({ pubId: schema.tenants.pubId })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+
       const [zones, rates, providers] = await Promise.all([
         db
           .select()
@@ -270,16 +278,28 @@ export async function registerSettingsRoutes(
             estimated_days_max: r.estimatedDaysMax,
             is_active: r.isActive,
           })),
-          providers: providers.map((p) => ({
-            carrier_code: p.carrierCode,
-            display_name: p.displayName,
-            is_enabled: p.isEnabled,
-            is_test_mode: p.isTestMode,
-            has_widget_key: Boolean((p.options as { api_key?: string }).api_key),
-            has_api_password: Boolean((p.options as { api_password?: string }).api_password),
-            sender_name:
-              ((p.senderAddressSnapshot as { name?: string } | null) ?? {}).name ?? null,
-          })),
+          providers: providers.map((p) => {
+            const o = p.options as {
+              api_key?: string;
+              api_password?: string;
+              webhook_secret?: string;
+            };
+            return {
+              carrier_code: p.carrierCode,
+              display_name: p.displayName,
+              is_enabled: p.isEnabled,
+              is_test_mode: p.isTestMode,
+              has_widget_key: Boolean(o.api_key),
+              has_api_password: Boolean(o.api_password),
+              has_webhook_secret: Boolean(o.webhook_secret),
+              /** Configure this URL in the carrier's client portal (secret redacted). */
+              webhook_url: o.webhook_secret
+                ? `${config.SHOPIO_API_URL}/api/2026-05-20/webhooks/${p.carrierCode === 'zasilkovna' ? 'packeta' : p.carrierCode}/${tenantRow?.pubId ?? ''}?secret=•••`
+                : null,
+              sender_name:
+                ((p.senderAddressSnapshot as { name?: string } | null) ?? {}).name ?? null,
+            };
+          }),
         },
       });
     },
@@ -362,6 +382,10 @@ export async function registerSettingsRoutes(
       if (input.apiPassword !== undefined) {
         if (input.apiPassword) options.api_password = input.apiPassword;
         else delete options.api_password;
+      }
+      if (input.webhookSecret !== undefined) {
+        if (input.webhookSecret) options.webhook_secret = input.webhookSecret;
+        else delete options.webhook_secret;
       }
 
       const [updated] = await db

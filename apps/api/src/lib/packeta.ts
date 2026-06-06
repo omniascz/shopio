@@ -210,6 +210,91 @@ export function trackingUrlFor(barcode: string): string {
 }
 
 // =============================================================================
+// Inbound tracking webhook — status normalization (per `14 §10`)
+// =============================================================================
+
+export type PacketaEventKind =
+  | 'delivered' // customer has the goods → shipment delivered
+  | 'carrier_progress' // in transit / at depot / ready for pickup → timeline event
+  | 'returned' // returning to sender → needs merchant attention
+  | 'unknown';
+
+export interface NormalizedPacketaEvent {
+  kind: PacketaEventKind;
+  /** Czech customer-facing description for the timeline. */
+  description: string;
+}
+
+/** Packeta numeric status codes (packetStatus API / webhook). */
+const PACKETA_CODE_MAP: Record<string, NormalizedPacketaEvent> = {
+  '1': { kind: 'carrier_progress', description: 'Zásilka přijata do systému dopravce' },
+  '2': { kind: 'carrier_progress', description: 'Zásilka přijata na depu' },
+  '3': { kind: 'carrier_progress', description: 'Zásilka na cestě' },
+  '4': { kind: 'carrier_progress', description: 'Zásilka připravena k vyzvednutí' },
+  '5': { kind: 'delivered', description: 'Zásilka doručena' },
+  '6': { kind: 'returned', description: 'Zásilka se vrací odesílateli' },
+  '7': { kind: 'delivered', description: 'Zásilka předána příjemci' },
+  '9': { kind: 'returned', description: 'Zásilka vrácena odesílateli' },
+  '999': { kind: 'unknown', description: 'Neznámý stav zásilky' },
+};
+
+/** Keyword fallback for text-only payloads. */
+const KEYWORDS: [RegExp, NormalizedPacketaEvent][] = [
+  [/delivered|picked ?up|vyzvednut|doručen/i, { kind: 'delivered', description: 'Zásilka doručena' }],
+  [/returned|vrácen|vraci/i, { kind: 'returned', description: 'Zásilka se vrací odesílateli' }],
+  [
+    /transit|depot|ready|připraven|cestě|přijata/i,
+    { kind: 'carrier_progress', description: 'Zásilka na cestě' },
+  ],
+];
+
+/** Normalize a Packeta webhook status (numeric code and/or text). */
+export function mapPacketaStatus(
+  code: string | number | null | undefined,
+  text?: string | null,
+): NormalizedPacketaEvent {
+  if (code !== null && code !== undefined && String(code) in PACKETA_CODE_MAP) {
+    return PACKETA_CODE_MAP[String(code)]!;
+  }
+  for (const [pattern, event] of KEYWORDS) {
+    if (text && pattern.test(text)) return event;
+    if (typeof code === 'string' && pattern.test(code)) return event;
+  }
+  return { kind: 'unknown', description: text?.slice(0, 200) || 'Aktualizace stavu zásilky' };
+}
+
+/**
+ * Parse the inbound webhook body. Packeta posts XML (`<packetStatus>`);
+ * JSON accepted too for test tooling.
+ */
+export function parsePacketaWebhook(body: unknown): {
+  barcode: string | null;
+  packetId: string | null;
+  statusCode: string | null;
+  statusText: string | null;
+} {
+  if (typeof body === 'object' && body !== null) {
+    const o = body as Record<string, unknown>;
+    return {
+      barcode: (o.barcode as string) ?? (o.number as string) ?? null,
+      packetId: o.packetId != null ? String(o.packetId) : null,
+      statusCode: o.statusCode != null ? String(o.statusCode) : o.status != null ? String(o.status) : null,
+      statusText: (o.statusText as string) ?? (o.statusName as string) ?? null,
+    };
+  }
+  if (typeof body === 'string') {
+    const pick = (tag: string) => extract(body, tag);
+    return {
+      barcode: pick('barcode') ?? pick('number'),
+      packetId: pick('packetId') ?? pick('id'),
+      statusCode: pick('statusCode') ?? pick('status'),
+      statusText: pick('statusText') ?? pick('statusName'),
+    };
+  }
+  return { barcode: null, packetId: null, statusCode: null, statusText: null };
+}
+
+// =============================================================================
 // Mock label (dev without credentials)
 // =============================================================================
 

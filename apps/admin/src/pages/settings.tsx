@@ -282,6 +282,7 @@ function ProviderForm({
   const [enabled, setEnabled] = useState(provider.is_enabled);
   const [widgetKey, setWidgetKey] = useState('');
   const [apiPassword, setApiPassword] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const saveMutation = useMutation({
@@ -290,10 +291,12 @@ function ProviderForm({
         isEnabled: enabled,
         ...(widgetKey && { widgetApiKey: widgetKey }),
         ...(apiPassword && { apiPassword }),
+        ...(webhookSecret && { webhookSecret }),
       }),
     onSuccess: () => {
       setWidgetKey('');
       setApiPassword('');
+      setWebhookSecret('');
       onSaved();
     },
     onError: (err) => setError((err as Error).message),
@@ -327,7 +330,21 @@ function ProviderForm({
             style={inputStyle}
           />
         </Field>
+        <Field label={`Webhook secret (sledování) ${provider.has_webhook_secret ? '(nastaven ✓)' : ''}`}>
+          <input
+            type="password"
+            value={webhookSecret}
+            placeholder={provider.has_webhook_secret ? '••••••••' : 'min. 16 znaků, vymyslete vlastní'}
+            onChange={(e) => setWebhookSecret(e.target.value)}
+            style={inputStyle}
+          />
+        </Field>
       </div>
+      {provider.webhook_url && (
+        <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 0.75rem', wordBreak: 'break-all' }}>
+          Webhook URL pro klientskou sekci dopravce: <code>{provider.webhook_url}</code>
+        </p>
+      )}
       {error && <p style={errorStyle}>{error}</p>}
       <SaveButton mutation={saveMutation} onClick={() => { setError(null); saveMutation.mutate(); }} />
       {!provider.has_api_password && (
