@@ -24,6 +24,8 @@ import { SettingsPage } from './pages/settings';
 import { ReturnsListPage } from './pages/returns-list';
 import { CouponsListPage } from './pages/coupons-list';
 import { CompaniesListPage } from './pages/companies-list';
+import { ChannelsListPage } from './pages/channels-list';
+import { ManualOrderPage } from './pages/manual-order';
 import { AnalyticsPage } from './pages/analytics';
 import { useAuth } from './lib/auth-store';
 
@@ -87,6 +89,12 @@ const ordersListRoute = createRoute({
   component: OrdersListPage,
 });
 
+const manualOrderRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/orders/manual',
+  component: ManualOrderPage,
+});
+
 const orderDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/orders/$orderId',
@@ -141,6 +149,12 @@ const companiesRoute = createRoute({
   component: CompaniesListPage,
 });
 
+const channelsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/channels',
+  component: ChannelsListPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -148,6 +162,7 @@ const routeTree = rootRoute.addChildren([
   appLayoutRoute.addChildren([
     dashboardRoute,
     ordersListRoute,
+    manualOrderRoute,
     orderDetailRoute,
     productsListRoute,
     productCreateRoute,
@@ -157,6 +172,7 @@ const routeTree = rootRoute.addChildren([
     couponsListRoute,
     analyticsRoute,
     companiesRoute,
+    channelsRoute,
   ]),
 ]);
 

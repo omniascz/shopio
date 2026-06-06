@@ -44,6 +44,7 @@ import {
 } from '../lib/inventory';
 import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
 import { buildCompanySnapshot } from '../lib/companies';
+import { getOrCreateChannel } from '../lib/channels';
 import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
@@ -601,6 +602,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const taxByRef = new Map(tax.lines.map((l) => [l.ref, l]));
       const totalDiscount = goodsDiscount + shippingDiscount;
 
+      // Source channel (per `22`) — web storefront.
+      const webChannel = await getOrCreateChannel(db, tenant.id, 'web');
+
       // Atomic: revalidate stock + decrement + create order + clear cart
       try {
         const result = await db.transaction(async (tx) => {
@@ -705,6 +709,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 ? new Date(Date.now() + company!.netTermsDays * 24 * 60 * 60 * 1000)
                 : null,
               channelKind: 'storefront_web',
+              channelId: webChannel?.id ?? null,
               customerLocale: tenant.defaultLocale,
               customerNote: input.customerNote ?? null,
             })

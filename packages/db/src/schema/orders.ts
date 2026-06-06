@@ -119,6 +119,8 @@ export const orders = pgTable(
     paymentMethod: text('payment_method'), // 'mock', 'stripe', 'gopay', ...
     /** Source channel (per `22-multistore-channels.md`). */
     channelKind: text('channel_kind').notNull().default('storefront_web'),
+    /** FK to the channels registry (per `22`), nullable for legacy rows. */
+    channelId: uuid('channel_id'),
     /** Locale snapshot. */
     customerLocale: text('customer_locale'),
     /** Notes. */

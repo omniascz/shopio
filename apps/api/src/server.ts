@@ -24,6 +24,7 @@ import { registerMediaRoutes } from './routes/media';
 import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import { registerCouponAdminRoutes } from './routes/coupons-admin';
 import { registerCompanyAdminRoutes } from './routes/companies-admin';
+import { registerChannelAdminRoutes } from './routes/channels-admin';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import {
   registerCustomerAuthRoutes,
@@ -113,6 +114,7 @@ export async function buildServer() {
   await registerReviewAdminRoutes(server, { config, db });
   await registerCouponAdminRoutes(server, { config, db });
   await registerCompanyAdminRoutes(server, { config, db });
+  await registerChannelAdminRoutes(server, { config, db });
   await registerAnalyticsRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });

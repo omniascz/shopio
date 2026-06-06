@@ -15,7 +15,9 @@
  */
 
 import { schema } from '@shopio/db';
+import { generatePubId } from '@shopio/authz';
 import type { AppDb } from '../db';
+import { DEFAULT_CHANNELS } from './channels';
 
 type DbConn = AppDb | Parameters<Parameters<AppDb['transaction']>[0]>[0];
 
@@ -126,4 +128,16 @@ export async function provisionTenantDefaults(tx: DbConn, tenant: TenantSeed): P
     isTestMode: true,
     displayName: 'Zásilkovna',
   });
+
+  // 4) Sales channels (per `22`) — web + manual active, POS off.
+  await tx.insert(schema.channels).values(
+    DEFAULT_CHANNELS.map((c) => ({
+      tenantId: tenant.id,
+      pubId: generatePubId('chn'),
+      code: c.code,
+      kind: c.kind,
+      name: c.name,
+      isActive: c.isActive,
+    })),
+  );
 }

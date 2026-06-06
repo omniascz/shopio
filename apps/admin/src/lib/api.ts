@@ -35,6 +35,17 @@ export interface AnalyticsData {
   top_products: { title: string; units: number; revenue: Money }[];
   refunds: { amount: Money; count: number };
   customers: { new: number; returning: number };
+  by_channel?: { name: string; kind: string; orders: number; revenue: Money }[];
+}
+
+export interface ChannelItem {
+  id: string;
+  code: string;
+  kind: string;
+  name: string;
+  is_active: boolean;
+  orders: number;
+  created_at: string;
 }
 
 export interface DashboardData {
@@ -693,6 +704,40 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sales channels + manual orders (per `22`)
+  // ---------------------------------------------------------------------------
+  async listChannels(): Promise<{ channels: ChannelItem[] }> {
+    return this.request('/admin/channels');
+  }
+
+  async updateChannel(
+    id: string,
+    body: { name?: string; isActive?: boolean },
+  ): Promise<ChannelItem> {
+    return this.request(`/admin/channels/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async createManualOrder(body: {
+    customerEmail: string;
+    customerName: string;
+    customerPhone?: string;
+    shippingAddress: {
+      line1: string;
+      line2?: string;
+      city: string;
+      postalCode: string;
+      countryCode: string;
+    };
+    items: { variantId: string; quantity: number }[];
+    shippingAmount?: string;
+    shippingLabel?: string;
+    customerNote?: string;
+    markPaid?: boolean;
+  }): Promise<{ order: { id: string; number: string; status: string; total: Money } }> {
+    return this.request('/admin/orders/manual', { method: 'POST', body: JSON.stringify(body) });
   }
 
   // ---------------------------------------------------------------------------

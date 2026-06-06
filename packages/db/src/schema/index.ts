@@ -33,4 +33,6 @@ export * from './reviews';
 export * from './coupons';
 // B2B companies (Wave 1 — `21-b2b-complete.md` MVP)
 export * from './companies';
+// Sales channels (Wave 1 — `22-multistore-channels.md` MVP)
+export * from './channels';
 // Future: payments, ...

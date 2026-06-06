@@ -36,6 +36,7 @@ export function AppShell() {
           <NavLink to="/products">Produkty</NavLink>
           <NavLink to="/coupons">Slevy</NavLink>
           <NavLink to="/companies">Firmy (B2B)</NavLink>
+          <NavLink to="/channels">Kanály</NavLink>
           <NavLink to="/settings">Nastavení</NavLink>
         </nav>
 

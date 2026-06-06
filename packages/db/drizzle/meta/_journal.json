@@ -120,6 +120,13 @@
       "when": 1780748605143,
       "tag": "0016_b2b_companies",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780750254130,
+      "tag": "0017_channels",
+      "breakpoints": true
     }
   ]
 }

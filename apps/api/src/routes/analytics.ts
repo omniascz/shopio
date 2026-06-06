@@ -61,7 +61,8 @@ export async function registerAnalyticsRoutes(
         gte(schema.orders.paidAt, since),
       );
 
-      const [totals, series, topProducts, refunds, customerSplit, currencyRow] = await Promise.all([
+      const [totals, series, topProducts, refunds, customerSplit, byChannel, currencyRow] =
+        await Promise.all([
         db
           .select({
             orders: dsql<number>`COUNT(*)::int`,
@@ -130,6 +131,23 @@ export async function registerAnalyticsRoutes(
           FROM firsts
         `),
 
+        // Revenue by sales channel (per `22`) — paid orders in range.
+        db
+          .select({
+            name: dsql<string>`COALESCE(${schema.channels.name}, ${schema.orders.channelKind})`,
+            kind: dsql<string>`COALESCE(${schema.channels.kind}, ${schema.orders.channelKind})`,
+            orders: dsql<number>`COUNT(*)::int`,
+            revenue: dsql<string>`COALESCE(SUM(${schema.orders.totalAmount}), 0)::text`,
+          })
+          .from(schema.orders)
+          .leftJoin(schema.channels, eq(schema.channels.id, schema.orders.channelId))
+          .where(paidInRange)
+          .groupBy(
+            dsql`COALESCE(${schema.channels.name}, ${schema.orders.channelKind})`,
+            dsql`COALESCE(${schema.channels.kind}, ${schema.orders.channelKind})`,
+          )
+          .orderBy(dsql`SUM(${schema.orders.totalAmount}) DESC`),
+
         db
           .select({ currency: schema.tenants.defaultCurrency })
           .from(schema.tenants)
@@ -171,6 +189,12 @@ export async function registerAnalyticsRoutes(
             new: split.new_customers ?? 0,
             returning: split.returning_customers ?? 0,
           },
+          by_channel: byChannel.map((c) => ({
+            name: c.name,
+            kind: c.kind,
+            orders: c.orders,
+            revenue: { amount: c.revenue, currency },
+          })),
         },
       });
     },

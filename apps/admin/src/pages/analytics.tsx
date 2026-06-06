@@ -78,6 +78,32 @@ export function AnalyticsPage() {
             <RevenueChart series={d.revenue_series} currency={d.currency} />
           </section>
 
+          {d.by_channel && d.by_channel.length > 0 && (
+            <section style={card}>
+              <h2 style={h2}>Tržby podle kanálu</h2>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Kanál</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Objednávky</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Tržby</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.by_channel.map((c, i) => (
+                    <tr key={i}>
+                      <td style={td}>{c.name}</td>
+                      <td style={{ ...td, textAlign: 'right' }}>{c.orders}</td>
+                      <td style={{ ...td, textAlign: 'right', fontWeight: 500 }}>
+                        {formatMoney(c.revenue)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
           <section style={card}>
             <h2 style={h2}>Nejprodávanější produkty</h2>
             {d.top_products.length === 0 ? (
