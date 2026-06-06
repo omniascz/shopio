@@ -21,7 +21,7 @@ export interface CsvParseResult {
 
 /** RFC-4180-ish CSV parser with delimiter detection. */
 export function parseCsv(input: string): CsvParseResult {
-  const text = input.replace(/^﻿/, ''); // strip BOM
+  const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input; // strip BOM
   const firstLine = text.slice(0, text.indexOf('\n') === -1 ? text.length : text.indexOf('\n'));
   // Pick the delimiter that splits the header into the most columns
   const delimiter = [';', ',', '\t']
