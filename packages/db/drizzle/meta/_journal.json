@@ -155,6 +155,13 @@
       "when": 1780767389487,
       "tag": "0021_marketplace",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1780770521765,
+      "tag": "0022_developer_platform",
+      "breakpoints": true
     }
   ]
 }

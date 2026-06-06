@@ -217,6 +217,37 @@ export interface CompanyItem {
   created_at: string;
 }
 
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  key_prefix: string;
+  key_hint: string;
+  permissions: string[];
+  status: 'active' | 'revoked';
+  last_used_at: string | null;
+  created_at: string;
+}
+export interface WebhookItem {
+  id: string;
+  url: string;
+  secret_hint: string;
+  topics: string[];
+  enabled: boolean;
+  paused: boolean;
+  consecutive_failures: number;
+  created_at: string;
+}
+export interface WebhookDelivery {
+  id: string;
+  event_type: string;
+  status: string;
+  attempts: number;
+  response_code: number | null;
+  last_error: string | null;
+  created_at: string;
+  delivered_at: string | null;
+}
+
 export interface VendorItem {
   id: string;
   slug: string;
@@ -870,6 +901,31 @@ class ApiClient {
   }
   async deleteBlogPost(id: string): Promise<void> {
     await this.request(`/admin/cms/blog-posts/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Developer platform (per `28`)
+  // ---------------------------------------------------------------------------
+  async listApiKeys(): Promise<{ api_keys: ApiKeyItem[] }> {
+    return this.request('/admin/api-keys');
+  }
+  async createApiKey(body: { name: string; permissions: string[] }): Promise<ApiKeyItem & { key: string }> {
+    return this.request('/admin/api-keys', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async revokeApiKey(id: string): Promise<ApiKeyItem> {
+    return this.request(`/admin/api-keys/${id}/revoke`, { method: 'POST' });
+  }
+  async listWebhooks(): Promise<{ webhooks: WebhookItem[]; available_topics: string[] }> {
+    return this.request('/admin/webhooks');
+  }
+  async createWebhook(body: { url: string; topics: string[] }): Promise<WebhookItem & { secret: string }> {
+    return this.request('/admin/webhooks', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async setWebhookEnabled(id: string, enabled: boolean): Promise<WebhookItem> {
+    return this.request(`/admin/webhooks/${id}/${enabled ? 'resume' : 'disable'}`, { method: 'POST' });
+  }
+  async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
+    return this.request(`/admin/webhooks/${id}/deliveries`);
   }
 
   // ---------------------------------------------------------------------------

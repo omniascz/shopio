@@ -47,6 +47,7 @@ import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from
 import { buildCompanySnapshot } from '../lib/companies';
 import { getOrCreateChannel } from '../lib/channels';
 import { recordCommissions } from '../lib/marketplace';
+import { emitWebhookEvent } from '../lib/webhooks-out';
 import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
@@ -795,6 +796,16 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           { orderId: result.id, tenantId: tenant.id, customerEmail: input.customerEmail },
           'checkout.order_placed',
         );
+
+        // Outbound webhook (per `28`): order.placed
+        emitWebhookEvent(db, tenant.id, 'order.placed', {
+          order_number: result.orderNumber,
+          status: result.status,
+          payment_status: result.paymentStatus,
+          total: { amount: result.totalAmount.toString(), currency: result.currency },
+          customer_email: result.customerEmail,
+          placed_at: result.placedAt,
+        });
 
         // Remember the shipping address on the account (best-effort)
         if (customer) {

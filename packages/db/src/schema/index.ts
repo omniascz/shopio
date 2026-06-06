@@ -41,4 +41,6 @@ export * from './translations';
 export * from './cms';
 // Marketplace multi-vendor (Wave 1 — `25-marketplace.md` MVP)
 export * from './marketplace';
+// Developer platform — API keys + webhooks (Wave 1 — `28-developer-platform.md` MVP)
+export * from './developer';
 // Future: payments, ...

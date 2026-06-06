@@ -14,6 +14,7 @@ import { requirePermission } from '../plugins/auth-middleware';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
+import { emitWebhookEvent } from '../lib/webhooks-out';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -357,6 +358,19 @@ export async function registerOrderRoutes(
         },
         'order.status_updated',
       );
+
+      // Outbound webhooks (per `28`): emit on the relevant transitions.
+      const webhookBase = {
+        order_number: updated!.orderNumber,
+        status: updated!.status,
+        payment_status: updated!.paymentStatus,
+        total: { amount: updated!.totalAmount.toString(), currency: updated!.currency },
+      };
+      if ((parsed.data.status === 'paid' || parsed.data.paymentStatus === 'paid') && existing.paymentStatus !== 'paid') {
+        emitWebhookEvent(db, tenantId, 'order.paid', webhookBase);
+      }
+      if (parsed.data.status === 'fulfilled') emitWebhookEvent(db, tenantId, 'order.fulfilled', webhookBase);
+      if (parsed.data.status === 'cancelled') emitWebhookEvent(db, tenantId, 'order.cancelled', webhookBase);
 
       // Trigger invoice + paid email when transitioning into paid (manual admin mark).
       // Invoice first so the email can attach the PDF (per `15 §3.5`).

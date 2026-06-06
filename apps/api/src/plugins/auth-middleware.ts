@@ -20,6 +20,8 @@ import {
   type ShopioJwtClaims,
 } from '@shopio/authz';
 import { getConfig } from '../config';
+import { getDb } from '../db';
+import { isApiKey, resolveApiKey } from '../lib/api-keys';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -131,10 +133,31 @@ export function requirePermission(permission: PermissionCode): preHandlerHookHan
  */
 async function tryAuth(req: FastifyRequest): Promise<AuthContext | null> {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7);
+  const apiKeyHeader = req.headers['x-api-key'];
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : typeof apiKeyHeader === 'string'
+      ? apiKeyHeader
+      : null;
+  if (!token) return null;
 
   const config = getConfig();
+
+  // API key path (per `28`): programmatic access. The key determines the tenant
+  // (looked up on the superuser pool — precedes RLS context), and reuses the
+  // existing admin permissions[] so per-endpoint permission checks work as-is.
+  if (isApiKey(token)) {
+    const key = await resolveApiKey(getDb(config), token);
+    if (!key) return null;
+    return {
+      userId: key.createdByUserId ?? key.id,
+      tenantId: key.tenantId,
+      permissions: key.permissions as AuthContext['permissions'],
+      assuranceLevel: 'mfa_verified',
+      sessionId: `apikey:${key.id}`,
+    };
+  }
+
   let claims: ShopioJwtClaims;
   try {
     claims = await verifyAccessToken(token, config.SHOPIO_JWT_SECRET);

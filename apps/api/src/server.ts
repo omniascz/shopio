@@ -29,6 +29,7 @@ import { registerTranslationAdminRoutes } from './routes/translations-admin';
 import { registerCmsAdminRoutes } from './routes/cms-admin';
 import { registerMarketplaceAdminRoutes } from './routes/marketplace-admin';
 import { registerAiAdminRoutes } from './routes/ai-admin';
+import { registerDeveloperAdminRoutes } from './routes/developer-admin';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import {
   registerCustomerAuthRoutes,
@@ -123,6 +124,7 @@ export async function buildServer() {
   await registerCmsAdminRoutes(server, { config, db });
   await registerMarketplaceAdminRoutes(server, { config, db });
   await registerAiAdminRoutes(server, { config, db });
+  await registerDeveloperAdminRoutes(server, { config, db });
   await registerAnalyticsRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });

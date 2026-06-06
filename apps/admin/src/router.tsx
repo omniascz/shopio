@@ -28,6 +28,7 @@ import { ChannelsListPage } from './pages/channels-list';
 import { ManualOrderPage } from './pages/manual-order';
 import { ContentPage } from './pages/content';
 import { VendorsListPage } from './pages/vendors-list';
+import { DevelopersPage } from './pages/developers';
 import { AnalyticsPage } from './pages/analytics';
 import { useAuth } from './lib/auth-store';
 
@@ -169,6 +170,12 @@ const vendorsRoute = createRoute({
   component: VendorsListPage,
 });
 
+const developersRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/developers',
+  component: DevelopersPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -189,6 +196,7 @@ const routeTree = rootRoute.addChildren([
     channelsRoute,
     contentRoute,
     vendorsRoute,
+    developersRoute,
   ]),
 ]);
 

@@ -39,6 +39,7 @@ export function AppShell() {
           <NavLink to="/channels">Kanály</NavLink>
           <NavLink to="/content">Obsah</NavLink>
           <NavLink to="/vendors">Prodejci</NavLink>
+          <NavLink to="/developers">Vývojáři</NavLink>
           <NavLink to="/settings">Nastavení</NavLink>
         </nav>
 

@@ -26,6 +26,7 @@ import { requireAuth } from '../plugins/auth-middleware';
 import { indexProduct, removeProductFromIndex } from '../lib/search';
 import { mapImportRows, parseCsv } from '../lib/csv';
 import { getRlsDb } from '../db';
+import { emitWebhookEvent } from '../lib/webhooks-out';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -427,6 +428,12 @@ export async function registerProductRoutes(
         'products.create.success',
       );
       void indexProduct(config, db, result.product.id, app.log);
+      emitWebhookEvent(db, auth.tenantId!, 'product.created', {
+        id: result.product.pubId,
+        slug: result.product.slug,
+        title: result.product.title,
+        status: result.product.status,
+      });
 
       return reply.code(201).send({
         data: serializeProduct(result.product, result.variants, result.media, input.categoryIds),
