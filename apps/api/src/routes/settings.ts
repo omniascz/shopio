@@ -16,10 +16,11 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, eq } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { isSearchEnabled, reindexTenant } from '../lib/search';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -125,6 +126,7 @@ export async function registerSettingsRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/settings
@@ -306,22 +308,24 @@ export async function registerSettingsRoutes(
         .where(eq(schema.tenants.id, tenantId))
         .limit(1);
 
-      const [zones, rates, providers] = await Promise.all([
-        db
-          .select()
-          .from(schema.shippingZones)
-          .where(eq(schema.shippingZones.tenantId, tenantId))
-          .orderBy(asc(schema.shippingZones.priority)),
-        db
-          .select()
-          .from(schema.shippingRates)
-          .where(eq(schema.shippingRates.tenantId, tenantId))
-          .orderBy(asc(schema.shippingRates.priority)),
-        db
-          .select()
-          .from(schema.shippingProviderConfigs)
-          .where(eq(schema.shippingProviderConfigs.tenantId, tenantId)),
-      ]);
+      const [zones, rates, providers] = await withTenant(rlsDb, tenantId, (tx) =>
+        Promise.all([
+          tx
+            .select()
+            .from(schema.shippingZones)
+            .where(eq(schema.shippingZones.tenantId, tenantId))
+            .orderBy(asc(schema.shippingZones.priority)),
+          tx
+            .select()
+            .from(schema.shippingRates)
+            .where(eq(schema.shippingRates.tenantId, tenantId))
+            .orderBy(asc(schema.shippingRates.priority)),
+          tx
+            .select()
+            .from(schema.shippingProviderConfigs)
+            .where(eq(schema.shippingProviderConfigs.tenantId, tenantId)),
+        ]),
+      );
 
       return reply.send({
         data: {
@@ -392,16 +396,18 @@ export async function registerSettingsRoutes(
         Object.entries(input).filter(([, v]) => v !== undefined),
       ) as Partial<typeof schema.shippingRates.$inferInsert>;
 
-      const [updated] = await db
-        .update(schema.shippingRates)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.shippingRates.tenantId, tenantId),
-            eq(schema.shippingRates.id, req.params.rateId),
-          ),
-        )
-        .returning();
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.shippingRates)
+          .set({ ...updates, updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.shippingRates.tenantId, tenantId),
+              eq(schema.shippingRates.id, req.params.rateId),
+            ),
+          )
+          .returning(),
+      );
       if (!updated) return notFound(reply, 'RATE_NOT_FOUND', 'Shipping rate not found');
 
       app.log.info({ tenantId, rateId: updated.id }, 'settings.shipping_rate_updated');
@@ -431,16 +437,18 @@ export async function registerSettingsRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const input = parsed.data;
 
-      const [provider] = await db
-        .select()
-        .from(schema.shippingProviderConfigs)
-        .where(
-          and(
-            eq(schema.shippingProviderConfigs.tenantId, tenantId),
-            eq(schema.shippingProviderConfigs.carrierCode, req.params.carrierCode),
-          ),
-        )
-        .limit(1);
+      const [provider] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select()
+          .from(schema.shippingProviderConfigs)
+          .where(
+            and(
+              eq(schema.shippingProviderConfigs.tenantId, tenantId),
+              eq(schema.shippingProviderConfigs.carrierCode, req.params.carrierCode),
+            ),
+          )
+          .limit(1),
+      );
       if (!provider) return notFound(reply, 'PROVIDER_NOT_FOUND', 'Carrier config not found');
 
       const options = { ...(provider.options as Record<string, unknown>) };
@@ -457,18 +465,20 @@ export async function registerSettingsRoutes(
         else delete options.webhook_secret;
       }
 
-      const [updated] = await db
-        .update(schema.shippingProviderConfigs)
-        .set({
-          ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
-          options,
-          ...(input.senderName !== undefined && {
-            senderAddressSnapshot: { name: input.senderName },
-          }),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.shippingProviderConfigs.id, provider.id))
-        .returning();
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.shippingProviderConfigs)
+          .set({
+            ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
+            options,
+            ...(input.senderName !== undefined && {
+              senderAddressSnapshot: { name: input.senderName },
+            }),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.shippingProviderConfigs.id, provider.id))
+          .returning(),
+      );
 
       app.log.info({ tenantId, carrier: provider.carrierCode }, 'settings.provider_updated');
       return reply.send({
