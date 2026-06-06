@@ -241,11 +241,90 @@ export function ProductEditPage() {
       <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
       <CategoriesPanel product={product} onSaved={invalidate} />
+      <AiAssistPanel product={product} onSaved={invalidate} />
       <VendorPanel product={product} onSaved={invalidate} />
       <TranslationsPanel productId={product.id} />
     </div>
   );
 }
+
+// =============================================================================
+// AI assistant (per `33`)
+// =============================================================================
+
+function AiAssistPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const [draft, setDraft] = useState('');
+  const [seo, setSeo] = useState<{ seoTitle: string; metaDescription: string } | null>(null);
+  const [mock, setMock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const attrs = Object.fromEntries(product.attributes.map((a) => [a.name, a.value]));
+
+  const genDesc = useMutation({
+    mutationFn: () => api.aiProductDescription({ title: product.title, attributes: attrs }),
+    onSuccess: (r) => { setDraft(r.descriptionHtml); setMock(r.mock); setError(null); },
+    onError: (e) => setError((e as Error).message),
+  });
+  const genSeo = useMutation({
+    mutationFn: () => api.aiSeo({ title: product.title, attributes: attrs, ...(product.description_html ? { descriptionHtml: product.description_html } : {}) }),
+    onSuccess: (r) => { setSeo({ seoTitle: r.seoTitle, metaDescription: r.metaDescription }); setMock(r.mock); setError(null); },
+    onError: (e) => setError((e as Error).message),
+  });
+  const applyDesc = useMutation({
+    mutationFn: () => api.updateProduct(product.id, { descriptionHtml: draft }),
+    onSuccess: () => { onSaved(); setDraft(''); },
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>✨ AI asistent</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Vygeneruje návrh z názvu a parametrů produktu. {mock && '(Dev režim — bez API klíče vrací ukázku.)'}
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <button type="button" onClick={() => genDesc.mutate()} disabled={genDesc.isPending} style={aiBtn}>
+          {genDesc.isPending ? 'Generuji…' : 'Vygenerovat popis'}
+        </button>
+        <button type="button" onClick={() => genSeo.mutate()} disabled={genSeo.isPending} style={aiBtn}>
+          {genSeo.isPending ? 'Generuji…' : 'Vygenerovat SEO'}
+        </button>
+      </div>
+
+      {draft && (
+        <div style={{ marginBottom: '0.75rem' }}>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={6}
+            style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: 4, fontFamily: 'monospace', fontSize: '0.8125rem', boxSizing: 'border-box' }}
+          />
+          <button type="button" onClick={() => applyDesc.mutate()} disabled={applyDesc.isPending} style={{ ...aiBtn, marginTop: 6 }}>
+            {applyDesc.isPending ? 'Ukládám…' : 'Uložit jako popis produktu'}
+          </button>
+        </div>
+      )}
+
+      {seo && (
+        <div style={{ fontSize: '0.875rem', background: '#f8f9ff', padding: '0.75rem', borderRadius: 6 }}>
+          <div><strong>SEO titulek:</strong> {seo.seoTitle} <span style={{ color: '#999' }}>({seo.seoTitle.length}/60)</span></div>
+          <div style={{ marginTop: 4 }}><strong>Meta popis:</strong> {seo.metaDescription} <span style={{ color: '#999' }}>({seo.metaDescription.length}/155)</span></div>
+        </div>
+      )}
+      {error && <p style={{ color: '#c00', fontSize: '0.875rem' }}>{error}</p>}
+    </section>
+  );
+}
+
+const aiBtn: React.CSSProperties = {
+  padding: '0.5rem 0.875rem',
+  background: '#6b46c1',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 6,
+  fontSize: '0.8125rem',
+  fontWeight: 500,
+  cursor: 'pointer',
+};
 
 // =============================================================================
 // Marketplace vendor assignment (per `25`)

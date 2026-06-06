@@ -52,6 +52,14 @@ const ConfigSchema = z.object({
   STRIPE_WEBHOOK_SECRET: stripeKeySchema('whsec_'),
   STRIPE_PUBLISHABLE_KEY: stripeKeySchema('pk_'),
 
+  // AI (Anthropic, per `33`) — optional; absent/placeholder → deterministic
+  // mock so the "Generate" actions work in dev/CI without a key.
+  ANTHROPIC_API_KEY: z.preprocess((v) => {
+    if (typeof v !== 'string') return undefined;
+    if (v.length < 40 || !v.startsWith('sk-ant-') || v.includes('...')) return undefined;
+    return v;
+  }, z.string().min(40).optional()),
+
   // Zásilkovna / Packeta (optional — when absent the storefront falls back to the
   // seeded pickup-point picker instead of the Packeta JS widget).
   PACKETA_API_KEY: optionalNonEmpty(z.string().min(8)),

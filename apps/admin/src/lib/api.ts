@@ -873,6 +873,27 @@ class ApiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // AI assists (per `33`)
+  // ---------------------------------------------------------------------------
+  async aiProductDescription(body: {
+    title: string;
+    attributes?: Record<string, string>;
+    tone?: string;
+    lengthWords?: number;
+    keywords?: string[];
+  }): Promise<{ descriptionHtml: string; model: string; mock: boolean }> {
+    return this.request('/admin/ai/product-description', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async aiSeo(body: {
+    title: string;
+    descriptionHtml?: string;
+    attributes?: Record<string, string>;
+    keywords?: string[];
+  }): Promise<{ seoTitle: string; metaDescription: string; model: string; mock: boolean }> {
+    return this.request('/admin/ai/seo', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  // ---------------------------------------------------------------------------
   // Marketplace vendors (per `25`)
   // ---------------------------------------------------------------------------
   async listVendors(): Promise<{ vendors: VendorItem[] }> {
