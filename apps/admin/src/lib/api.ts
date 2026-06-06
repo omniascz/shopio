@@ -217,6 +217,33 @@ export interface CompanyItem {
   created_at: string;
 }
 
+export interface VendorItem {
+  id: string;
+  slug: string;
+  display_name: string;
+  legal_entity_name: string | null;
+  registration_number: string | null;
+  vat_id: string | null;
+  contact_email: string;
+  contact_phone: string | null;
+  status: 'pending' | 'active' | 'suspended' | 'closed';
+  commission_basis_points: number;
+  created_at: string;
+  products?: number;
+  vendor_earnings?: string;
+}
+export interface VendorCommissions {
+  totals: { lines: number; commission: string; vendor_earnings: string };
+  commissions: {
+    order_number: string;
+    currency: string;
+    line_subtotal: string;
+    commission: string;
+    vendor_earning: string;
+    created_at: string;
+  }[];
+}
+
 export interface CmsPageItem {
   id: string;
   slug: string;
@@ -308,6 +335,7 @@ export interface ProductDetail {
   base_price_amount: string | null;
   base_price_currency: string | null;
   vendor: string | null;
+  vendor_id: string | null;
   brand_name: string | null;
   published_at: string | null;
   variants: ProductVariantDetail[];
@@ -844,6 +872,33 @@ class ApiClient {
     await this.request(`/admin/cms/blog-posts/${id}`, { method: 'DELETE' });
   }
 
+  // ---------------------------------------------------------------------------
+  // Marketplace vendors (per `25`)
+  // ---------------------------------------------------------------------------
+  async listVendors(): Promise<{ vendors: VendorItem[] }> {
+    return this.request('/admin/vendors');
+  }
+  async createVendor(body: {
+    displayName: string;
+    contactEmail: string;
+    commissionBasisPoints?: number;
+    contactPhone?: string;
+    legalEntityName?: string;
+    registrationNumber?: string;
+    vatId?: string;
+  }): Promise<VendorItem> {
+    return this.request('/admin/vendors', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateVendor(
+    id: string,
+    body: { status?: string; commissionBasisPoints?: number; displayName?: string },
+  ): Promise<VendorItem> {
+    return this.request(`/admin/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async getVendorCommissions(id: string): Promise<VendorCommissions> {
+    return this.request(`/admin/vendors/${id}/commissions`);
+  }
+
   async createManualOrder(body: {
     customerEmail: string;
     customerName: string;
@@ -918,6 +973,7 @@ class ApiClient {
       basePriceCurrency: string;
       status: string;
       vendor: string | null;
+      vendorId: string | null;
       brandName: string | null;
       categoryIds: string[];
       attributes: { name: string; value: string }[];

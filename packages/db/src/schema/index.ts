@@ -39,4 +39,6 @@ export * from './channels';
 export * from './translations';
 // CMS content pages + blog (Wave 1 — `32-cms-content.md` MVP)
 export * from './cms';
+// Marketplace multi-vendor (Wave 1 — `25-marketplace.md` MVP)
+export * from './marketplace';
 // Future: payments, ...

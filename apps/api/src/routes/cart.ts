@@ -46,6 +46,7 @@ import {
 import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
 import { buildCompanySnapshot } from '../lib/companies';
 import { getOrCreateChannel } from '../lib/channels';
+import { recordCommissions } from '../lib/marketplace';
 import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
@@ -783,6 +784,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             .update(schema.carts)
             .set({ status: 'converted', statusEnteredAt: new Date(), updatedAt: new Date() })
             .where(eq(schema.carts.id, cart.id));
+
+          // Marketplace (per `25`): record commission for vendor-owned lines.
+          await recordCommissions(tx, tenant.id, order.id);
 
           return order;
         });

@@ -50,8 +50,7 @@ export async function registerCompanyAdminRoutes(
           .select({
             company: schema.companies,
             members: dsql<number>`(
-              SELECT count(*)::int FROM ${schema.customers}
-              WHERE ${schema.customers.companyId} = ${schema.companies.id}
+              SELECT count(*)::int FROM customers WHERE customers.company_id = companies.id
             )`,
           })
           .from(schema.companies)

@@ -241,8 +241,48 @@ export function ProductEditPage() {
       <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
       <CategoriesPanel product={product} onSaved={invalidate} />
+      <VendorPanel product={product} onSaved={invalidate} />
       <TranslationsPanel productId={product.id} />
     </div>
+  );
+}
+
+// =============================================================================
+// Marketplace vendor assignment (per `25`)
+// =============================================================================
+
+function VendorPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const vendorsQuery = useQuery({ queryKey: ['admin', 'vendors'], queryFn: () => api.listVendors() });
+  const vendors = vendorsQuery.data?.vendors ?? [];
+  const mutation = useMutation({
+    mutationFn: (vendorId: string | null) => api.updateProduct(product.id, { vendorId }),
+    onSuccess: onSaved,
+  });
+
+  // Hide entirely if there are no vendors (marketplace not in use).
+  if (vendorsQuery.isSuccess && vendors.length === 0) return null;
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Prodejce (marketplace)</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Přiřadí produkt prodejci třetí strany. Platforma si z prodeje vezme jeho provizi.
+        Prázdné = vlastní produkt platformy.
+      </p>
+      <select
+        value={product.vendor_id ?? ''}
+        onChange={(e) => mutation.mutate(e.target.value || null)}
+        disabled={mutation.isPending}
+        style={{ padding: '0.5rem 0.625rem', border: '1px solid #ddd', borderRadius: 4, fontSize: '0.9375rem', minWidth: 280 }}
+      >
+        <option value="">— vlastní produkt platformy —</option>
+        {vendors.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.display_name} ({v.commission_basis_points / 100} % provize)
+          </option>
+        ))}
+      </select>
+    </section>
   );
 }
 

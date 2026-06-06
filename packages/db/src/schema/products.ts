@@ -47,6 +47,8 @@ export const products = pgTable(
     publishedAt: timestamp('published_at', { withTimezone: true }),
     // Vendor / brand (FK Fáze 2)
     vendor: text('vendor'),
+    /** Marketplace seller that owns this product (per `25`), null = platform-owned. */
+    vendorId: uuid('vendor_id'),
     brandName: text('brand_name'),
     /** Structured spec parameters (per `06` PIM, MVP): ordered key→value pairs
      * shown as a "Specifikace" table and indexed as Meilisearch facets.

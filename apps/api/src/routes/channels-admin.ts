@@ -91,8 +91,7 @@ export async function registerChannelAdminRoutes(
           .select({
             channel: schema.channels,
             orders: dsql<number>`(
-              SELECT count(*)::int FROM ${schema.orders}
-              WHERE ${schema.orders.channelId} = ${schema.channels.id}
+              SELECT count(*)::int FROM orders WHERE orders.channel_id = channels.id
             )`,
           })
           .from(schema.channels)

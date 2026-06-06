@@ -148,6 +148,13 @@
       "when": 1780752800000,
       "tag": "0020_rls_tenant_isolation",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780767389487,
+      "tag": "0021_marketplace",
+      "breakpoints": true
     }
   ]
 }

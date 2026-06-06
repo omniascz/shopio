@@ -117,6 +117,8 @@ const UpdateProductBody = z.object({
   basePriceCurrency: z.string().length(3).optional(),
   status: z.enum(['draft', 'active', 'archived', 'unpublished']).optional(),
   vendor: z.string().max(120).nullable().optional(),
+  /** Marketplace seller pub_id (per `25`); null unassigns → platform-owned. */
+  vendorId: z.string().max(40).nullable().optional(),
   brandName: z.string().max(120).nullable().optional(),
   /** Spec parameters (replace whole list). */
   attributes: z
@@ -569,7 +571,17 @@ export async function registerProductRoutes(
             )
             .where(eq(schema.productCategories.productId, product.id)),
         ]);
-        return { product, variants, media, catRows };
+        // Marketplace (per `25`): resolve vendor uuid → pub_id for the editor.
+        let vendorPubId: string | null = null;
+        if (product.vendorId) {
+          const [v] = await tx
+            .select({ pubId: schema.vendors.pubId })
+            .from(schema.vendors)
+            .where(eq(schema.vendors.id, product.vendorId))
+            .limit(1);
+          vendorPubId = v?.pubId ?? null;
+        }
+        return { product, variants, media, catRows, vendorPubId };
       });
 
       if (!found) {
@@ -584,6 +596,7 @@ export async function registerProductRoutes(
           found.variants,
           found.media,
           found.catRows.map((r) => r.pubId),
+          found.vendorPubId,
         ),
       });
     },
@@ -627,7 +640,7 @@ export async function registerProductRoutes(
         });
       }
 
-      const { categoryIds, ...fieldInput } = parsed.data;
+      const { categoryIds, vendorId: vendorPubId, ...fieldInput } = parsed.data;
       const updates: Record<string, unknown> = { ...fieldInput, updatedAt: new Date() };
 
       // Auto-set publishedAt on first publish
@@ -635,7 +648,21 @@ export async function registerProductRoutes(
         updates.publishedAt = new Date();
       }
 
-      const updated = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
+      const result = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
+        // Marketplace (per `25`): resolve vendor pub_id → uuid (null unassigns).
+        if (vendorPubId !== undefined) {
+          if (vendorPubId === null) {
+            updates.vendorId = null;
+          } else {
+            const [v] = await tx
+              .select({ id: schema.vendors.id })
+              .from(schema.vendors)
+              .where(and(eq(schema.vendors.tenantId, auth.tenantId!), eq(schema.vendors.pubId, vendorPubId)))
+              .limit(1);
+            if (!v) return { notFoundVendor: true as const };
+            updates.vendorId = v.id;
+          }
+        }
         const [row] = await tx
           .update(schema.products)
           .set(updates)
@@ -675,8 +702,15 @@ export async function registerProductRoutes(
             );
           }
         }
-        return row!;
+        return { row: row! };
       });
+
+      if ('notFoundVendor' in result) {
+        return reply.code(422).send({
+          error: { code: 'VENDOR_NOT_FOUND', message: 'Prodejce nenalezen' },
+        });
+      }
+      const updated = result.row;
 
       const catRows = await withTenant(rlsDb, auth.tenantId!, (tx) =>
         tx
@@ -1143,6 +1177,7 @@ function serializeProduct(
   variants: (typeof schema.productVariants.$inferSelect)[],
   media: (typeof schema.productMedia.$inferSelect)[],
   categoryIds: string[],
+  vendorPubId: string | null = null,
 ) {
   return {
     id: product.pubId,
@@ -1154,6 +1189,7 @@ function serializeProduct(
     compare_at_amount: product.compareAtAmount?.toString() ?? null,
     status: product.status,
     vendor: product.vendor,
+    vendor_id: vendorPubId,
     brand_name: product.brandName,
     attributes: product.attributes,
     published_at: product.publishedAt,
