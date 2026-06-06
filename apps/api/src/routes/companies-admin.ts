@@ -13,7 +13,9 @@ import { z } from 'zod';
 import { and, desc, eq, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
+import { withTenant } from '@shopio/db';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import { serializeCompany } from '../lib/companies';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -35,7 +37,7 @@ export async function registerCompanyAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   app.get(
     '/api/2026-05-20/admin/companies',
@@ -43,18 +45,20 @@ export async function registerCompanyAdminRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const rows = await db
-        .select({
-          company: schema.companies,
-          members: dsql<number>`(
-            SELECT count(*)::int FROM ${schema.customers}
-            WHERE ${schema.customers.companyId} = ${schema.companies.id}
-          )`,
-        })
-        .from(schema.companies)
-        .where(eq(schema.companies.tenantId, tenantId))
-        .orderBy(desc(schema.companies.createdAt))
-        .limit(500);
+      const rows = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select({
+            company: schema.companies,
+            members: dsql<number>`(
+              SELECT count(*)::int FROM ${schema.customers}
+              WHERE ${schema.customers.companyId} = ${schema.companies.id}
+            )`,
+          })
+          .from(schema.companies)
+          .where(eq(schema.companies.tenantId, tenantId))
+          .orderBy(desc(schema.companies.createdAt))
+          .limit(500),
+      );
       return reply.send({
         data: {
           companies: rows.map((r) => ({ ...serializeCompany(r.company), members: r.members })),
@@ -78,13 +82,15 @@ export async function registerCompanyAdminRoutes(
         if (i[k] !== undefined) updates[k] = i[k];
       }
 
-      const [updated] = await db
-        .update(schema.companies)
-        .set(updates)
-        .where(
-          and(eq(schema.companies.tenantId, tenantId), eq(schema.companies.pubId, req.params.pubId)),
-        )
-        .returning();
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.companies)
+          .set(updates)
+          .where(
+            and(eq(schema.companies.tenantId, tenantId), eq(schema.companies.pubId, req.params.pubId)),
+          )
+          .returning(),
+      );
       if (!updated) return notFound(reply, 'COMPANY_NOT_FOUND');
       return reply.send({ data: serializeCompany(updated) });
     },

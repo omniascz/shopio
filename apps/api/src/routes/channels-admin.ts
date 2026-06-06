@@ -19,7 +19,9 @@ import { z } from 'zod';
 import { and, asc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
+import { withTenant } from '@shopio/db';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import { serializeChannel } from '../lib/channels';
 import { computeTax, serializeBreakdown } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
@@ -69,7 +71,11 @@ export async function registerChannelAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
+  // `db` (superuser) is used by the manual-order flow below (own transaction +
+  // libs that open their own transactions). The channel CRUD uses the
+  // RLS-enforced pool. Both are correct; full migration tracked as follow-up.
   const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/channels
@@ -80,17 +86,19 @@ export async function registerChannelAdminRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const rows = await db
-        .select({
-          channel: schema.channels,
-          orders: dsql<number>`(
-            SELECT count(*)::int FROM ${schema.orders}
-            WHERE ${schema.orders.channelId} = ${schema.channels.id}
-          )`,
-        })
-        .from(schema.channels)
-        .where(eq(schema.channels.tenantId, tenantId))
-        .orderBy(asc(schema.channels.createdAt));
+      const rows = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select({
+            channel: schema.channels,
+            orders: dsql<number>`(
+              SELECT count(*)::int FROM ${schema.orders}
+              WHERE ${schema.orders.channelId} = ${schema.channels.id}
+            )`,
+          })
+          .from(schema.channels)
+          .where(eq(schema.channels.tenantId, tenantId))
+          .orderBy(asc(schema.channels.createdAt)),
+      );
       return reply.send({
         data: { channels: rows.map((r) => ({ ...serializeChannel(r.channel), orders: r.orders })) },
       });
@@ -113,11 +121,13 @@ export async function registerChannelAdminRoutes(
       if (parsed.data.name !== undefined) updates.name = parsed.data.name;
       if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive;
 
-      const [updated] = await db
-        .update(schema.channels)
-        .set(updates)
-        .where(and(eq(schema.channels.tenantId, tenantId), eq(schema.channels.pubId, req.params.pubId)))
-        .returning();
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.channels)
+          .set(updates)
+          .where(and(eq(schema.channels.tenantId, tenantId), eq(schema.channels.pubId, req.params.pubId)))
+          .returning(),
+      );
       if (!updated) return notFound(reply, 'CHANNEL_NOT_FOUND');
       return reply.send({ data: serializeChannel(updated) });
     },

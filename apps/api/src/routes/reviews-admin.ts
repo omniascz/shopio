@@ -7,9 +7,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, desc, eq, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -32,7 +33,7 @@ export async function registerReviewAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   app.get(
     '/api/2026-05-20/admin/reviews',
@@ -49,31 +50,33 @@ export async function registerReviewAdminRoutes(
       const conditions = [eq(schema.productReviews.tenantId, tenantId)];
       if (status) conditions.push(eq(schema.productReviews.status, status));
 
-      const [rows, countRow] = await Promise.all([
-        db
-          .select({
-            pubId: schema.productReviews.pubId,
-            rating: schema.productReviews.rating,
-            title: schema.productReviews.title,
-            body: schema.productReviews.body,
-            authorName: schema.productReviews.authorName,
-            verifiedPurchase: schema.productReviews.verifiedPurchase,
-            status: schema.productReviews.status,
-            createdAt: schema.productReviews.createdAt,
-            productSlug: schema.products.slug,
-            productTitle: schema.products.title,
-          })
-          .from(schema.productReviews)
-          .innerJoin(schema.products, eq(schema.products.id, schema.productReviews.productId))
-          .where(and(...conditions))
-          .orderBy(desc(schema.productReviews.createdAt))
-          .limit(limit)
-          .offset(offset),
-        db
-          .select({ count: dsql<number>`COUNT(*)::int` })
-          .from(schema.productReviews)
-          .where(and(...conditions)),
-      ]);
+      const [rows, countRow] = await withTenant(rlsDb, tenantId, (tx) =>
+        Promise.all([
+          tx
+            .select({
+              pubId: schema.productReviews.pubId,
+              rating: schema.productReviews.rating,
+              title: schema.productReviews.title,
+              body: schema.productReviews.body,
+              authorName: schema.productReviews.authorName,
+              verifiedPurchase: schema.productReviews.verifiedPurchase,
+              status: schema.productReviews.status,
+              createdAt: schema.productReviews.createdAt,
+              productSlug: schema.products.slug,
+              productTitle: schema.products.title,
+            })
+            .from(schema.productReviews)
+            .innerJoin(schema.products, eq(schema.products.id, schema.productReviews.productId))
+            .where(and(...conditions))
+            .orderBy(desc(schema.productReviews.createdAt))
+            .limit(limit)
+            .offset(offset),
+          tx
+            .select({ count: dsql<number>`COUNT(*)::int` })
+            .from(schema.productReviews)
+            .where(and(...conditions)),
+        ]),
+      );
 
       return reply.send({
         data: {
@@ -108,16 +111,18 @@ export async function registerReviewAdminRoutes(
         return reply.code(422).send({ error: { code: 'VALIDATION_FAILED', message: 'Invalid status' } });
       }
 
-      const [updated] = await db
-        .update(schema.productReviews)
-        .set({ status: parsed.data.status, updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.productReviews.tenantId, tenantId),
-            eq(schema.productReviews.pubId, req.params.pubId),
-          ),
-        )
-        .returning({ pubId: schema.productReviews.pubId, status: schema.productReviews.status });
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.productReviews)
+          .set({ status: parsed.data.status, updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.productReviews.tenantId, tenantId),
+              eq(schema.productReviews.pubId, req.params.pubId),
+            ),
+          )
+          .returning({ pubId: schema.productReviews.pubId, status: schema.productReviews.status }),
+      );
       if (!updated) {
         return reply.code(404).send({ error: { code: 'REVIEW_NOT_FOUND', message: 'Review not found' } });
       }

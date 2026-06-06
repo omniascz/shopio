@@ -12,11 +12,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant, type TenantTx } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
-import { AVAILABLE_LOCALES, TRANSLATABLE_FIELDS, type EntityType } from '../lib/translations';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
+import { AVAILABLE_LOCALES, TRANSLATABLE_FIELDS, type EntityType } from '../lib/translations';
 import type { ShopioConfig } from '../config';
 
 interface PluginOptions {
@@ -44,7 +45,7 @@ export async function registerTranslationAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   // ---------------------------------------------------------------------------
   // GET /admin/locale-settings
@@ -55,14 +56,16 @@ export async function registerTranslationAdminRoutes(
     async (req, reply) => {
       const tenantId = req.auth!.tenantId;
       if (!tenantId) return noTenant(reply);
-      const [t] = await db
-        .select({
-          defaultLocale: schema.tenants.defaultLocale,
-          enabledLocales: schema.tenants.enabledLocales,
-        })
-        .from(schema.tenants)
-        .where(eq(schema.tenants.id, tenantId))
-        .limit(1);
+      const [t] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .select({
+            defaultLocale: schema.tenants.defaultLocale,
+            enabledLocales: schema.tenants.enabledLocales,
+          })
+          .from(schema.tenants)
+          .where(eq(schema.tenants.id, tenantId))
+          .limit(1),
+      );
       if (!t) return noTenant(reply);
       return reply.send({
         data: {
@@ -86,23 +89,25 @@ export async function registerTranslationAdminRoutes(
       const parsed = LocaleSettingsBody.safeParse(req.body);
       if (!parsed.success) return validationErr(reply, parsed.error);
 
-      const [t] = await db
-        .select({ defaultLocale: schema.tenants.defaultLocale })
-        .from(schema.tenants)
-        .where(eq(schema.tenants.id, tenantId))
-        .limit(1);
-      if (!t) return noTenant(reply);
-
-      const valid = new Set(AVAILABLE_LOCALES.map((l) => l.code));
-      // The default locale is always enabled; dedupe + validate the rest.
-      const enabled = Array.from(new Set([t.defaultLocale, ...parsed.data.enabledLocales])).filter(
-        (l) => valid.has(l),
-      );
-
-      await db
-        .update(schema.tenants)
-        .set({ enabledLocales: enabled, updatedAt: new Date() })
-        .where(eq(schema.tenants.id, tenantId));
+      const enabled = await withTenant(rlsDb, tenantId, async (tx) => {
+        const [t] = await tx
+          .select({ defaultLocale: schema.tenants.defaultLocale })
+          .from(schema.tenants)
+          .where(eq(schema.tenants.id, tenantId))
+          .limit(1);
+        if (!t) return null;
+        const valid = new Set(AVAILABLE_LOCALES.map((l) => l.code));
+        // The default locale is always enabled; dedupe + validate the rest.
+        const list = Array.from(new Set([t.defaultLocale, ...parsed.data.enabledLocales])).filter(
+          (l) => valid.has(l),
+        );
+        await tx
+          .update(schema.tenants)
+          .set({ enabledLocales: list, updatedAt: new Date() })
+          .where(eq(schema.tenants.id, tenantId));
+        return list;
+      });
+      if (!enabled) return noTenant(reply);
       return reply.send({ data: { enabled_locales: enabled } });
     },
   );
@@ -120,23 +125,27 @@ export async function registerTranslationAdminRoutes(
       if (!parsed.success) return validationErr(reply, parsed.error);
       const { entityType } = parsed.data;
 
-      const resolved = await resolveEntity(db, tenantId, entityType, parsed.data.entityId);
-      if (!resolved) return notFound(reply, 'ENTITY_NOT_FOUND');
-
-      const rows = await db
-        .select({
-          field: schema.translations.field,
-          locale: schema.translations.locale,
-          value: schema.translations.value,
-        })
-        .from(schema.translations)
-        .where(
-          and(
-            eq(schema.translations.tenantId, tenantId),
-            eq(schema.translations.entityType, entityType),
-            eq(schema.translations.entityId, resolved.id),
-          ),
-        );
+      const result = await withTenant(rlsDb, tenantId, async (tx) => {
+        const resolved = await resolveEntity(tx, tenantId, entityType, parsed.data.entityId);
+        if (!resolved) return null;
+        const rows = await tx
+          .select({
+            field: schema.translations.field,
+            locale: schema.translations.locale,
+            value: schema.translations.value,
+          })
+          .from(schema.translations)
+          .where(
+            and(
+              eq(schema.translations.tenantId, tenantId),
+              eq(schema.translations.entityType, entityType),
+              eq(schema.translations.entityId, resolved.id),
+            ),
+          );
+        return { resolved, rows };
+      });
+      if (!result) return notFound(reply, 'ENTITY_NOT_FOUND');
+      const { resolved, rows } = result;
 
       // byLocale[locale][field] = value
       const byLocale: Record<string, Record<string, string>> = {};
@@ -170,40 +179,43 @@ export async function registerTranslationAdminRoutes(
       const { entityType, locale, fields } = parsed.data;
 
       const allowed = new Set(TRANSLATABLE_FIELDS[entityType]);
-      const resolved = await resolveEntity(db, tenantId, entityType, parsed.data.entityId);
-      if (!resolved) return notFound(reply, 'ENTITY_NOT_FOUND');
-
-      for (const [field, value] of Object.entries(fields)) {
-        if (!allowed.has(field)) continue;
-        if (value.trim() === '') {
-          // empty → remove the override (fall back to master)
-          await db
-            .delete(schema.translations)
-            .where(
-              and(
-                eq(schema.translations.tenantId, tenantId),
-                eq(schema.translations.entityType, entityType),
-                eq(schema.translations.entityId, resolved.id),
-                eq(schema.translations.field, field),
-                eq(schema.translations.locale, locale),
-              ),
-            );
-          continue;
+      const ok = await withTenant(rlsDb, tenantId, async (tx) => {
+        const resolved = await resolveEntity(tx, tenantId, entityType, parsed.data.entityId);
+        if (!resolved) return false;
+        for (const [field, value] of Object.entries(fields)) {
+          if (!allowed.has(field)) continue;
+          if (value.trim() === '') {
+            // empty → remove the override (fall back to master)
+            await tx
+              .delete(schema.translations)
+              .where(
+                and(
+                  eq(schema.translations.tenantId, tenantId),
+                  eq(schema.translations.entityType, entityType),
+                  eq(schema.translations.entityId, resolved.id),
+                  eq(schema.translations.field, field),
+                  eq(schema.translations.locale, locale),
+                ),
+              );
+            continue;
+          }
+          await tx
+            .insert(schema.translations)
+            .values({ tenantId, entityType, entityId: resolved.id, field, locale, value })
+            .onConflictDoUpdate({
+              target: [
+                schema.translations.tenantId,
+                schema.translations.entityType,
+                schema.translations.entityId,
+                schema.translations.field,
+                schema.translations.locale,
+              ],
+              set: { value, updatedAt: new Date() },
+            });
         }
-        await db
-          .insert(schema.translations)
-          .values({ tenantId, entityType, entityId: resolved.id, field, locale, value })
-          .onConflictDoUpdate({
-            target: [
-              schema.translations.tenantId,
-              schema.translations.entityType,
-              schema.translations.entityId,
-              schema.translations.field,
-              schema.translations.locale,
-            ],
-            set: { value, updatedAt: new Date() },
-          });
-      }
+        return true;
+      });
+      if (!ok) return notFound(reply, 'ENTITY_NOT_FOUND');
 
       return reply.send({ data: { ok: true } });
     },
@@ -212,7 +224,7 @@ export async function registerTranslationAdminRoutes(
 
 /** Resolve a pub_id to the row UUID + master field values. */
 async function resolveEntity(
-  db: AppDb,
+  db: AppDb | TenantTx,
   tenantId: string,
   entityType: EntityType,
   pubId: string,

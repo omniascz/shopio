@@ -16,7 +16,9 @@ import { z } from 'zod';
 import { and, desc, eq, sql as dsql, type AnyColumn } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
+import { withTenant } from '@shopio/db';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -61,19 +63,21 @@ export async function registerCmsAdminRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
   const guard = { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] };
 
   // ===== PAGES ===============================================================
   app.get('/api/2026-05-20/admin/cms/pages', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const rows = await db
-      .select()
-      .from(schema.cmsPages)
-      .where(eq(schema.cmsPages.tenantId, tenantId))
-      .orderBy(desc(schema.cmsPages.updatedAt))
-      .limit(500);
+    const rows = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .select()
+        .from(schema.cmsPages)
+        .where(eq(schema.cmsPages.tenantId, tenantId))
+        .orderBy(desc(schema.cmsPages.updatedAt))
+        .limit(500),
+    );
     return reply.send({ data: { pages: rows.map(serializePage) } });
   });
 
@@ -85,20 +89,22 @@ export async function registerCmsAdminRoutes(
     const i = parsed.data;
     const published = i.status === 'published';
     try {
-      const [row] = await db
-        .insert(schema.cmsPages)
-        .values({
-          tenantId,
-          pubId: generatePubId('pag'),
-          slug: i.slug,
-          title: i.title,
-          bodyHtml: sanitizeHtml(i.bodyHtml ?? ''),
-          status: i.status ?? 'draft',
-          seoTitle: i.seoTitle ?? null,
-          seoDescription: i.seoDescription ?? null,
-          publishedAt: published ? new Date() : null,
-        })
-        .returning();
+      const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .insert(schema.cmsPages)
+          .values({
+            tenantId,
+            pubId: generatePubId('pag'),
+            slug: i.slug,
+            title: i.title,
+            bodyHtml: sanitizeHtml(i.bodyHtml ?? ''),
+            status: i.status ?? 'draft',
+            seoTitle: i.seoTitle ?? null,
+            seoDescription: i.seoDescription ?? null,
+            publishedAt: published ? new Date() : null,
+          })
+          .returning(),
+      );
       return reply.code(201).send({ data: serializePage(row!) });
     } catch (err) {
       return slugConflict(reply, err);
@@ -108,11 +114,13 @@ export async function registerCmsAdminRoutes(
   app.get<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/pages/:pubId', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const [row] = await db
-      .select()
-      .from(schema.cmsPages)
-      .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
-      .limit(1);
+    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .select()
+        .from(schema.cmsPages)
+        .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+        .limit(1),
+    );
     if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
     return reply.send({ data: serializePage(row) });
   });
@@ -124,11 +132,13 @@ export async function registerCmsAdminRoutes(
     if (!parsed.success) return validationErr(reply, parsed.error);
     try {
       const updates = buildContentUpdates(parsed.data);
-      const [row] = await db
-        .update(schema.cmsPages)
-        .set(applyPublish(updates, parsed.data.status, schema.cmsPages))
-        .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
-        .returning();
+      const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.cmsPages)
+          .set(applyPublish(updates, parsed.data.status, schema.cmsPages))
+          .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+          .returning(),
+      );
       if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
       return reply.send({ data: serializePage(row) });
     } catch (err) {
@@ -139,10 +149,12 @@ export async function registerCmsAdminRoutes(
   app.delete<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/pages/:pubId', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const [row] = await db
-      .delete(schema.cmsPages)
-      .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
-      .returning();
+    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .delete(schema.cmsPages)
+        .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+        .returning(),
+    );
     if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
     return reply.send({ data: { ok: true } });
   });
@@ -151,12 +163,14 @@ export async function registerCmsAdminRoutes(
   app.get('/api/2026-05-20/admin/cms/blog-posts', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const rows = await db
-      .select()
-      .from(schema.cmsBlogPosts)
-      .where(eq(schema.cmsBlogPosts.tenantId, tenantId))
-      .orderBy(desc(schema.cmsBlogPosts.updatedAt))
-      .limit(500);
+    const rows = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .select()
+        .from(schema.cmsBlogPosts)
+        .where(eq(schema.cmsBlogPosts.tenantId, tenantId))
+        .orderBy(desc(schema.cmsBlogPosts.updatedAt))
+        .limit(500),
+    );
     return reply.send({ data: { posts: rows.map(serializePost) } });
   });
 
@@ -168,22 +182,24 @@ export async function registerCmsAdminRoutes(
     const i = parsed.data;
     const published = i.status === 'published';
     try {
-      const [row] = await db
-        .insert(schema.cmsBlogPosts)
-        .values({
-          tenantId,
-          pubId: generatePubId('pst'),
-          slug: i.slug,
-          title: i.title,
-          excerpt: i.excerpt ?? null,
-          coverImageUrl: i.coverImageUrl ?? null,
-          bodyHtml: sanitizeHtml(i.bodyHtml ?? ''),
-          status: i.status ?? 'draft',
-          seoTitle: i.seoTitle ?? null,
-          seoDescription: i.seoDescription ?? null,
-          publishedAt: published ? new Date() : null,
-        })
-        .returning();
+      const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .insert(schema.cmsBlogPosts)
+          .values({
+            tenantId,
+            pubId: generatePubId('pst'),
+            slug: i.slug,
+            title: i.title,
+            excerpt: i.excerpt ?? null,
+            coverImageUrl: i.coverImageUrl ?? null,
+            bodyHtml: sanitizeHtml(i.bodyHtml ?? ''),
+            status: i.status ?? 'draft',
+            seoTitle: i.seoTitle ?? null,
+            seoDescription: i.seoDescription ?? null,
+            publishedAt: published ? new Date() : null,
+          })
+          .returning(),
+      );
       return reply.code(201).send({ data: serializePost(row!) });
     } catch (err) {
       return slugConflict(reply, err);
@@ -193,11 +209,13 @@ export async function registerCmsAdminRoutes(
   app.get<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/blog-posts/:pubId', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const [row] = await db
-      .select()
-      .from(schema.cmsBlogPosts)
-      .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
-      .limit(1);
+    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .select()
+        .from(schema.cmsBlogPosts)
+        .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
+        .limit(1),
+    );
     if (!row) return notFound(reply, 'POST_NOT_FOUND');
     return reply.send({ data: serializePost(row) });
   });
@@ -212,11 +230,13 @@ export async function registerCmsAdminRoutes(
       const updates = buildContentUpdates(p);
       if (p.excerpt !== undefined) updates.excerpt = p.excerpt;
       if (p.coverImageUrl !== undefined) updates.coverImageUrl = p.coverImageUrl;
-      const [row] = await db
-        .update(schema.cmsBlogPosts)
-        .set(applyPublish(updates, p.status, schema.cmsBlogPosts))
-        .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
-        .returning();
+      const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.cmsBlogPosts)
+          .set(applyPublish(updates, p.status, schema.cmsBlogPosts))
+          .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
+          .returning(),
+      );
       if (!row) return notFound(reply, 'POST_NOT_FOUND');
       return reply.send({ data: serializePost(row) });
     } catch (err) {
@@ -227,10 +247,12 @@ export async function registerCmsAdminRoutes(
   app.delete<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/blog-posts/:pubId', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
     if (!tenantId) return noTenant(reply);
-    const [row] = await db
-      .delete(schema.cmsBlogPosts)
-      .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
-      .returning();
+    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .delete(schema.cmsBlogPosts)
+        .where(and(eq(schema.cmsBlogPosts.tenantId, tenantId), eq(schema.cmsBlogPosts.pubId, req.params.pubId)))
+        .returning(),
+    );
     if (!row) return notFound(reply, 'POST_NOT_FOUND');
     return reply.send({ data: { ok: true } });
   });

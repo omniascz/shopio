@@ -15,9 +15,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, eq, gte, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -34,7 +35,7 @@ export async function registerAnalyticsRoutes(
   app: FastifyInstance,
   opts: PluginOptions,
 ): Promise<void> {
-  const { db } = opts;
+  const rlsDb = getRlsDb(opts.config);
 
   app.get(
     '/api/2026-05-20/admin/analytics',
@@ -62,8 +63,8 @@ export async function registerAnalyticsRoutes(
       );
 
       const [totals, series, topProducts, refunds, customerSplit, byChannel, currencyRow] =
-        await Promise.all([
-        db
+        await withTenant(rlsDb, tenantId, (tx) => Promise.all([
+        tx
           .select({
             orders: dsql<number>`COUNT(*)::int`,
             revenue: dsql<string>`COALESCE(SUM(${schema.orders.totalAmount}), 0)::text`,
@@ -72,7 +73,7 @@ export async function registerAnalyticsRoutes(
           .where(paidInRange),
 
         // Daily revenue series (paid orders by day)
-        db
+        tx
           .select({
             day: dsql<string>`to_char(date_trunc('day', ${schema.orders.paidAt}), 'YYYY-MM-DD')`,
             revenue: dsql<string>`COALESCE(SUM(${schema.orders.totalAmount}), 0)::text`,
@@ -84,7 +85,7 @@ export async function registerAnalyticsRoutes(
           .orderBy(dsql`date_trunc('day', ${schema.orders.paidAt})`),
 
         // Top products by revenue (line totals on paid orders in range)
-        db
+        tx
           .select({
             productTitle: schema.orderItems.productTitleSnapshot,
             units: dsql<number>`SUM(${schema.orderItems.quantity})::int`,
@@ -98,7 +99,7 @@ export async function registerAnalyticsRoutes(
           .limit(10),
 
         // Refunds in range (cumulative refunded amount on orders touched in range)
-        db
+        tx
           .select({
             amount: dsql<string>`COALESCE(SUM(${schema.orders.refundedAmount}), 0)::text`,
             count: dsql<number>`COUNT(*) FILTER (WHERE ${schema.orders.refundedAmount} > 0)::int`,
@@ -114,7 +115,7 @@ export async function registerAnalyticsRoutes(
 
         // New vs returning: customers with a paid order in range, split by
         // whether their first-ever paid order falls inside the range.
-        db.execute(dsql`
+        tx.execute(dsql`
           WITH firsts AS (
             SELECT customer_id, MIN(paid_at) AS ever_first
             FROM orders
@@ -132,7 +133,7 @@ export async function registerAnalyticsRoutes(
         `),
 
         // Revenue by sales channel (per `22`) — paid orders in range.
-        db
+        tx
           .select({
             name: dsql<string>`COALESCE(${schema.channels.name}, ${schema.orders.channelKind})`,
             kind: dsql<string>`COALESCE(${schema.channels.kind}, ${schema.orders.channelKind})`,
@@ -148,12 +149,12 @@ export async function registerAnalyticsRoutes(
           )
           .orderBy(dsql`SUM(${schema.orders.totalAmount}) DESC`),
 
-        db
+        tx
           .select({ currency: schema.tenants.defaultCurrency })
           .from(schema.tenants)
           .where(eq(schema.tenants.id, tenantId))
           .limit(1),
-      ]);
+      ]));
 
       const currency = currencyRow[0]?.currency ?? 'CZK';
       const ordersCount = totals[0]?.orders ?? 0;
