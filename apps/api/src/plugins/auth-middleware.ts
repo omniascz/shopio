@@ -27,6 +27,57 @@ declare module 'fastify' {
   }
 }
 
+// =============================================================================
+// Tenant status guard (per `30-security.md` — suspended tenants must not write)
+// =============================================================================
+
+type TenantStatusChecker = (tenantId: string) => Promise<string | null>;
+
+let _tenantStatusChecker: TenantStatusChecker | null = null;
+const _statusCache = new Map<string, { status: string; expiresAt: number }>();
+const STATUS_CACHE_TTL_MS = 30_000;
+
+/** Wire the DB lookup at server boot (middleware has no direct db access). */
+export function setTenantStatusChecker(fn: TenantStatusChecker): void {
+  _tenantStatusChecker = fn;
+  _statusCache.clear();
+}
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Block mutations for non-active tenants (suspended/closing/closed). Reads
+ * stay allowed so the merchant can still see their data. Best-effort cache
+ * (30 s) keeps this to ~zero overhead.
+ */
+async function assertTenantWritable(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  ctx: AuthContext,
+): Promise<boolean> {
+  if (!ctx.tenantId || !_tenantStatusChecker) return true;
+  if (SAFE_METHODS.has(req.method)) return true;
+
+  const now = Date.now();
+  const cached = _statusCache.get(ctx.tenantId);
+  let status = cached && cached.expiresAt > now ? cached.status : null;
+  if (!status) {
+    status = (await _tenantStatusChecker(ctx.tenantId)) ?? 'missing';
+    _statusCache.set(ctx.tenantId, { status, expiresAt: now + STATUS_CACHE_TTL_MS });
+  }
+
+  if (status !== 'active' && status !== 'provisioning') {
+    void reply.code(403).send({
+      error: {
+        code: 'TENANT_SUSPENDED',
+        message: `Tenant is ${status} — write operations are disabled`,
+      },
+    });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Extract + verify JWT, attach to req.auth. 401 on failure.
  */
@@ -37,6 +88,7 @@ export const requireAuth: preHandlerHookHandler = async (req, reply) => {
       error: { code: 'AUTH_REQUIRED', message: 'Authorization required' },
     });
   }
+  if (!(await assertTenantWritable(req, reply, ctx))) return reply;
   req.auth = ctx;
 };
 
@@ -69,6 +121,7 @@ export function requirePermission(permission: PermissionCode): preHandlerHookHan
         },
       });
     }
+    if (!(await assertTenantWritable(req, reply, ctx))) return reply;
     req.auth = ctx;
   };
 }

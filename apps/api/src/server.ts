@@ -17,6 +17,9 @@ import { registerInvoiceRoutes } from './routes/invoices';
 import { registerReturnRoutes } from './routes/returns';
 import { registerShipmentRoutes } from './routes/shipments';
 import { registerSettingsRoutes, registerSearchAdminRoutes } from './routes/settings';
+import { setTenantStatusChecker } from './plugins/auth-middleware';
+import { schema } from '@shopio/db';
+import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
 import { sweepExpiredReservations } from './lib/inventory';
 
@@ -73,6 +76,16 @@ export async function buildServer() {
 
   // Auth + tenant routes (per `30-security.md §16.1`, `36-personas-rbac.md §14`)
   const db = getDb(config);
+
+  // Suspended/closing tenants cannot write via admin APIs (per `30`)
+  setTenantStatusChecker(async (tenantId) => {
+    const [row] = await db
+      .select({ status: schema.tenants.status })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .limit(1);
+    return row?.status ?? null;
+  });
   await registerAuthRoutes(server, { config, db });
   await registerTenantRoutes(server, { config, db });
   await registerProductRoutes(server, { config, db });
