@@ -47,6 +47,10 @@ export async function registerStorefrontRoutes(
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
 
+      const appearance = ((tenant.settings ?? {}) as {
+        appearance?: { theme?: string; accent_color?: string; logo_url?: string };
+      }).appearance;
+
       return reply.send({
         data: {
           tenant: {
@@ -56,6 +60,11 @@ export async function registerStorefrontRoutes(
             default_locale: tenant.defaultLocale,
             default_currency: tenant.defaultCurrency,
             country_code: tenant.countryCode,
+            appearance: {
+              theme: appearance?.theme ?? 'minimal',
+              accent_color: appearance?.accent_color ?? '#111111',
+              logo_url: appearance?.logo_url ?? null,
+            },
           },
         },
       });
@@ -358,6 +367,7 @@ async function resolveTenant(db: AppDb, slug: string) {
       defaultCurrency: schema.tenants.defaultCurrency,
       countryCode: schema.tenants.countryCode,
       status: schema.tenants.status,
+      settings: schema.tenants.settings,
     })
     .from(schema.tenants)
     .where(eq(schema.tenants.slug, slug))

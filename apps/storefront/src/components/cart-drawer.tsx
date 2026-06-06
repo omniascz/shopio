@@ -212,7 +212,7 @@ export function CartDrawer() {
                 display: 'block',
                 textAlign: 'center',
                 padding: '0.875rem',
-                background: '#111',
+                background: 'var(--sf-accent, #111)',
                 color: '#fff',
                 textDecoration: 'none',
                 borderRadius: 4,

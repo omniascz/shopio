@@ -89,7 +89,7 @@ export function AddToCart({ variants }: { variants: ProductVariant[] }) {
         disabled={!inStock || pending}
         style={{
           padding: '0.875rem 1.5rem',
-          background: !inStock ? '#999' : '#111',
+          background: !inStock ? '#999' : 'var(--sf-accent, #111)',
           color: '#fff',
           border: 'none',
           borderRadius: 4,

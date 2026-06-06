@@ -467,7 +467,7 @@ export default function CheckoutPage({ params }: Props) {
             style={{
               marginTop: '1rem',
               padding: '1rem',
-              background: '#111',
+              background: 'var(--sf-accent, #111)',
               color: '#fff',
               border: 'none',
               borderRadius: 4,
@@ -662,7 +662,7 @@ const inputStyle: React.CSSProperties = {
 
 const pickBtn: React.CSSProperties = {
   padding: '0.5rem 0.875rem',
-  background: '#111',
+  background: 'var(--sf-accent, #111)',
   color: '#fff',
   border: 'none',
   borderRadius: 4,

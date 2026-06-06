@@ -26,7 +26,7 @@ export function CartButton() {
       {itemCount > 0 && (
         <span
           style={{
-            background: '#111',
+            background: 'var(--sf-accent, #111)',
             color: '#fff',
             borderRadius: 999,
             padding: '0 6px',

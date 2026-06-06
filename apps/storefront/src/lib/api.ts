@@ -11,6 +11,12 @@ export interface Money {
   currency: string;
 }
 
+export interface TenantAppearance {
+  theme: 'minimal' | 'warm' | 'dark' | string;
+  accent_color: string;
+  logo_url: string | null;
+}
+
 export interface Tenant {
   id: string;
   slug: string;
@@ -18,6 +24,7 @@ export interface Tenant {
   default_locale: string;
   default_currency: string;
   country_code: string;
+  appearance?: TenantAppearance;
 }
 
 export interface ProductListItem {
