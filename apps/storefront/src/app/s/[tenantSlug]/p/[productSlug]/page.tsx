@@ -11,11 +11,58 @@ export async function generateMetadata({ params }: Props) {
   const { tenantSlug, productSlug } = await params;
   const product = await getProduct(tenantSlug, productSlug);
   if (!product) return { title: 'Produkt nenalezen' };
+
+  const description = product.description_html
+    ? product.description_html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+    : undefined;
+  const primary = product.media.find((m) => m.is_primary) ?? product.media[0];
+
   return {
     title: `${product.title} — ${product.tenant.display_name}`,
-    description: product.description_html
-      ? product.description_html.replace(/<[^>]+>/g, '').slice(0, 160)
-      : undefined,
+    description,
+    openGraph: {
+      title: product.title,
+      description,
+      type: 'website',
+      siteName: product.tenant.display_name,
+      ...(primary && { images: [{ url: primary.url, alt: primary.alt ?? product.title }] }),
+    },
+  };
+}
+
+/** schema.org Product structured data — rich results in search (per `19`). */
+function productJsonLd(
+  product: NonNullable<Awaited<ReturnType<typeof getProduct>>>,
+  tenantSlug: string,
+) {
+  const primary = product.media.find((m) => m.is_primary) ?? product.media[0];
+  const anyInStock = product.variants.some((v) => v.in_stock);
+  const prices = product.variants.map((v) => Number(v.price.amount) / 100);
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    ...(primary && { image: [primary.url] }),
+    ...(product.description_html && {
+      description: product.description_html
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }),
+    ...(product.variants[0]?.sku && { sku: product.variants[0].sku }),
+    ...(product.brand_name && { brand: { '@type': 'Brand', name: product.brand_name } }),
+    offers: {
+      '@type': 'AggregateOffer',
+      priceCurrency: product.variants[0]?.price.currency ?? 'CZK',
+      ...(prices.length && {
+        lowPrice: Math.min(...prices).toFixed(2),
+        highPrice: Math.max(...prices).toFixed(2),
+      }),
+      offerCount: product.variants.length,
+      availability: anyInStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: `/s/${tenantSlug}/p/${product.slug}`,
+    },
   };
 }
 
@@ -29,9 +76,14 @@ export default async function ProductPage({ params }: Props) {
 
   const defaultVariant = product.variants[0];
   const priceToShow = defaultVariant?.price ?? product.base_price;
+  const jsonLd = productJsonLd(product, tenantSlug);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <header
         style={{
           padding: '1rem 2rem',

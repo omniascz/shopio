@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
 import {
   checkout,
+  customerMe,
   fetchPickupPoints,
   fetchShippingRates,
   formatMoney,
   formatVatRate,
+  type CustomerProfile,
   type Money,
   type PickupPoint,
   type ShippingOption,
@@ -73,6 +75,32 @@ export default function CheckoutPage({ params }: Props) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+
+  // Logged-in customer → prefill contact + saved address (per `18`).
+  // Only fills fields the user hasn't typed into yet.
+  useEffect(() => {
+    let cancelled = false;
+    void customerMe(tenantSlug).then((me) => {
+      if (cancelled || !me) return;
+      setCustomer(me);
+      const addr = me.default_address ?? {};
+      setForm((prev) => ({
+        ...prev,
+        customerEmail: prev.customerEmail || me.email,
+        customerName: prev.customerName || (me.full_name ?? ''),
+        customerPhone: prev.customerPhone || (me.phone ?? ''),
+        line1: prev.line1 || (addr.line1 ?? ''),
+        line2: prev.line2 || (addr.line2 ?? ''),
+        city: prev.city || (addr.city ?? ''),
+        postalCode: prev.postalCode || (addr.postalCode ?? ''),
+        countryCode: prev.countryCode === 'CZ' ? (addr.countryCode ?? 'CZ') : prev.countryCode,
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantSlug]);
 
   // Shipping
   const [options, setOptions] = useState<ShippingOption[]>([]);
@@ -241,6 +269,19 @@ export default function CheckoutPage({ params }: Props) {
         ← Zpět do obchodu
       </Link>
       <h1 style={{ margin: '1rem 0 2rem' }}>Pokladna</h1>
+
+      {customer && (
+        <p
+          style={{
+            margin: '-1rem 0 1.5rem',
+            fontSize: '0.875rem',
+            color: 'var(--sf-muted, #666)',
+          }}
+        >
+          ✓ Nakupujete jako <strong>{customer.full_name ?? customer.email}</strong> — údaje jsme
+          předvyplnili.
+        </p>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '3rem' }}>
         <form
