@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenant } from '@/lib/api';
 import { CartProvider } from '@/lib/cart-context';
+import { CompareProvider } from '@/lib/compare-context';
 import { CartDrawer } from '@/components/cart-drawer';
 import { CartButton } from '@/components/cart-button';
+import { SavedNav } from '@/components/saved-nav';
 
 interface Props {
   children: ReactNode;
@@ -32,6 +34,7 @@ export default async function TenantLayout({ children, params }: Props) {
 
   return (
     <CartProvider tenantSlug={tenantSlug}>
+     <CompareProvider tenantSlug={tenantSlug}>
       <div
         data-theme={appearance.theme}
         style={
@@ -73,19 +76,23 @@ export default async function TenantLayout({ children, params }: Props) {
           >
             {tenant.display_name}
           </Link>
-          <Link
-            href={`/s/${tenantSlug}/ucet`}
+          <span
             style={{
               marginLeft: 'auto',
               marginRight: '7rem', // clear the fixed cart button
-              fontSize: '0.875rem',
-              color: 'inherit',
-              textDecoration: 'none',
-              opacity: 0.85,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '1rem',
             }}
           >
-            👤 Můj účet
-          </Link>
+            <SavedNav tenantSlug={tenantSlug} />
+            <Link
+              href={`/s/${tenantSlug}/ucet`}
+              style={{ fontSize: '0.875rem', color: 'inherit', textDecoration: 'none', opacity: 0.85 }}
+            >
+              👤 Můj účet
+            </Link>
+          </span>
         </header>
         <div
           style={{
@@ -100,6 +107,7 @@ export default async function TenantLayout({ children, params }: Props) {
         {children}
         <CartDrawer />
       </div>
+     </CompareProvider>
     </CartProvider>
   );
 }

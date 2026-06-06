@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct } from '@/lib/api';
 import { AddToCart } from '@/components/add-to-cart';
+import { SaveButtons } from '@/components/save-buttons';
 import { RatingBadge } from '@/components/stars';
 import { ProductReviews } from '@/components/product-reviews';
 
@@ -252,6 +253,18 @@ export default async function ProductPage({ params }: Props) {
             <div style={{ marginTop: '1.5rem' }}>
               <AddToCart variants={product.variants} />
             </div>
+
+            <SaveButtons
+              variant="pdp"
+              product={{
+                id: product.id,
+                slug: product.slug,
+                title: product.title,
+                image: primaryMedia?.url ?? null,
+                priceAmount: priceToShow?.amount ?? null,
+                priceCurrency: priceToShow?.currency ?? null,
+              }}
+            />
 
             {product.description_html && (
               <div

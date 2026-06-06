@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
 import { RatingBadge } from '@/components/stars';
+import { SaveButtons } from '@/components/save-buttons';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
@@ -252,8 +253,18 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
             }}
           >
             {products.map((p) => (
+              <div key={p.id} style={{ position: 'relative' }}>
+              <SaveButtons
+                product={{
+                  id: p.id,
+                  slug: p.slug,
+                  title: p.title,
+                  image: p.primary_image?.url ?? null,
+                  priceAmount: p.base_price?.amount ?? null,
+                  priceCurrency: p.base_price?.currency ?? null,
+                }}
+              />
               <Link
-                key={p.id}
                 href={`/s/${tenantSlug}/p/${p.slug}`}
                 style={{
                   display: 'block',
@@ -339,6 +350,7 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
                   </div>
                 </div>
               </Link>
+              </div>
             ))}
           </div>
         )}
