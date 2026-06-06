@@ -503,6 +503,126 @@ export async function registerStorefrontRoutes(
       });
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // CMS content (per `32`) — published-only, public.
+  // ---------------------------------------------------------------------------
+
+  // GET /storefront/{tenantSlug}/pages — published page list (footer nav)
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/pages',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const rows = await db
+        .select({ slug: schema.cmsPages.slug, title: schema.cmsPages.title })
+        .from(schema.cmsPages)
+        .where(and(eq(schema.cmsPages.tenantId, tenant.id), eq(schema.cmsPages.status, 'published')))
+        .orderBy(asc(schema.cmsPages.title));
+      return reply.send({ data: { pages: rows } });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/pages/{slug} — published page detail
+  app.get<{ Params: { tenantSlug: string; slug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/pages/:slug',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const [page] = await db
+        .select()
+        .from(schema.cmsPages)
+        .where(
+          and(
+            eq(schema.cmsPages.tenantId, tenant.id),
+            eq(schema.cmsPages.slug, req.params.slug),
+            eq(schema.cmsPages.status, 'published'),
+          ),
+        )
+        .limit(1);
+      if (!page) return notFound(reply, 'page');
+      return reply.send({
+        data: {
+          slug: page.slug,
+          title: page.title,
+          body_html: page.bodyHtml,
+          seo_title: page.seoTitle,
+          seo_description: page.seoDescription,
+          updated_at: page.updatedAt,
+        },
+      });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/blog — published posts
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/blog',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const rows = await db
+        .select({
+          slug: schema.cmsBlogPosts.slug,
+          title: schema.cmsBlogPosts.title,
+          excerpt: schema.cmsBlogPosts.excerpt,
+          coverImageUrl: schema.cmsBlogPosts.coverImageUrl,
+          publishedAt: schema.cmsBlogPosts.publishedAt,
+        })
+        .from(schema.cmsBlogPosts)
+        .where(
+          and(
+            eq(schema.cmsBlogPosts.tenantId, tenant.id),
+            eq(schema.cmsBlogPosts.status, 'published'),
+          ),
+        )
+        .orderBy(desc(schema.cmsBlogPosts.publishedAt))
+        .limit(100);
+      return reply.send({
+        data: {
+          posts: rows.map((p) => ({
+            slug: p.slug,
+            title: p.title,
+            excerpt: p.excerpt,
+            cover_image_url: p.coverImageUrl,
+            published_at: p.publishedAt,
+          })),
+        },
+      });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/blog/{slug} — published post detail
+  app.get<{ Params: { tenantSlug: string; slug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/blog/:slug',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const [post] = await db
+        .select()
+        .from(schema.cmsBlogPosts)
+        .where(
+          and(
+            eq(schema.cmsBlogPosts.tenantId, tenant.id),
+            eq(schema.cmsBlogPosts.slug, req.params.slug),
+            eq(schema.cmsBlogPosts.status, 'published'),
+          ),
+        )
+        .limit(1);
+      if (!post) return notFound(reply, 'post');
+      return reply.send({
+        data: {
+          slug: post.slug,
+          title: post.title,
+          excerpt: post.excerpt,
+          cover_image_url: post.coverImageUrl,
+          body_html: post.bodyHtml,
+          seo_title: post.seoTitle,
+          seo_description: post.seoDescription,
+          published_at: post.publishedAt,
+        },
+      });
+    },
+  );
 }
 
 // =============================================================================

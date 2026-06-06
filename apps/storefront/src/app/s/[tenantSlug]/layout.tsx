@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTenant } from '@/lib/api';
+import { getTenant, getPages } from '@/lib/api';
 import { CartProvider } from '@/lib/cart-context';
 import { CompareProvider } from '@/lib/compare-context';
 import { CartDrawer } from '@/components/cart-drawer';
@@ -44,6 +44,7 @@ export default async function TenantLayout({ children, params }: Props) {
   const tenant = await getTenant(tenantSlug);
   if (!tenant) notFound();
 
+  const pages = await getPages(tenantSlug);
   const cookieLocale = await getStorefrontLocale();
   const enabledLocales = tenant.enabled_locales ?? [tenant.default_locale];
   const currentLocale = enabledLocales.includes(cookieLocale ?? '')
@@ -159,6 +160,41 @@ export default async function TenantLayout({ children, params }: Props) {
           <CartButton />
         </div>
         {children}
+        <footer
+          style={{
+            marginTop: '3rem',
+            borderTop: '1px solid rgba(128,128,128,0.2)',
+            padding: '2rem',
+            fontSize: '0.875rem',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1280,
+              margin: '0 auto',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '1.25rem',
+              alignItems: 'center',
+            }}
+          >
+            <Link href={`/s/${tenantSlug}/blog`} style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
+              Blog
+            </Link>
+            {pages.map((p) => (
+              <Link
+                key={p.slug}
+                href={`/s/${tenantSlug}/stranka/${p.slug}`}
+                style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}
+              >
+                {p.title}
+              </Link>
+            ))}
+            <span style={{ marginLeft: 'auto', opacity: 0.5 }}>
+              © {tenant.display_name}
+            </span>
+          </div>
+        </footer>
         <CartDrawer />
       </div>
      </CompareProvider>

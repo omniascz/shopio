@@ -26,6 +26,7 @@ import { CouponsListPage } from './pages/coupons-list';
 import { CompaniesListPage } from './pages/companies-list';
 import { ChannelsListPage } from './pages/channels-list';
 import { ManualOrderPage } from './pages/manual-order';
+import { ContentPage } from './pages/content';
 import { AnalyticsPage } from './pages/analytics';
 import { useAuth } from './lib/auth-store';
 
@@ -155,6 +156,12 @@ const channelsRoute = createRoute({
   component: ChannelsListPage,
 });
 
+const contentRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/content',
+  component: ContentPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -173,6 +180,7 @@ const routeTree = rootRoute.addChildren([
     analyticsRoute,
     companiesRoute,
     channelsRoute,
+    contentRoute,
   ]),
 ]);
 

@@ -134,6 +134,13 @@
       "when": 1780751250507,
       "tag": "0018_i18n_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780752768813,
+      "tag": "0019_cms_content",
+      "breakpoints": true
     }
   ]
 }

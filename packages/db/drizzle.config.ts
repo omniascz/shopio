@@ -32,6 +32,7 @@ export default defineConfig({
     './src/schema/companies.ts',
     './src/schema/channels.ts',
     './src/schema/translations.ts',
+    './src/schema/cms.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

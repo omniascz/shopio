@@ -226,6 +226,53 @@ export async function getProduct(
   return shopioFetch<ProductDetail>(`/storefront/${tenantSlug}/products/${productSlug}${qs}`);
 }
 
+// =============================================================================
+// CMS content (per `32`)
+// =============================================================================
+
+export interface CmsPageLink {
+  slug: string;
+  title: string;
+}
+export interface CmsPage {
+  slug: string;
+  title: string;
+  body_html: string;
+  seo_title: string | null;
+  seo_description: string | null;
+  updated_at: string;
+}
+export interface CmsBlogListItem {
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+}
+export interface CmsBlogPost extends CmsBlogListItem {
+  body_html: string;
+  seo_title: string | null;
+  seo_description: string | null;
+}
+
+export async function getPages(tenantSlug: string): Promise<CmsPageLink[]> {
+  const data = await shopioFetch<{ pages: CmsPageLink[] }>(`/storefront/${tenantSlug}/pages`);
+  return data?.pages ?? [];
+}
+
+export async function getPage(tenantSlug: string, slug: string): Promise<CmsPage | null> {
+  return shopioFetch<CmsPage>(`/storefront/${tenantSlug}/pages/${slug}`);
+}
+
+export async function getBlogPosts(tenantSlug: string): Promise<CmsBlogListItem[]> {
+  const data = await shopioFetch<{ posts: CmsBlogListItem[] }>(`/storefront/${tenantSlug}/blog`);
+  return data?.posts ?? [];
+}
+
+export async function getBlogPost(tenantSlug: string, slug: string): Promise<CmsBlogPost | null> {
+  return shopioFetch<CmsBlogPost>(`/storefront/${tenantSlug}/blog/${slug}`);
+}
+
 export { StorefrontApiError };
 
 // =============================================================================

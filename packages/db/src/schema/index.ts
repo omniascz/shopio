@@ -37,4 +37,6 @@ export * from './companies';
 export * from './channels';
 // Content translations (Wave 1 — `23-i18n.md` MVP)
 export * from './translations';
+// CMS content pages + blog (Wave 1 — `32-cms-content.md` MVP)
+export * from './cms';
 // Future: payments, ...

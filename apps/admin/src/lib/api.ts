@@ -217,6 +217,34 @@ export interface CompanyItem {
   created_at: string;
 }
 
+export interface CmsPageItem {
+  id: string;
+  slug: string;
+  title: string;
+  body_html: string;
+  status: 'draft' | 'published';
+  seo_title: string | null;
+  seo_description: string | null;
+  published_at: string | null;
+  updated_at: string;
+}
+export interface CmsPageInput {
+  slug: string;
+  title: string;
+  bodyHtml?: string;
+  status?: 'draft' | 'published';
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+}
+export interface CmsPostItem extends CmsPageItem {
+  excerpt: string | null;
+  cover_image_url: string | null;
+}
+export interface CmsPostInput extends CmsPageInput {
+  excerpt?: string | null;
+  coverImageUrl?: string | null;
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -779,6 +807,41 @@ class ApiClient {
     fields: Record<string, string>;
   }): Promise<{ ok: boolean }> {
     return this.request('/admin/translations', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  // ---------------------------------------------------------------------------
+  // CMS — pages + blog posts (per `32`)
+  // ---------------------------------------------------------------------------
+  async listCmsPages(): Promise<{ pages: CmsPageItem[] }> {
+    return this.request('/admin/cms/pages');
+  }
+  async getCmsPage(id: string): Promise<CmsPageItem> {
+    return this.request(`/admin/cms/pages/${id}`);
+  }
+  async createCmsPage(body: CmsPageInput): Promise<CmsPageItem> {
+    return this.request('/admin/cms/pages', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateCmsPage(id: string, body: Partial<CmsPageInput>): Promise<CmsPageItem> {
+    return this.request(`/admin/cms/pages/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deleteCmsPage(id: string): Promise<void> {
+    await this.request(`/admin/cms/pages/${id}`, { method: 'DELETE' });
+  }
+
+  async listBlogPosts(): Promise<{ posts: CmsPostItem[] }> {
+    return this.request('/admin/cms/blog-posts');
+  }
+  async getBlogPost(id: string): Promise<CmsPostItem> {
+    return this.request(`/admin/cms/blog-posts/${id}`);
+  }
+  async createBlogPost(body: CmsPostInput): Promise<CmsPostItem> {
+    return this.request('/admin/cms/blog-posts', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateBlogPost(id: string, body: Partial<CmsPostInput>): Promise<CmsPostItem> {
+    return this.request(`/admin/cms/blog-posts/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deleteBlogPost(id: string): Promise<void> {
+    await this.request(`/admin/cms/blog-posts/${id}`, { method: 'DELETE' });
   }
 
   async createManualOrder(body: {
