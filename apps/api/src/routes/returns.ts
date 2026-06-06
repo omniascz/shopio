@@ -30,6 +30,7 @@ import {
 } from '../lib/returns';
 import { issueCreditNote, type CreditNoteLine } from '../lib/invoices';
 import { createRefund, isStripeEnabled } from '../lib/stripe';
+import { restockReturn } from '../lib/inventory';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -462,13 +463,14 @@ export async function registerReturnRoutes(
         if (restock) {
           for (const i of items) {
             if (!i.variantId) continue;
-            await tx
-              .update(schema.productVariants)
-              .set({
-                stockOnHand: dsql`${schema.productVariants.stockOnHand} + ${i.quantity}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.productVariants.id, i.variantId));
+            // Physical stock-in via the ledger (per `09`: reason='return')
+            await restockReturn(tx, {
+              tenantId,
+              variantId: i.variantId,
+              quantity: i.quantity,
+              returnId: found.id,
+              actorUserId: req.auth!.userId,
+            });
             await tx
               .update(schema.returnItems)
               .set({ restocked: true, restockedAt: new Date() })

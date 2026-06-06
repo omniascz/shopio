@@ -37,6 +37,11 @@ import {
   searchPickupPoints,
   getPickupPoint,
 } from '../lib/shipping-resolver';
+import {
+  UNPAID_RESERVATION_TTL_HOURS,
+  availableQuantity,
+  reserveStock,
+} from '../lib/inventory';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
 const CART_COOKIE_TTL_DAYS = 30;
@@ -124,12 +129,12 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const variant = await resolveVariant(db, tenant.id, variantId);
       if (!variant) return notFound(reply, 'variant');
 
-      if (variant.stockOnHand < quantity && !variant.allowBackorder) {
+      if (availableQuantity(variant) < quantity && !variant.allowBackorder) {
         return reply.code(409).send({
           error: {
             code: 'INSUFFICIENT_STOCK',
             message: 'Not enough stock for requested quantity',
-            available: variant.stockOnHand,
+            available: availableQuantity(variant),
           },
         });
       }
@@ -152,12 +157,12 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       let resultItemId: string;
       if (existing) {
         const newQty = existing.quantity + quantity;
-        if (variant.stockOnHand < newQty && !variant.allowBackorder) {
+        if (availableQuantity(variant) < newQty && !variant.allowBackorder) {
           return reply.code(409).send({
             error: {
               code: 'INSUFFICIENT_STOCK',
               message: 'Adding this would exceed available stock',
-              available: variant.stockOnHand,
+              available: availableQuantity(variant),
               already_in_cart: existing.quantity,
             },
           });
@@ -236,12 +241,12 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         // Stock check
         const variant = await resolveVariant(db, tenant.id, item.variantId);
         if (!variant) return notFound(reply, 'variant');
-        if (variant.stockOnHand < parsed.data.quantity && !variant.allowBackorder) {
+        if (availableQuantity(variant) < parsed.data.quantity && !variant.allowBackorder) {
           return reply.code(409).send({
             error: {
               code: 'INSUFFICIENT_STOCK',
               message: 'Not enough stock for requested quantity',
-              available: variant.stockOnHand,
+              available: availableQuantity(variant),
             },
           });
         }
@@ -462,6 +467,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               priceAmount: schema.productVariants.priceAmount,
               priceCurrency: schema.productVariants.priceCurrency,
               stockOnHand: schema.productVariants.stockOnHand,
+              stockReserved: schema.productVariants.stockReserved,
               allowBackorder: schema.productVariants.allowBackorder,
             })
             .from(schema.productVariants)
@@ -470,7 +476,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
           const variantMap = new Map(freshVariants.map((v) => [v.id, v]));
 
-          // Stock check
+          // Availability check (per `09-inventory.md`: available = on hand − reserved)
           for (const it of items) {
             const v = variantMap.get(it.variantId);
             if (!v) {
@@ -479,10 +485,10 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 `Variant ${it.variantId} no longer available`,
               );
             }
-            if (v.stockOnHand < it.quantity && !v.allowBackorder) {
+            if (availableQuantity(v) < it.quantity && !v.allowBackorder) {
               throw new CheckoutError(
                 'INSUFFICIENT_STOCK',
-                `Insufficient stock for ${v.title}: available ${v.stockOnHand}, requested ${it.quantity}`,
+                `Insufficient stock for ${v.title}: available ${availableQuantity(v)}, requested ${it.quantity}`,
               );
             }
           }
@@ -570,16 +576,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             }),
           );
 
-          // Decrement stock (per `09-inventory.md` simple version — no reservation system yet)
-          for (const it of items) {
-            await tx
-              .update(schema.productVariants)
-              .set({
-                stockOnHand: dsql`${schema.productVariants.stockOnHand} - ${it.quantity}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.productVariants.id, it.variantId));
-          }
+          // Reserve stock (per `09-inventory.md`): the hold expires for unpaid
+          // orders (sweeper cancels them); payment clears the TTL; the physical
+          // decrement happens at shipment handover (`sale` movement).
+          await reserveStock(tx, {
+            tenantId: tenant.id,
+            orderId: order.id,
+            lines: items.map((it) => ({ variantId: it.variantId, quantity: it.quantity })),
+            expiresAt: new Date(Date.now() + UNPAID_RESERVATION_TTL_HOURS * 60 * 60 * 1000),
+          });
 
           // Convert cart
           await tx
@@ -840,6 +845,7 @@ interface ResolvedVariant {
   priceAmount: bigint;
   priceCurrency: string;
   stockOnHand: number;
+  stockReserved: number;
   allowBackorder: boolean;
 }
 
@@ -858,6 +864,7 @@ async function resolveVariant(
       priceAmount: schema.productVariants.priceAmount,
       priceCurrency: schema.productVariants.priceCurrency,
       stockOnHand: schema.productVariants.stockOnHand,
+      stockReserved: schema.productVariants.stockReserved,
       allowBackorder: schema.productVariants.allowBackorder,
       productStatus: schema.products.status,
     })
@@ -881,6 +888,7 @@ async function resolveVariant(
     priceAmount: v.priceAmount,
     priceCurrency: v.priceCurrency,
     stockOnHand: v.stockOnHand,
+    stockReserved: v.stockReserved,
     allowBackorder: v.allowBackorder,
   };
 }

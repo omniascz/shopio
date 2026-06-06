@@ -710,6 +710,8 @@ function serializeProduct(
       weight_grams: v.weightGrams,
       requires_shipping: v.requiresShipping,
       stock_on_hand: v.stockOnHand,
+      stock_reserved: v.stockReserved,
+      stock_available: v.stockOnHand - v.stockReserved,
       allow_backorder: v.allowBackorder,
       option_values: v.optionValues,
       position: v.position,

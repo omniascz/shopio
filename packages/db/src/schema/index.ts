@@ -23,4 +23,6 @@ export * from './invoices';
 export * from './returns';
 // Shipments / fulfillment (Wave 1 — `14-shipping.md` §3.1 + `16`)
 export * from './shipments';
+// Inventory (Wave 1 — `09-inventory.md` reservations + ledger MVP)
+export * from './inventory';
 // Future: customers, inventory, payments, ...

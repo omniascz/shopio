@@ -13,6 +13,7 @@ import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
+import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -267,6 +268,21 @@ export async function registerOrderRoutes(
         .set(updates)
         .where(eq(schema.orders.id, existing.id))
         .returning();
+
+      // Inventory sync (per `09`): cancellation releases the hold, payment
+      // makes it permanent. Best-effort — status change already committed.
+      try {
+        if (parsed.data.status === 'cancelled') {
+          await releaseOrderReservations(db, existing.id, 'order_cancelled');
+        } else if (
+          (parsed.data.status === 'paid' || parsed.data.paymentStatus === 'paid') &&
+          existing.paymentStatus !== 'paid'
+        ) {
+          await clearReservationExpiry(db, existing.id);
+        }
+      } catch (err) {
+        app.log.error({ err, orderId: existing.id }, 'order.inventory_sync_failed');
+      }
 
       const items = await db
         .select()

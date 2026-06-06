@@ -25,6 +25,7 @@ export default defineConfig({
     './src/schema/invoices.ts',
     './src/schema/returns.ts',
     './src/schema/shipments.ts',
+    './src/schema/inventory.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

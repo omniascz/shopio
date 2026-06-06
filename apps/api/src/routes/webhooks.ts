@@ -20,6 +20,7 @@ import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
+import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -186,6 +187,11 @@ async function handleCheckoutSessionCompleted(
     })
     .where(eq(schema.orders.id, order.id));
 
+  // Paid orders hold their stock reservation indefinitely (per `09`)
+  await clearReservationExpiry(db, order.id).catch((err) => {
+    app.log.error({ err, orderId: order.id }, 'stripe.webhook.reservation_clear_failed');
+  });
+
   app.log.info(
     {
       orderId: order.id,
@@ -232,18 +238,20 @@ async function handleCheckoutSessionExpired(
 
   if (!order || order.status !== 'pending_payment') return;
 
-  // Cancel the order — stock restoration is intentionally deferred to Fáze 1 wave 2
-  // (reservation system). For MVP we just mark cancelled; merchant can restock manually.
-  await db
-    .update(schema.orders)
-    .set({
-      status: 'cancelled',
-      statusEnteredAt: new Date(),
-      cancelledAt: new Date(),
-      paymentStatus: 'failed',
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.orders.id, order.id));
+  // Cancel the order + release its stock hold (per `09-inventory.md`)
+  await db.transaction(async (tx) => {
+    await releaseOrderReservations(tx, order.id, 'order_cancelled');
+    await tx
+      .update(schema.orders)
+      .set({
+        status: 'cancelled',
+        statusEnteredAt: new Date(),
+        cancelledAt: new Date(),
+        paymentStatus: 'failed',
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.orders.id, order.id));
+  });
 
   app.log.info({ orderId: order.id }, 'stripe.webhook.order_cancelled_expired');
 }

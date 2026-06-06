@@ -46,8 +46,11 @@ export const productVariants = pgTable(
     // Physical
     weightGrams: integer('weight_grams'),
     requiresShipping: boolean('requires_shipping').notNull().default(true),
-    // Stock (managed properly in `inventory` module; this is the simple counter for MVP)
+    // Stock (single-warehouse MVP per `09-inventory.md`):
+    // available = stock_on_hand − stock_reserved
     stockOnHand: integer('stock_on_hand').notNull().default(0),
+    /** Denormalized Σ of active reservations — maintained transactionally. */
+    stockReserved: integer('stock_reserved').notNull().default(0),
     allowBackorder: boolean('allow_backorder').notNull().default(false),
     // Options (e.g. { color: 'black', size: 'L' })
     optionValues: jsonb('option_values')

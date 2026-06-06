@@ -311,8 +311,9 @@ export async function registerStorefrontRoutes(
             compare_at: v.compareAtAmount
               ? { amount: v.compareAtAmount.toString(), currency: v.priceCurrency }
               : null,
-            stock_on_hand: v.stockOnHand,
-            in_stock: v.stockOnHand > 0 || v.allowBackorder,
+            // Customer-facing availability = on hand − reserved (per `09`)
+            stock_on_hand: Math.max(0, v.stockOnHand - v.stockReserved),
+            in_stock: v.stockOnHand - v.stockReserved > 0 || v.allowBackorder,
             option_values: v.optionValues,
             position: v.position,
           })),

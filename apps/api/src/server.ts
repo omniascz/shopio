@@ -15,6 +15,7 @@ import { registerWebhookRoutes } from './routes/webhooks';
 import { registerInvoiceRoutes } from './routes/invoices';
 import { registerReturnRoutes } from './routes/returns';
 import { registerShipmentRoutes } from './routes/shipments';
+import { sweepExpiredReservations } from './lib/inventory';
 
 export async function buildServer() {
   const config = getConfig();
@@ -78,6 +79,25 @@ export async function buildServer() {
   await registerInvoiceRoutes(server, { config, db });
   await registerReturnRoutes(server, { config, db });
   await registerShipmentRoutes(server, { config, db });
+
+  // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
+  // BullMQ takes over in a later wave. Releases expired unpaid holds and
+  // cancels their orders. Guarded against overlapping runs.
+  let sweeping = false;
+  const sweepInterval = setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    void sweepExpiredReservations(db, server.log)
+      .then((count) => {
+        if (count > 0) server.log.info({ count }, 'inventory.sweeper.swept');
+      })
+      .catch((err) => server.log.error({ err }, 'inventory.sweeper.failed'))
+      .finally(() => {
+        sweeping = false;
+      });
+  }, 5 * 60 * 1000);
+  sweepInterval.unref(); // never keep the process alive just for the sweeper
+  server.addHook('onClose', async () => clearInterval(sweepInterval));
 
   return server;
 }

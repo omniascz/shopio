@@ -33,6 +33,7 @@ import {
   splitRecipientName,
 } from '../lib/shipments';
 import { createPacket, getLabelPdf, trackingUrlFor } from '../lib/packeta';
+import { commitShipmentStock } from '../lib/inventory';
 import { renderOrderShippedEmail, sendEmail } from '../lib/email';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -437,6 +438,20 @@ export async function registerShipmentRoutes(
 
       const items = await listShipmentItems(db, shipment.id);
 
+      // Variant ids for the inventory commit (shipment items reference order items)
+      const orderItemRows = items.length
+        ? await db
+            .select({ id: schema.orderItems.id, variantId: schema.orderItems.variantId })
+            .from(schema.orderItems)
+            .where(
+              inArray(
+                schema.orderItems.id,
+                items.map((i) => i.orderItemId),
+              ),
+            )
+        : [];
+      const variantByOrderItem = new Map(orderItemRows.map((r) => [r.id, r.variantId]));
+
       const orderAfter = await db.transaction(async (tx) => {
         await tx
           .update(schema.shipments)
@@ -465,6 +480,22 @@ export async function registerShipmentRoutes(
             })
             .where(eq(schema.orderItems.id, it.orderItemId));
         }
+
+        // Physical stock-out (per `09`): convert the order's reservation into a
+        // `sale` movement; quantities without a hold (pre-reservation orders)
+        // were already decremented at checkout and are skipped.
+        await commitShipmentStock(tx, {
+          tenantId,
+          orderId: shipment.orderId,
+          shipmentId: shipment.id,
+          lines: items
+            .filter((it) => variantByOrderItem.get(it.orderItemId))
+            .map((it) => ({
+              variantId: variantByOrderItem.get(it.orderItemId)!,
+              quantity: it.quantity,
+            })),
+          actorUserId: req.auth!.userId,
+        });
 
         // Recompute order fulfillment status
         const lines = await tx
