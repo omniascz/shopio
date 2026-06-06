@@ -25,6 +25,7 @@ import {
   type PersonaCode,
 } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
+import { provisionTenantDefaults } from '../lib/tenant-provisioning';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -134,6 +135,14 @@ export async function registerTenantRoutes(
           assignedByUserId: auth.userId,
         })
         .returning();
+
+      // Seed defaults (VAT rates + shipping zone/rates + carrier config) so
+      // the shop is sellable immediately — per onboarding in `37`.
+      await provisionTenantDefaults(tx, {
+        id: tenant.id,
+        countryCode: tenant.countryCode,
+        defaultCurrency: tenant.defaultCurrency,
+      });
 
       return { tenant, membership };
     });

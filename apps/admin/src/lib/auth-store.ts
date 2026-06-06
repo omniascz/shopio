@@ -15,6 +15,8 @@ interface AuthState {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Adopt a re-issued token (tenant switch) and refresh the user snapshot. */
+  applySession: (token: string) => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -60,5 +62,12 @@ export const useAuth = create<AuthState>((set) => ({
     await api.logout().catch(() => {});
     localStorage.removeItem(TOKEN_KEY);
     set({ user: null });
+  },
+
+  applySession: async (token) => {
+    api.setToken(token);
+    localStorage.setItem(TOKEN_KEY, token);
+    const { user } = await api.me();
+    set({ user });
   },
 }));

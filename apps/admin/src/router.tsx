@@ -13,6 +13,8 @@ import {
 } from '@tanstack/react-router';
 import { AppShell } from './components/app-shell';
 import { LoginPage } from './pages/login';
+import { SignupPage } from './pages/signup';
+import { OnboardingPage } from './pages/onboarding';
 import { DashboardPage } from './pages/dashboard';
 import { OrdersListPage } from './pages/orders-list';
 import { OrderDetailPage } from './pages/order-detail';
@@ -26,6 +28,17 @@ function requireAuth() {
   }
 }
 
+/** App routes additionally need an active tenant — otherwise → onboarding. */
+function requireTenant() {
+  const user = useAuth.getState().user;
+  if (!user) {
+    throw redirect({ to: '/login' });
+  }
+  if (!user.tenant_id) {
+    throw redirect({ to: '/onboarding' });
+  }
+}
+
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
@@ -36,10 +49,23 @@ const loginRoute = createRoute({
   component: LoginPage,
 });
 
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/signup',
+  component: SignupPage,
+});
+
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  beforeLoad: requireAuth,
+  component: OnboardingPage,
+});
+
 const appLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app',
-  beforeLoad: requireAuth,
+  beforeLoad: requireTenant,
   component: AppShell,
 });
 
@@ -69,6 +95,8 @@ const productsListRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  signupRoute,
+  onboardingRoute,
   appLayoutRoute.addChildren([
     dashboardRoute,
     ordersListRoute,

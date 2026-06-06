@@ -235,7 +235,54 @@ class ApiClient {
   }
 
   async me(): Promise<{ user: AuthUser }> {
-    return this.request('/auth/me');
+    // /me returns tenant_id beside the user object — flatten to match AuthUser
+    const data = await this.request<{
+      user: Omit<AuthUser, 'tenant_id' | 'persona'>;
+      tenant_id: string | null;
+    }>('/me');
+    return { user: { ...data.user, persona: null, tenant_id: data.tenant_id } };
+  }
+
+  async signup(body: {
+    email: string;
+    password: string;
+    fullName?: string;
+  }): Promise<{ user: { id: string; email: string; status: string } }> {
+    return this.request('/auth/signup', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tenants (onboarding)
+  // ---------------------------------------------------------------------------
+  async myTenants(): Promise<{
+    memberships: {
+      persona: string;
+      status: string;
+      tenant: { id: string; slug: string; display_name: string; status: string };
+    }[];
+  }> {
+    return this.request('/me/tenants');
+  }
+
+  async createTenant(body: {
+    displayName: string;
+    slug?: string;
+    countryCode: string;
+    defaultCurrency?: string;
+  }): Promise<{ tenant: { id: string; slug: string; display_name: string } }> {
+    return this.request('/tenants', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async switchTenant(tenantId: string): Promise<{
+    access_token: string;
+    expires_in: number;
+    tenant: { id: string; display_name: string };
+    persona: string;
+  }> {
+    return this.request('/auth/switch-tenant', {
+      method: 'POST',
+      body: JSON.stringify({ tenantId }),
+    });
   }
 
   async logout(): Promise<void> {

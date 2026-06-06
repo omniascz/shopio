@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
 import { useAuth } from '../lib/auth-store';
 
 export function LoginPage() {
@@ -12,7 +12,9 @@ export function LoginPage() {
     e.preventDefault();
     try {
       await login(email, password);
-      router.navigate({ to: '/' });
+      // No shop yet → continue with onboarding
+      const user = useAuth.getState().user;
+      router.navigate({ to: user?.tenant_id ? '/' : '/onboarding' });
     } catch {
       // surfaced via store error
     }
@@ -100,7 +102,13 @@ export function LoginPage() {
           {loading ? 'Přihlašuji…' : 'Přihlásit'}
         </button>
 
-        <p style={{ marginTop: '1.5rem', fontSize: '0.75rem', color: '#666', textAlign: 'center' }}>
+        <p style={{ marginTop: '1.5rem', fontSize: '0.8125rem', color: '#666', textAlign: 'center' }}>
+          Nemáte účet?{' '}
+          <Link to="/signup" style={{ color: '#0066ff' }}>
+            Založte si e-shop zdarma
+          </Link>
+        </p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#999', textAlign: 'center' }}>
           MVP režim · žádné MFA · Fáze 1 wave 2: passkey + TOTP
         </p>
       </form>
