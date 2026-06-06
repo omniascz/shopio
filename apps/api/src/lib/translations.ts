@@ -7,7 +7,7 @@
  */
 
 import { and, eq, inArray } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, type TenantTx } from '@shopio/db';
 import type { AppDb } from '../db';
 
 export type EntityType = 'product' | 'category';
@@ -56,7 +56,7 @@ export function resolveServeLocale(
  * default (no overrides needed) — caller then uses master text.
  */
 export async function loadTranslations(
-  db: AppDb,
+  db: AppDb | TenantTx,
   tenantId: string,
   entityType: EntityType,
   entityIds: string[],

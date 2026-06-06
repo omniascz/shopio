@@ -15,11 +15,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { searchProducts } from '../lib/search';
 import { listPublishedReviews, ratingSummaries, ratingSummary } from '../lib/reviews';
 import { facetDistribution } from '../lib/search';
 import { loadTranslations, resolveServeLocale } from '../lib/translations';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -41,6 +42,7 @@ export async function registerStorefrontRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
 
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug} — tenant info
@@ -101,37 +103,39 @@ export async function registerStorefrontRoutes(
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
 
-      const rows = await db
-        .select({
-          id: schema.categories.id,
-          pubId: schema.categories.pubId,
-          slug: schema.categories.slug,
-          name: schema.categories.name,
-          description: schema.categories.description,
-          path: schema.categories.path,
-          parentId: schema.categories.parentId,
-          depth: schema.categories.depth,
-        })
-        .from(schema.categories)
-        .where(
-          and(eq(schema.categories.tenantId, tenant.id), eq(schema.categories.status, 'active')),
-        )
-        .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder));
-
       // i18n (per `23`): apply locale overrides for name/description.
       const locale = resolveServeLocale(
         requestedLocale(req),
         (tenant.enabledLocales as string[]) ?? [],
         tenant.defaultLocale,
       );
-      const tr = await loadTranslations(
-        db,
-        tenant.id,
-        'category',
-        rows.map((r) => r.id),
-        locale,
-        tenant.defaultLocale,
-      );
+      const { rows, tr } = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const catRows = await tx
+          .select({
+            id: schema.categories.id,
+            pubId: schema.categories.pubId,
+            slug: schema.categories.slug,
+            name: schema.categories.name,
+            description: schema.categories.description,
+            path: schema.categories.path,
+            parentId: schema.categories.parentId,
+            depth: schema.categories.depth,
+          })
+          .from(schema.categories)
+          .where(
+            and(eq(schema.categories.tenantId, tenant.id), eq(schema.categories.status, 'active')),
+          )
+          .orderBy(asc(schema.categories.path), asc(schema.categories.sortOrder));
+        const trans = await loadTranslations(
+          tx,
+          tenant.id,
+          'category',
+          catRows.map((r) => r.id),
+          locale,
+          tenant.defaultLocale,
+        );
+        return { rows: catRows, tr: trans };
+      });
 
       return reply.send({
         data: {
@@ -215,114 +219,104 @@ export async function registerStorefrontRoutes(
         );
       }
 
-      let categoryId: string | undefined;
-      if (categorySlug) {
-        const [cat] = await db
-          .select({ id: schema.categories.id })
-          .from(schema.categories)
-          .where(
-            and(
-              eq(schema.categories.tenantId, tenant.id),
-              eq(schema.categories.slug, categorySlug),
-            ),
-          )
-          .limit(1);
-        if (!cat) return notFound(reply, 'category');
-        categoryId = cat.id;
-      }
-
-      const baseQuery = categoryId
-        ? db
-            .select({
-              id: schema.products.id,
-              pubId: schema.products.pubId,
-              slug: schema.products.slug,
-              title: schema.products.title,
-              basePriceAmount: schema.products.basePriceAmount,
-              basePriceCurrency: schema.products.basePriceCurrency,
-              vendor: schema.products.vendor,
-              brandName: schema.products.brandName,
-              publishedAt: schema.products.publishedAt,
-            })
-            .from(schema.products)
-            .innerJoin(
-              schema.productCategories,
-              eq(schema.productCategories.productId, schema.products.id),
-            )
-            .where(and(...conditions, eq(schema.productCategories.categoryId, categoryId)))
-        : db
-            .select({
-              id: schema.products.id,
-              pubId: schema.products.pubId,
-              slug: schema.products.slug,
-              title: schema.products.title,
-              basePriceAmount: schema.products.basePriceAmount,
-              basePriceCurrency: schema.products.basePriceCurrency,
-              vendor: schema.products.vendor,
-              brandName: schema.products.brandName,
-              publishedAt: schema.products.publishedAt,
-            })
-            .from(schema.products)
-            .where(and(...conditions));
-
       const order =
         sort === 'recent'
           ? desc(schema.products.publishedAt)
           : sort === 'oldest'
             ? asc(schema.products.publishedAt)
             : asc(schema.products.title);
-
-      // Meilisearch already paginated the hit set — don't offset twice.
-      // (Hits re-sort by the catalog order within the page; pure relevance
-      // ordering lands with the dedicated search endpoint wave.)
-      const rows = await baseQuery
-        .orderBy(order)
-        .limit(limit)
-        .offset(searchIds ? 0 : offset);
-
-      // Fetch primary media for each product (one batch query)
-      const productIds = rows.map((r) => r.id);
-      const primaryMedia = productIds.length
-        ? await db
-            .select({
-              productId: schema.productMedia.productId,
-              url: schema.productMedia.url,
-              alt: schema.productMedia.alt,
-            })
-            .from(schema.productMedia)
-            .where(
-              and(
-                inArray(schema.productMedia.productId, productIds),
-                eq(schema.productMedia.position, 0),
-              ),
-            )
-        : [];
-      const mediaByProduct = new Map(primaryMedia.map((m) => [m.productId, m]));
-      const ratings = await ratingSummaries(db, productIds);
-
-      // i18n (per `23`): localized product titles for the card grid.
+      const cols = {
+        id: schema.products.id,
+        pubId: schema.products.pubId,
+        slug: schema.products.slug,
+        title: schema.products.title,
+        basePriceAmount: schema.products.basePriceAmount,
+        basePriceCurrency: schema.products.basePriceCurrency,
+        vendor: schema.products.vendor,
+        brandName: schema.products.brandName,
+        publishedAt: schema.products.publishedAt,
+      };
       const locale = resolveServeLocale(
         requestedLocale(req),
         (tenant.enabledLocales as string[]) ?? [],
         tenant.defaultLocale,
       );
-      const tr = await loadTranslations(db, tenant.id, 'product', productIds, locale, tenant.defaultLocale);
+
+      // All tenant-scoped reads under one RLS transaction.
+      const loaded = await withTenant(rlsDb, tenant.id, async (tx) => {
+        let categoryId: string | undefined;
+        if (categorySlug) {
+          const [cat] = await tx
+            .select({ id: schema.categories.id })
+            .from(schema.categories)
+            .where(
+              and(
+                eq(schema.categories.tenantId, tenant.id),
+                eq(schema.categories.slug, categorySlug),
+              ),
+            )
+            .limit(1);
+          if (!cat) return null;
+          categoryId = cat.id;
+        }
+
+        const baseQuery = categoryId
+          ? tx
+              .select(cols)
+              .from(schema.products)
+              .innerJoin(
+                schema.productCategories,
+                eq(schema.productCategories.productId, schema.products.id),
+              )
+              .where(and(...conditions, eq(schema.productCategories.categoryId, categoryId)))
+          : tx.select(cols).from(schema.products).where(and(...conditions));
+
+        // Meilisearch already paginated the hit set — don't offset twice.
+        const productRows = await baseQuery
+          .orderBy(order)
+          .limit(limit)
+          .offset(searchIds ? 0 : offset);
+
+        const ids = productRows.map((r) => r.id);
+        const media = ids.length
+          ? await tx
+              .select({
+                productId: schema.productMedia.productId,
+                url: schema.productMedia.url,
+                alt: schema.productMedia.alt,
+              })
+              .from(schema.productMedia)
+              .where(
+                and(
+                  inArray(schema.productMedia.productId, ids),
+                  eq(schema.productMedia.position, 0),
+                ),
+              )
+          : [];
+        const ratingMap = await ratingSummaries(tx, ids);
+        const trans = await loadTranslations(tx, tenant.id, 'product', ids, locale, tenant.defaultLocale);
+        const [facetNamesRow] = await tx
+          .select({
+            names: dsql<string[]>`COALESCE(ARRAY_AGG(DISTINCT elem->>'name') FILTER (WHERE elem->>'name' IS NOT NULL), '{}')`,
+          })
+          .from(schema.products)
+          .leftJoin(
+            dsql`LATERAL jsonb_array_elements(${schema.products.attributes}) AS elem`,
+            dsql`true`,
+          )
+          .where(
+            and(eq(schema.products.tenantId, tenant.id), eq(schema.products.status, 'active')),
+          );
+        return { productRows, media, ratingMap, trans, facetNamesRow };
+      });
+      if (loaded === null) return notFound(reply, 'category');
+      const { productRows: rows, media: primaryMedia, ratingMap: ratings, trans: tr, facetNamesRow } =
+        loaded;
+      const mediaByProduct = new Map(primaryMedia.map((m) => [m.productId, m]));
 
       // Available filters for the sidebar: distinct attribute names across the
       // tenant's active catalog → Meili facet distribution for the current view.
       let facetFilters: { name: string; values: { value: string; count: number }[] }[] = [];
-      const [facetNamesRow] = await db
-        .select({
-          names: dsql<string[]>`COALESCE(ARRAY_AGG(DISTINCT elem->>'name') FILTER (WHERE elem->>'name' IS NOT NULL), '{}')`,
-        })
-        .from(schema.products)
-        .leftJoin(
-          dsql`LATERAL jsonb_array_elements(${schema.products.attributes}) AS elem`,
-          dsql`true`,
-        )
-        .where(
-          and(eq(schema.products.tenantId, tenant.id), eq(schema.products.status, 'active')),
-        );
       const facetNames = facetNamesRow?.names ?? [];
       if (facetNames.length > 0) {
         const dist = await facetDistribution(
@@ -380,59 +374,64 @@ export async function registerStorefrontRoutes(
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
 
-      const [product] = await db
-        .select()
-        .from(schema.products)
-        .where(
-          and(
-            eq(schema.products.tenantId, tenant.id),
-            eq(schema.products.slug, req.params.productSlug),
-            eq(schema.products.status, 'active'),
-            dsql`${schema.products.publishedAt} IS NOT NULL`,
-          ),
-        )
-        .limit(1);
-
-      if (!product) return notFound(reply, 'product');
-
-      const [variants, media, catRows, reviewSummary, reviews] = await Promise.all([
-        db
-          .select()
-          .from(schema.productVariants)
-          .where(eq(schema.productVariants.productId, product.id))
-          .orderBy(asc(schema.productVariants.position)),
-        db
-          .select()
-          .from(schema.productMedia)
-          .where(eq(schema.productMedia.productId, product.id))
-          .orderBy(asc(schema.productMedia.position)),
-        db
-          .select({
-            id: schema.categories.id,
-            slug: schema.categories.slug,
-            name: schema.categories.name,
-            path: schema.categories.path,
-          })
-          .from(schema.productCategories)
-          .innerJoin(
-            schema.categories,
-            eq(schema.productCategories.categoryId, schema.categories.id),
-          )
-          .where(eq(schema.productCategories.productId, product.id)),
-        ratingSummary(db, product.id),
-        listPublishedReviews(db, product.id, 50),
-      ]);
-
-      // i18n (per `23`): localize product title/description + category names.
       const locale = resolveServeLocale(
         requestedLocale(req),
         (tenant.enabledLocales as string[]) ?? [],
         tenant.defaultLocale,
       );
-      const [prodTr, catTr] = await Promise.all([
-        loadTranslations(db, tenant.id, 'product', [product.id], locale, tenant.defaultLocale),
-        loadTranslations(db, tenant.id, 'category', catRows.map((c) => c.id), locale, tenant.defaultLocale),
-      ]);
+      const loaded = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [product] = await tx
+          .select()
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, tenant.id),
+              eq(schema.products.slug, req.params.productSlug),
+              eq(schema.products.status, 'active'),
+              dsql`${schema.products.publishedAt} IS NOT NULL`,
+            ),
+          )
+          .limit(1);
+        if (!product) return null;
+
+        const [variants, media, catRows, reviewSummary, reviews] = await Promise.all([
+          tx
+            .select()
+            .from(schema.productVariants)
+            .where(eq(schema.productVariants.productId, product.id))
+            .orderBy(asc(schema.productVariants.position)),
+          tx
+            .select()
+            .from(schema.productMedia)
+            .where(eq(schema.productMedia.productId, product.id))
+            .orderBy(asc(schema.productMedia.position)),
+          tx
+            .select({
+              id: schema.categories.id,
+              slug: schema.categories.slug,
+              name: schema.categories.name,
+              path: schema.categories.path,
+            })
+            .from(schema.productCategories)
+            .innerJoin(
+              schema.categories,
+              eq(schema.productCategories.categoryId, schema.categories.id),
+            )
+            .where(eq(schema.productCategories.productId, product.id)),
+          ratingSummary(tx, product.id),
+          listPublishedReviews(tx, product.id, 50),
+        ]);
+
+        // i18n (per `23`): localize product title/description + category names.
+        const [prodTr, catTr] = await Promise.all([
+          loadTranslations(tx, tenant.id, 'product', [product.id], locale, tenant.defaultLocale),
+          loadTranslations(tx, tenant.id, 'category', catRows.map((c) => c.id), locale, tenant.defaultLocale),
+        ]);
+        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr };
+      });
+
+      if (!loaded) return notFound(reply, 'product');
+      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr } = loaded;
       const po = prodTr.get(product.id);
 
       return reply.send({
@@ -514,11 +513,13 @@ export async function registerStorefrontRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
-      const rows = await db
-        .select({ slug: schema.cmsPages.slug, title: schema.cmsPages.title })
-        .from(schema.cmsPages)
-        .where(and(eq(schema.cmsPages.tenantId, tenant.id), eq(schema.cmsPages.status, 'published')))
-        .orderBy(asc(schema.cmsPages.title));
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({ slug: schema.cmsPages.slug, title: schema.cmsPages.title })
+          .from(schema.cmsPages)
+          .where(and(eq(schema.cmsPages.tenantId, tenant.id), eq(schema.cmsPages.status, 'published')))
+          .orderBy(asc(schema.cmsPages.title)),
+      );
       return reply.send({ data: { pages: rows } });
     },
   );
@@ -529,17 +530,19 @@ export async function registerStorefrontRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
-      const [page] = await db
-        .select()
-        .from(schema.cmsPages)
-        .where(
-          and(
-            eq(schema.cmsPages.tenantId, tenant.id),
-            eq(schema.cmsPages.slug, req.params.slug),
-            eq(schema.cmsPages.status, 'published'),
-          ),
-        )
-        .limit(1);
+      const [page] = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select()
+          .from(schema.cmsPages)
+          .where(
+            and(
+              eq(schema.cmsPages.tenantId, tenant.id),
+              eq(schema.cmsPages.slug, req.params.slug),
+              eq(schema.cmsPages.status, 'published'),
+            ),
+          )
+          .limit(1),
+      );
       if (!page) return notFound(reply, 'page');
       return reply.send({
         data: {
@@ -560,23 +563,25 @@ export async function registerStorefrontRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
-      const rows = await db
-        .select({
-          slug: schema.cmsBlogPosts.slug,
-          title: schema.cmsBlogPosts.title,
-          excerpt: schema.cmsBlogPosts.excerpt,
-          coverImageUrl: schema.cmsBlogPosts.coverImageUrl,
-          publishedAt: schema.cmsBlogPosts.publishedAt,
-        })
-        .from(schema.cmsBlogPosts)
-        .where(
-          and(
-            eq(schema.cmsBlogPosts.tenantId, tenant.id),
-            eq(schema.cmsBlogPosts.status, 'published'),
-          ),
-        )
-        .orderBy(desc(schema.cmsBlogPosts.publishedAt))
-        .limit(100);
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({
+            slug: schema.cmsBlogPosts.slug,
+            title: schema.cmsBlogPosts.title,
+            excerpt: schema.cmsBlogPosts.excerpt,
+            coverImageUrl: schema.cmsBlogPosts.coverImageUrl,
+            publishedAt: schema.cmsBlogPosts.publishedAt,
+          })
+          .from(schema.cmsBlogPosts)
+          .where(
+            and(
+              eq(schema.cmsBlogPosts.tenantId, tenant.id),
+              eq(schema.cmsBlogPosts.status, 'published'),
+            ),
+          )
+          .orderBy(desc(schema.cmsBlogPosts.publishedAt))
+          .limit(100),
+      );
       return reply.send({
         data: {
           posts: rows.map((p) => ({
@@ -597,17 +602,19 @@ export async function registerStorefrontRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
-      const [post] = await db
-        .select()
-        .from(schema.cmsBlogPosts)
-        .where(
-          and(
-            eq(schema.cmsBlogPosts.tenantId, tenant.id),
-            eq(schema.cmsBlogPosts.slug, req.params.slug),
-            eq(schema.cmsBlogPosts.status, 'published'),
-          ),
-        )
-        .limit(1);
+      const [post] = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select()
+          .from(schema.cmsBlogPosts)
+          .where(
+            and(
+              eq(schema.cmsBlogPosts.tenantId, tenant.id),
+              eq(schema.cmsBlogPosts.slug, req.params.slug),
+              eq(schema.cmsBlogPosts.status, 'published'),
+            ),
+          )
+          .limit(1),
+      );
       if (!post) return notFound(reply, 'post');
       return reply.send({
         data: {

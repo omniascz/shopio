@@ -4,8 +4,10 @@
  */
 
 import { and, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, type TenantTx } from '@shopio/db';
 import type { AppDb } from '../db';
+
+type Db = AppDb | TenantTx;
 
 export interface RatingSummary {
   count: number;
@@ -15,7 +17,7 @@ export interface RatingSummary {
 
 /** Published rating summaries for a set of product ids (one query). */
 export async function ratingSummaries(
-  db: AppDb,
+  db: Db,
   productIds: string[],
 ): Promise<Map<string, RatingSummary>> {
   const map = new Map<string, RatingSummary>();
@@ -44,13 +46,13 @@ export async function ratingSummaries(
 }
 
 /** Single product summary (convenience). */
-export async function ratingSummary(db: AppDb, productId: string): Promise<RatingSummary> {
+export async function ratingSummary(db: Db, productId: string): Promise<RatingSummary> {
   const m = await ratingSummaries(db, [productId]);
   return m.get(productId) ?? { count: 0, average: null };
 }
 
 /** Published reviews for a product, newest first. */
-export async function listPublishedReviews(db: AppDb, productId: string, limit = 50) {
+export async function listPublishedReviews(db: Db, productId: string, limit = 50) {
   return db
     .select({
       pubId: schema.productReviews.pubId,
