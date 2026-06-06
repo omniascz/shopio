@@ -33,6 +33,7 @@ import {
 import { renderPasswordResetEmail, renderVerifyEmail, sendEmail } from '../lib/email';
 import { ReturnError, createReturn } from '../lib/returns';
 import { serializeCompany } from '../lib/companies';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -81,6 +82,7 @@ export async function registerCustomerAuthRoutes(
   opts: PluginOptions,
 ): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
   const isProd = config.NODE_ENV === 'production';
 
   // ---------------------------------------------------------------------------
@@ -212,7 +214,7 @@ export async function registerCustomerAuthRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
       if (!customer) {
         return reply.code(401).send({
           error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' },
@@ -230,35 +232,37 @@ export async function registerCustomerAuthRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
       if (!customer) {
         return reply.code(401).send({
           error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' },
         });
       }
 
-      const rows = await db
-        .select({
-          orderNumber: schema.orders.orderNumber,
-          status: schema.orders.status,
-          paymentStatus: schema.orders.paymentStatus,
-          totalAmount: schema.orders.totalAmount,
-          currency: schema.orders.currency,
-          customerEmail: schema.orders.customerEmail,
-          placedAt: schema.orders.placedAt,
-        })
-        .from(schema.orders)
-        .where(
-          and(
-            eq(schema.orders.tenantId, tenant.id),
-            or(
-              eq(schema.orders.customerId, customer.id),
-              eq(schema.orders.customerEmail, customer.email),
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({
+            orderNumber: schema.orders.orderNumber,
+            status: schema.orders.status,
+            paymentStatus: schema.orders.paymentStatus,
+            totalAmount: schema.orders.totalAmount,
+            currency: schema.orders.currency,
+            customerEmail: schema.orders.customerEmail,
+            placedAt: schema.orders.placedAt,
+          })
+          .from(schema.orders)
+          .where(
+            and(
+              eq(schema.orders.tenantId, tenant.id),
+              or(
+                eq(schema.orders.customerId, customer.id),
+                eq(schema.orders.customerEmail, customer.email),
+              ),
             ),
-          ),
-        )
-        .orderBy(desc(schema.orders.placedAt))
-        .limit(50);
+          )
+          .orderBy(desc(schema.orders.placedAt))
+          .limit(50),
+      );
 
       return reply.send({
         data: {
@@ -284,21 +288,23 @@ export async function registerCustomerAuthRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
       if (!customer) {
         return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
       }
       if (!customer.companyId) return reply.send({ data: { company: null } });
-      const [company] = await db
-        .select()
-        .from(schema.companies)
-        .where(
-          and(
-            eq(schema.companies.id, customer.companyId),
-            eq(schema.companies.tenantId, tenant.id),
-          ),
-        )
-        .limit(1);
+      const [company] = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select()
+          .from(schema.companies)
+          .where(
+            and(
+              eq(schema.companies.id, customer.companyId!),
+              eq(schema.companies.tenantId, tenant.id),
+            ),
+          )
+          .limit(1),
+      );
       return reply.send({ data: { company: company ? serializeCompany(company) : null } });
     },
   );
@@ -312,7 +318,7 @@ export async function registerCustomerAuthRoutes(
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
       if (!customer) {
         return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
       }
@@ -321,42 +327,47 @@ export async function registerCustomerAuthRoutes(
       const i = parsed.data;
 
       if (customer.companyId) {
-        const [updated] = await db
-          .update(schema.companies)
-          .set({
-            name: i.name,
-            registrationNumber: i.registrationNumber ?? null,
-            vatId: i.vatId ?? null,
-            billingAddress: i.billingAddress ?? null,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(schema.companies.id, customer.companyId),
-              eq(schema.companies.tenantId, tenant.id),
-            ),
-          )
-          .returning();
+        const [updated] = await withTenant(rlsDb, tenant.id, (tx) =>
+          tx
+            .update(schema.companies)
+            .set({
+              name: i.name,
+              registrationNumber: i.registrationNumber ?? null,
+              vatId: i.vatId ?? null,
+              billingAddress: i.billingAddress ?? null,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.companies.id, customer.companyId!),
+                eq(schema.companies.tenantId, tenant.id),
+              ),
+            )
+            .returning(),
+        );
         if (!updated) return notFound(reply, 'COMPANY_NOT_FOUND');
         return reply.send({ data: { company: serializeCompany(updated) } });
       }
 
-      const [company] = await db
-        .insert(schema.companies)
-        .values({
-          tenantId: tenant.id,
-          pubId: generatePubId('cmp'),
-          name: i.name,
-          registrationNumber: i.registrationNumber ?? null,
-          vatId: i.vatId ?? null,
-          billingAddress: i.billingAddress ?? null,
-        })
-        .returning();
-      await db
-        .update(schema.customers)
-        .set({ companyId: company!.id, updatedAt: new Date() })
-        .where(eq(schema.customers.id, customer.id));
-      return reply.code(201).send({ data: { company: serializeCompany(company!) } });
+      const company = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [c] = await tx
+          .insert(schema.companies)
+          .values({
+            tenantId: tenant.id,
+            pubId: generatePubId('cmp'),
+            name: i.name,
+            registrationNumber: i.registrationNumber ?? null,
+            vatId: i.vatId ?? null,
+            billingAddress: i.billingAddress ?? null,
+          })
+          .returning();
+        await tx
+          .update(schema.customers)
+          .set({ companyId: c!.id, updatedAt: new Date() })
+          .where(eq(schema.customers.id, customer.id));
+        return c!;
+      });
+      return reply.code(201).send({ data: { company: serializeCompany(company) } });
     },
   );
 }
