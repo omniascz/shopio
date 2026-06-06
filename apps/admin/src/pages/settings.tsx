@@ -34,6 +34,7 @@ export function SettingsPage() {
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
       <AppearanceSection settings={settings} />
+      <HomepageSection settings={settings} />
       <LocalesSection />
     </div>
   );
@@ -420,10 +421,14 @@ function AppearanceSection({ settings }: { settings: ShopSettings }) {
   const queryClient = useQueryClient();
   const [theme, setTheme] = useState(settings.appearance.theme);
   const [accent, setAccent] = useState(settings.appearance.accent_color);
+  const [secondary, setSecondary] = useState(settings.appearance.secondary_color ?? '#0066ff');
+  const [font, setFont] = useState(settings.appearance.font ?? 'sans');
+  const [radius, setRadius] = useState(settings.appearance.radius ?? 'soft');
   const [error, setError] = useState<string | null>(null);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateAppearance({ theme, accentColor: accent }),
+    mutationFn: () =>
+      api.updateAppearance({ theme, accentColor: accent, secondaryColor: secondary, font, radius }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }),
     onError: (err) => setError((err as Error).message),
   });
@@ -454,20 +459,132 @@ function AppearanceSection({ settings }: { settings: ShopSettings }) {
           </button>
         ))}
       </div>
-      <Field label="Akcentní barva (tlačítka, odkazy)">
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            type="color"
-            value={accent}
-            onChange={(e) => setAccent(e.target.value)}
-            style={{ width: 44, height: 32, padding: 2, border: '1px solid #ddd', borderRadius: 4 }}
-          />
-          <input
-            value={accent}
-            onChange={(e) => setAccent(e.target.value)}
-            style={{ ...inputStyle, width: 110 }}
-          />
-        </div>
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <Field label="Akcentní barva (tlačítka)">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="color"
+              value={accent}
+              onChange={(e) => setAccent(e.target.value)}
+              style={{ width: 44, height: 32, padding: 2, border: '1px solid #ddd', borderRadius: 4 }}
+            />
+            <input value={accent} onChange={(e) => setAccent(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+          </div>
+        </Field>
+        <Field label="Sekundární barva (lišta, štítky)">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="color"
+              value={secondary}
+              onChange={(e) => setSecondary(e.target.value)}
+              style={{ width: 44, height: 32, padding: 2, border: '1px solid #ddd', borderRadius: 4 }}
+            />
+            <input value={secondary} onChange={(e) => setSecondary(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+          </div>
+        </Field>
+      </div>
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <Field label="Písmo">
+          <select value={font} onChange={(e) => setFont(e.target.value)} style={{ ...inputStyle, width: 180 }}>
+            <option value="sans">Bezpatkové (sans)</option>
+            <option value="serif">Patkové (serif)</option>
+            <option value="mixed">Kombinace (nadpisy serif)</option>
+          </select>
+        </Field>
+        <Field label="Zaoblení rohů">
+          <select value={radius} onChange={(e) => setRadius(e.target.value)} style={{ ...inputStyle, width: 180 }}>
+            <option value="sharp">Ostré</option>
+            <option value="soft">Jemné</option>
+            <option value="round">Výrazné</option>
+          </select>
+        </Field>
+      </div>
+      {error && <p style={errorStyle}>{error}</p>}
+      <SaveButton mutation={saveMutation} onClick={() => { setError(null); saveMutation.mutate(); }} />
+    </section>
+  );
+}
+
+// =============================================================================
+// Domovská stránka (per `26`)
+// =============================================================================
+
+function HomepageSection({ settings }: { settings: ShopSettings }) {
+  const queryClient = useQueryClient();
+  const hp = settings.homepage;
+  const [annEnabled, setAnnEnabled] = useState(hp?.announcement.enabled ?? false);
+  const [annText, setAnnText] = useState(hp?.announcement.text ?? '');
+  const [annUrl, setAnnUrl] = useState(hp?.announcement.url ?? '');
+  const [heroEnabled, setHeroEnabled] = useState(hp?.hero.enabled ?? false);
+  const [headline, setHeadline] = useState(hp?.hero.headline ?? '');
+  const [subheadline, setSubheadline] = useState(hp?.hero.subheadline ?? '');
+  const [ctaText, setCtaText] = useState(hp?.hero.cta_text ?? '');
+  const [ctaUrl, setCtaUrl] = useState(hp?.hero.cta_url ?? '');
+  const [imageUrl, setImageUrl] = useState(hp?.hero.image_url ?? '');
+  const [align, setAlign] = useState(hp?.hero.align ?? 'center');
+  const [error, setError] = useState<string | null>(null);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      api.updateHomepage({
+        announcement: { enabled: annEnabled, text: annText, ...(annUrl && { url: annUrl }) },
+        hero: {
+          enabled: heroEnabled,
+          align,
+          ...(headline && { headline }),
+          ...(subheadline && { subheadline }),
+          ...(ctaText && { cta_text: ctaText }),
+          ...(ctaUrl && { cta_url: ctaUrl }),
+          ...(imageUrl && { image_url: imageUrl }),
+        },
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }),
+    onError: (err) => setError((err as Error).message),
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Domovská stránka</h2>
+
+      <h3 style={{ fontSize: '0.9375rem', margin: '0 0 0.5rem' }}>Oznamovací lišta</h3>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+        <input type="checkbox" checked={annEnabled} onChange={(e) => setAnnEnabled(e.target.checked)} />
+        Zobrazit lištu nahoře
+      </label>
+      <Field label="Text lišty">
+        <input value={annText} onChange={(e) => setAnnText(e.target.value)} style={inputStyle} placeholder="Doprava zdarma nad 1500 Kč" />
+      </Field>
+      <Field label="Odkaz lišty (volitelné)">
+        <input value={annUrl} onChange={(e) => setAnnUrl(e.target.value)} style={inputStyle} placeholder="/s/.../akce" />
+      </Field>
+
+      <h3 style={{ fontSize: '0.9375rem', margin: '1rem 0 0.5rem' }}>Hero banner</h3>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+        <input type="checkbox" checked={heroEnabled} onChange={(e) => setHeroEnabled(e.target.checked)} />
+        Zobrazit hero na domovské stránce
+      </label>
+      <Field label="Nadpis">
+        <input value={headline} onChange={(e) => setHeadline(e.target.value)} style={inputStyle} />
+      </Field>
+      <Field label="Podnadpis">
+        <input value={subheadline} onChange={(e) => setSubheadline(e.target.value)} style={inputStyle} />
+      </Field>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <Field label="Text tlačítka">
+          <input value={ctaText} onChange={(e) => setCtaText(e.target.value)} style={{ ...inputStyle, width: 180 }} />
+        </Field>
+        <Field label="Odkaz tlačítka">
+          <input value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} style={{ ...inputStyle, width: 220 }} />
+        </Field>
+        <Field label="Zarovnání">
+          <select value={align} onChange={(e) => setAlign(e.target.value)} style={{ ...inputStyle, width: 140 }}>
+            <option value="center">Na střed</option>
+            <option value="left">Vlevo</option>
+          </select>
+        </Field>
+      </div>
+      <Field label="URL obrázku pozadí (volitelné)">
+        <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} style={inputStyle} placeholder="https://…" />
       </Field>
       {error && <p style={errorStyle}>{error}</p>}
       <SaveButton mutation={saveMutation} onClick={() => { setError(null); saveMutation.mutate(); }} />

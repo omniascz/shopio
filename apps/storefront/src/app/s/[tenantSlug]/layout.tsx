@@ -22,6 +22,23 @@ const THEME_PRESETS: Record<string, { background: string; text: string; muted: s
   dark: { background: '#161616', text: '#eaeaea', muted: '#9a9a9a' },
 };
 
+/** Font + radius token presets (per `26`). */
+const FONT_STACKS: Record<string, { heading: string; body: string }> = {
+  sans: {
+    heading: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    body: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  },
+  serif: {
+    heading: 'Georgia, "Times New Roman", serif',
+    body: 'Georgia, "Times New Roman", serif',
+  },
+  mixed: {
+    heading: 'Georgia, "Times New Roman", serif',
+    body: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  },
+};
+const RADIUS_TOKENS: Record<string, string> = { sharp: '0px', soft: '6px', round: '14px' };
+
 export default async function TenantLayout({ children, params }: Props) {
   const { tenantSlug } = await params;
   const tenant = await getTenant(tenantSlug);
@@ -39,6 +56,10 @@ export default async function TenantLayout({ children, params }: Props) {
     logo_url: null,
   };
   const preset = THEME_PRESETS[appearance.theme] ?? THEME_PRESETS['minimal']!;
+  const fonts = FONT_STACKS[appearance.font ?? 'sans'] ?? FONT_STACKS['sans']!;
+  const radius = RADIUS_TOKENS[appearance.radius ?? 'soft'] ?? RADIUS_TOKENS['soft']!;
+  const secondary = appearance.secondary_color ?? '#0066ff';
+  const announcement = tenant.homepage?.announcement;
 
   return (
     <CartProvider tenantSlug={tenantSlug}>
@@ -48,15 +69,39 @@ export default async function TenantLayout({ children, params }: Props) {
         style={
           {
             '--sf-accent': appearance.accent_color,
+            '--sf-secondary': secondary,
             '--sf-bg': preset.background,
             '--sf-text': preset.text,
             '--sf-muted': preset.muted,
+            '--sf-radius': radius,
+            '--sf-font-heading': fonts.heading,
+            '--sf-font-body': fonts.body,
             background: preset.background,
             color: preset.text,
+            fontFamily: fonts.body,
             minHeight: '100vh',
           } as React.CSSProperties
         }
       >
+        {announcement?.enabled && announcement.text && (
+          <div
+            style={{
+              background: secondary,
+              color: '#fff',
+              textAlign: 'center',
+              fontSize: '0.8125rem',
+              padding: '0.5rem 1rem',
+            }}
+          >
+            {announcement.url ? (
+              <a href={announcement.url} style={{ color: '#fff', textDecoration: 'underline' }}>
+                {announcement.text}
+              </a>
+            ) : (
+              announcement.text
+            )}
+          </div>
+        )}
         <header
           style={{
             display: 'flex',

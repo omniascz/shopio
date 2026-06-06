@@ -48,14 +48,41 @@ const PatchSettingsBody = z.object({
 
 const APPEARANCE_THEMES = ['minimal', 'warm', 'dark'] as const;
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
 const PatchAppearanceBody = z.object({
   theme: z.enum(APPEARANCE_THEMES).optional(),
   /** Accent color for buttons/links (hex). */
-  accentColor: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
+  accentColor: hexColor.optional(),
+  /** Secondary brand color (badges, highlights) per `26`. */
+  secondaryColor: hexColor.optional(),
+  /** Type scale preset (per `26`). */
+  font: z.enum(['sans', 'serif', 'mixed']).optional(),
+  /** Corner rounding preset (per `26`). */
+  radius: z.enum(['sharp', 'soft', 'round']).optional(),
   logoUrl: z.string().url().or(z.string().startsWith('/')).nullable().optional(),
+});
+
+/** Storefront homepage config (announcement bar + hero) per `26`. */
+const PatchHomepageBody = z.object({
+  announcement: z
+    .object({
+      enabled: z.boolean(),
+      text: z.string().max(200),
+      url: z.string().max(500).optional(),
+    })
+    .optional(),
+  hero: z
+    .object({
+      enabled: z.boolean(),
+      headline: z.string().max(120).optional(),
+      subheadline: z.string().max(240).optional(),
+      cta_text: z.string().max(40).optional(),
+      cta_url: z.string().max(500).optional(),
+      image_url: z.string().max(1000).optional(),
+      align: z.enum(['left', 'center']).optional(),
+    })
+    .optional(),
 });
 
 const PatchRateBody = z.object({
@@ -208,7 +235,49 @@ export async function registerSettingsRoutes(
         ...prior,
         ...(input.theme !== undefined && { theme: input.theme }),
         ...(input.accentColor !== undefined && { accent_color: input.accentColor }),
+        ...(input.secondaryColor !== undefined && { secondary_color: input.secondaryColor }),
+        ...(input.font !== undefined && { font: input.font }),
+        ...(input.radius !== undefined && { radius: input.radius }),
         ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
+      };
+
+      const [updated] = await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId))
+        .returning();
+
+      return reply.send({ data: serializeSettings(updated!) });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /admin/settings/homepage — announcement bar + hero (per `26`)
+  // ---------------------------------------------------------------------------
+  app.patch(
+    '/api/2026-05-20/admin/settings/homepage',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const parsed = PatchHomepageBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const input = parsed.data;
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>) };
+      const prior = (settings.homepage ?? {}) as Record<string, unknown>;
+      settings.homepage = {
+        ...prior,
+        ...(input.announcement !== undefined && { announcement: input.announcement }),
+        ...(input.hero !== undefined && { hero: input.hero }),
       };
 
       const [updated] = await db
@@ -458,7 +527,18 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
       bank_account_iban?: string;
       bank_account_swift?: string;
     };
-    appearance?: { theme?: string; accent_color?: string; logo_url?: string };
+    appearance?: {
+      theme?: string;
+      accent_color?: string;
+      secondary_color?: string;
+      font?: string;
+      radius?: string;
+      logo_url?: string;
+    };
+    homepage?: {
+      announcement?: { enabled?: boolean; text?: string; url?: string };
+      hero?: Record<string, unknown>;
+    };
   };
   return {
     slug: tenant.slug,
@@ -478,7 +558,18 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
     appearance: {
       theme: settings.appearance?.theme ?? 'minimal',
       accent_color: settings.appearance?.accent_color ?? '#111111',
+      secondary_color: settings.appearance?.secondary_color ?? '#0066ff',
+      font: settings.appearance?.font ?? 'sans',
+      radius: settings.appearance?.radius ?? 'soft',
       logo_url: settings.appearance?.logo_url ?? null,
+    },
+    homepage: {
+      announcement: {
+        enabled: settings.homepage?.announcement?.enabled ?? false,
+        text: settings.homepage?.announcement?.text ?? '',
+        url: settings.homepage?.announcement?.url ?? '',
+      },
+      hero: (settings.homepage?.hero as Record<string, unknown>) ?? { enabled: false },
     },
   };
 }

@@ -14,7 +14,25 @@ export interface Money {
 export interface TenantAppearance {
   theme: 'minimal' | 'warm' | 'dark' | string;
   accent_color: string;
+  secondary_color?: string;
+  font?: 'sans' | 'serif' | 'mixed' | string;
+  radius?: 'sharp' | 'soft' | 'round' | string;
   logo_url: string | null;
+}
+
+export interface StorefrontHero {
+  enabled?: boolean;
+  headline?: string;
+  subheadline?: string;
+  cta_text?: string;
+  cta_url?: string;
+  image_url?: string;
+  align?: 'left' | 'center';
+}
+
+export interface StorefrontHomepage {
+  announcement?: { enabled?: boolean; text?: string; url?: string };
+  hero?: StorefrontHero;
 }
 
 export interface Tenant {
@@ -26,6 +44,7 @@ export interface Tenant {
   default_currency: string;
   country_code: string;
   appearance?: TenantAppearance;
+  homepage?: StorefrontHomepage;
 }
 
 export interface ProductListItem {

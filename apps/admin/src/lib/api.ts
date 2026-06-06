@@ -301,7 +301,26 @@ export interface ShopSettings {
     bank_account_iban: string | null;
     bank_account_swift: string | null;
   };
-  appearance: { theme: string; accent_color: string; logo_url: string | null };
+  appearance: {
+    theme: string;
+    accent_color: string;
+    secondary_color?: string;
+    font?: string;
+    radius?: string;
+    logo_url: string | null;
+  };
+  homepage?: {
+    announcement: { enabled: boolean; text: string; url: string };
+    hero: {
+      enabled?: boolean;
+      headline?: string;
+      subheadline?: string;
+      cta_text?: string;
+      cta_url?: string;
+      image_url?: string;
+      align?: string;
+    };
+  };
 }
 
 export interface ShippingSettings {
@@ -975,9 +994,30 @@ class ApiClient {
   async updateAppearance(body: {
     theme?: string;
     accentColor?: string;
+    secondaryColor?: string;
+    font?: string;
+    radius?: string;
     logoUrl?: string | null;
   }): Promise<ShopSettings> {
     return this.request('/admin/settings/appearance', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateHomepage(body: {
+    announcement?: { enabled: boolean; text: string; url?: string };
+    hero?: {
+      enabled: boolean;
+      headline?: string;
+      subheadline?: string;
+      cta_text?: string;
+      cta_url?: string;
+      image_url?: string;
+      align?: string;
+    };
+  }): Promise<ShopSettings> {
+    return this.request('/admin/settings/homepage', {
       method: 'PATCH',
       body: JSON.stringify(body),
     });

@@ -66,9 +66,61 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
   }
   const anyFacetActive = Object.values(selectedFacets).some((v) => v.length > 0);
 
+  const hero = tenant.homepage?.hero;
+  const showHero = hero?.enabled && (hero.headline || hero.image_url);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
+      {showHero && (
+        <section
+          style={{
+            position: 'relative',
+            padding: '4rem 2rem',
+            minHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: hero!.align === 'left' ? 'flex-start' : 'center',
+            textAlign: hero!.align === 'left' ? 'left' : 'center',
+            color: hero!.image_url ? '#fff' : 'var(--sf-text, #111)',
+            backgroundImage: hero!.image_url
+              ? `linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.35)), url(${hero!.image_url})`
+              : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          {hero!.headline && (
+            <h2 style={{ fontSize: '2.5rem', fontWeight: 700, margin: 0, maxWidth: 720, fontFamily: 'var(--sf-font-heading)' }}>
+              {hero!.headline}
+            </h2>
+          )}
+          {hero!.subheadline && (
+            <p style={{ fontSize: '1.125rem', margin: '0.75rem 0 0', maxWidth: 640, opacity: 0.92 }}>
+              {hero!.subheadline}
+            </p>
+          )}
+          {hero!.cta_text && (
+            <a
+              href={hero!.cta_url || '#produkty'}
+              style={{
+                display: 'inline-block',
+                marginTop: '1.5rem',
+                padding: '0.75rem 1.75rem',
+                background: 'var(--sf-accent, #111)',
+                color: '#fff',
+                borderRadius: 'var(--sf-radius, 6px)',
+                textDecoration: 'none',
+                fontWeight: 500,
+              }}
+            >
+              {hero!.cta_text}
+            </a>
+          )}
+        </section>
+      )}
       <header
+        id="produkty"
         style={{
           padding: '2rem 2rem 1rem',
           borderBottom: '1px solid var(--shopio-color-border-default)',

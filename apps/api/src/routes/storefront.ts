@@ -51,9 +51,18 @@ export async function registerStorefrontRoutes(
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
 
-      const appearance = ((tenant.settings ?? {}) as {
-        appearance?: { theme?: string; accent_color?: string; logo_url?: string };
-      }).appearance;
+      const s = (tenant.settings ?? {}) as {
+        appearance?: {
+          theme?: string;
+          accent_color?: string;
+          secondary_color?: string;
+          font?: string;
+          radius?: string;
+          logo_url?: string;
+        };
+        homepage?: { announcement?: Record<string, unknown>; hero?: Record<string, unknown> };
+      };
+      const appearance = s.appearance;
 
       return reply.send({
         data: {
@@ -68,7 +77,14 @@ export async function registerStorefrontRoutes(
             appearance: {
               theme: appearance?.theme ?? 'minimal',
               accent_color: appearance?.accent_color ?? '#111111',
+              secondary_color: appearance?.secondary_color ?? '#0066ff',
+              font: appearance?.font ?? 'sans',
+              radius: appearance?.radius ?? 'soft',
               logo_url: appearance?.logo_url ?? null,
+            },
+            homepage: {
+              announcement: s.homepage?.announcement ?? { enabled: false },
+              hero: s.homepage?.hero ?? { enabled: false },
             },
           },
         },
