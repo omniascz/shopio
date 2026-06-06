@@ -31,4 +31,6 @@ export * from './customers';
 export * from './reviews';
 // Coupons / promotions (Wave 1 — `10-pricing-promotions.md` MVP)
 export * from './coupons';
-// Future: customers, inventory, payments, ...
+// B2B companies (Wave 1 — `21-b2b-complete.md` MVP)
+export * from './companies';
+// Future: payments, ...

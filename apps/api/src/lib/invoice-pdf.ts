@@ -106,6 +106,8 @@ export async function renderInvoicePdf(
     buyer.line2,
     [buyer.postal_code, buyer.city].filter(Boolean).join(' '),
     buyer.country_code,
+    buyer.registration_number ? `IČO: ${buyer.registration_number}` : null,
+    buyer.vat_id ? `DIČ: ${buyer.vat_id}` : null,
     buyer.email,
   ]) {
     if (line) doc.text(line, { width: colWidth });

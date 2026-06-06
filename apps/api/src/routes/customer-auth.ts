@@ -32,6 +32,7 @@ import {
 } from '@shopio/authz';
 import { renderPasswordResetEmail, renderVerifyEmail, sendEmail } from '../lib/email';
 import { ReturnError, createReturn } from '../lib/returns';
+import { serializeCompany } from '../lib/companies';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -48,6 +49,22 @@ const RegisterBody = z.object({
 const LoginBody = z.object({
   email: z.string().email().toLowerCase(),
   password: z.string().min(1).max(200),
+});
+
+/** B2B company profile the customer manages on their own account (per `21`). */
+const CompanyProfileBody = z.object({
+  name: z.string().min(1).max(200),
+  registrationNumber: z.string().max(40).optional(),
+  vatId: z.string().max(40).optional(),
+  billingAddress: z
+    .object({
+      line1: z.string().max(200).optional(),
+      line2: z.string().max(200).optional(),
+      city: z.string().max(100).optional(),
+      postalCode: z.string().max(20).optional(),
+      countryCode: z.string().length(2).optional(),
+    })
+    .optional(),
 });
 
 interface PluginOptions {
@@ -256,6 +273,90 @@ export async function registerCustomerAuthRoutes(
           })),
         },
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/me/company — B2B company profile (per `21`)
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/company',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      if (!customer.companyId) return reply.send({ data: { company: null } });
+      const [company] = await db
+        .select()
+        .from(schema.companies)
+        .where(
+          and(
+            eq(schema.companies.id, customer.companyId),
+            eq(schema.companies.tenantId, tenant.id),
+          ),
+        )
+        .limit(1);
+      return reply.send({ data: { company: company ? serializeCompany(company) : null } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PUT /storefront/{tenantSlug}/me/company — create/update own company profile.
+  // NET terms stay merchant-controlled (admin only) — never settable here.
+  // ---------------------------------------------------------------------------
+  app.put<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/company',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(db, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      const parsed = CompanyProfileBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const i = parsed.data;
+
+      if (customer.companyId) {
+        const [updated] = await db
+          .update(schema.companies)
+          .set({
+            name: i.name,
+            registrationNumber: i.registrationNumber ?? null,
+            vatId: i.vatId ?? null,
+            billingAddress: i.billingAddress ?? null,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.companies.id, customer.companyId),
+              eq(schema.companies.tenantId, tenant.id),
+            ),
+          )
+          .returning();
+        if (!updated) return notFound(reply, 'COMPANY_NOT_FOUND');
+        return reply.send({ data: { company: serializeCompany(updated) } });
+      }
+
+      const [company] = await db
+        .insert(schema.companies)
+        .values({
+          tenantId: tenant.id,
+          pubId: generatePubId('cmp'),
+          name: i.name,
+          registrationNumber: i.registrationNumber ?? null,
+          vatId: i.vatId ?? null,
+          billingAddress: i.billingAddress ?? null,
+        })
+        .returning();
+      await db
+        .update(schema.customers)
+        .set({ companyId: company!.id, updatedAt: new Date() })
+        .where(eq(schema.customers.id, customer.id));
+      return reply.code(201).send({ data: { company: serializeCompany(company!) } });
     },
   );
 }

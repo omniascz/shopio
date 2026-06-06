@@ -43,6 +43,7 @@ import {
   reserveStock,
 } from '../lib/inventory';
 import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
+import { buildCompanySnapshot } from '../lib/companies';
 import { resolveCustomer } from './customer-auth';
 
 const CART_COOKIE_NAME = 'shopio_cart_session';
@@ -71,6 +72,11 @@ const CheckoutBody = z.object({
     state: z.string().max(100).optional(),
   }),
   customerNote: z.string().max(2000).optional(),
+  /** B2B (per `21`): request pay-on-invoice (NET terms). Only honoured when the
+   * logged-in customer's company has merchant-granted NET terms. */
+  paymentMethod: z.enum(['invoice']).optional(),
+  /** B2B optional purchase-order reference. */
+  purchaseOrderNumber: z.string().max(120).optional(),
   /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
   shippingRateId: z.string().optional(),
   /** Selected pickup point for pickup_point services. The full address fields are
@@ -457,6 +463,34 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       // remembers the shipping address for the next checkout. Guest stays fine.
       const customer = await resolveCustomer(db, req, tenant.id);
 
+      // B2B (per `21`): if the customer belongs to a company, the order is
+      // billed to that company. Pay-on-invoice (NET terms) is offered only
+      // when the merchant has granted it for that company.
+      let company: typeof schema.companies.$inferSelect | null = null;
+      if (customer?.companyId) {
+        const [c] = await db
+          .select()
+          .from(schema.companies)
+          .where(
+            and(
+              eq(schema.companies.id, customer.companyId),
+              eq(schema.companies.tenantId, tenant.id),
+            ),
+          )
+          .limit(1);
+        company = c ?? null;
+      }
+      const wantsNetTerms = input.paymentMethod === 'invoice';
+      if (wantsNetTerms && !(company && company.netTermsEnabled)) {
+        return reply.code(422).send({
+          error: {
+            code: 'NET_TERMS_NOT_AVAILABLE',
+            message: 'Platba na fakturu není pro tento účet povolena',
+          },
+        });
+      }
+      const useNetTerms = wantsNetTerms && company !== null && company.netTermsEnabled;
+
       // Shipping selection — resolve + price the chosen rate against the cart
       // metrics + ship-to country (per `14 §5`). Validate pickup point if required.
       const country = input.shippingAddress.countryCode.toUpperCase();
@@ -657,7 +691,19 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               totalAmount: total,
               status: 'pending_payment',
               paymentStatus: 'pending',
-              paymentMethod: isStripeEnabled(config) ? 'stripe' : 'mock',
+              paymentMethod: useNetTerms
+                ? 'invoice'
+                : isStripeEnabled(config)
+                  ? 'stripe'
+                  : 'mock',
+              // B2B (per `21`): bill the company + record NET terms / PO ref.
+              companyId: company?.id ?? null,
+              companySnapshot: company ? buildCompanySnapshot(company) : null,
+              purchaseOrderNumber: input.purchaseOrderNumber ?? null,
+              paymentTermsDays: useNetTerms ? company!.netTermsDays : null,
+              dueAt: useNetTerms
+                ? new Date(Date.now() + company!.netTermsDays * 24 * 60 * 60 * 1000)
+                : null,
               channelKind: 'storefront_web',
               customerLocale: tenant.defaultLocale,
               customerNote: input.customerNote ?? null,
@@ -790,8 +836,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         })();
 
         // Stripe Checkout Session — if configured. Otherwise mock path.
+        // B2B NET orders skip online payment entirely (pay by bank transfer).
         let paymentUrl: string | null = null;
-        if (isStripeEnabled(config)) {
+        if (isStripeEnabled(config) && !useNetTerms) {
           try {
             const storefrontBase = config.SHOPIO_BASE_URL;
             const session = await createCheckoutSession(config, {
@@ -853,13 +900,17 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 currency: result.currency,
               },
               placed_at: result.placedAt,
+              due_at: result.dueAt,
+              payment_terms_days: result.paymentTermsDays,
               customer_email: result.customerEmail,
               confirmation_url: `/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
             },
             payment_url: paymentUrl,
-            next_step: paymentUrl
-              ? 'Redirect customer to payment_url to complete payment'
-              : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
+            next_step: useNetTerms
+              ? 'B2B NET order — pay by bank transfer before due_at; merchant marks paid on receipt.'
+              : paymentUrl
+                ? 'Redirect customer to payment_url to complete payment'
+                : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
           },
         });
       } catch (err) {

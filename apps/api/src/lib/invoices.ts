@@ -38,6 +38,9 @@ export interface SellerSnapshot {
 export interface BuyerSnapshot {
   name: string | null;
   email: string;
+  /** B2B (per `21`): present when the order is billed to a company. */
+  registration_number?: string | null; // IČO
+  vat_id?: string | null; // DIČ
   line1: string | null;
   line2: string | null;
   city: string | null;
@@ -95,7 +98,30 @@ interface OrderAddress {
   countryCode?: string;
 }
 
+interface CompanySnapshotShape {
+  name: string;
+  registration_number?: string | null;
+  vat_id?: string | null;
+  billing_address?: OrderAddress | null;
+}
+
 function buildBuyerSnapshot(order: typeof schema.orders.$inferSelect): BuyerSnapshot {
+  // B2B (per `21`): bill the company when the order carries a company snapshot.
+  const company = order.companySnapshot as CompanySnapshotShape | null;
+  if (company && company.name) {
+    const cAddr = (company.billing_address ?? order.billingAddress ?? {}) as OrderAddress;
+    return {
+      name: company.name,
+      email: order.customerEmail,
+      registration_number: company.registration_number ?? null,
+      vat_id: company.vat_id ?? null,
+      line1: cAddr.line1 ?? null,
+      line2: cAddr.line2 ?? null,
+      city: cAddr.city ?? null,
+      postal_code: cAddr.postalCode ?? null,
+      country_code: cAddr.countryCode ?? null,
+    };
+  }
   const addr = (order.billingAddress ?? order.shippingAddress ?? {}) as OrderAddress;
   return {
     name: order.customerName,

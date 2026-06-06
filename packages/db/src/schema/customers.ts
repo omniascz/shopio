@@ -52,6 +52,8 @@ export const customers = pgTable(
       .default(sql`'["password"]'::jsonb`),
     /** Default shipping address snapshot — prefills checkout. */
     defaultAddress: jsonb('default_address'),
+    /** B2B: company this customer buys on behalf of (per `21`), nullable. */
+    companyId: uuid('company_id'),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

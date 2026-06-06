@@ -11,14 +11,17 @@ import {
   customerCreateReturn,
   customerForgotPassword,
   customerResendVerification,
+  customerCompany,
   customerLogin,
   customerLogout,
   customerMe,
   customerOrders,
   customerRegister,
   customerReturns,
+  customerSaveCompany,
   formatMoney,
   getOrder,
+  type CustomerCompany,
   type CustomerOrder,
   type CustomerProfile,
   type CustomerReturn,
@@ -167,6 +170,8 @@ function LoggedIn({
           </button>
         </div>
       </section>
+
+      <CompanySection tenantSlug={tenantSlug} />
 
       <section style={sectionStyle}>
         <h2 style={{ fontSize: '1.125rem', margin: '0 0 1rem' }}>Objednávky</h2>
@@ -574,6 +579,169 @@ function TabButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * B2B company billing profile (per `21`). When filled, invoices are issued to
+ * the company (IČO/DIČ). If the merchant has granted NET terms, "platba na
+ * fakturu" appears at checkout.
+ */
+function CompanySection({ tenantSlug }: { tenantSlug: string }) {
+  const [company, setCompany] = useState<CustomerCompany | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [ico, setIco] = useState('');
+  const [dic, setDic] = useState('');
+  const [line1, setLine1] = useState('');
+  const [city, setCity] = useState('');
+  const [psc, setPsc] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void customerCompany(tenantSlug).then((c) => {
+      setCompany(c);
+      setLoaded(true);
+    });
+  }, [tenantSlug]);
+
+  function startEdit() {
+    setName(company?.name ?? '');
+    setIco(company?.registration_number ?? '');
+    setDic(company?.vat_id ?? '');
+    setLine1(company?.billing_address?.line1 ?? '');
+    setCity(company?.billing_address?.city ?? '');
+    setPsc(company?.billing_address?.postalCode ?? '');
+    setError(null);
+    setEditing(true);
+  }
+
+  async function save() {
+    if (!name.trim()) {
+      setError('Vyplňte název firmy.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await customerSaveCompany(tenantSlug, {
+        name: name.trim(),
+        ...(ico.trim() && { registrationNumber: ico.trim() }),
+        ...(dic.trim() && { vatId: dic.trim() }),
+        billingAddress: {
+          ...(line1.trim() && { line1: line1.trim() }),
+          ...(city.trim() && { city: city.trim() }),
+          ...(psc.trim() && { postalCode: psc.trim() }),
+          countryCode: 'CZ',
+        },
+      });
+      setCompany(saved);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uložení selhalo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <section style={sectionStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h2 style={{ fontSize: '1.125rem', margin: 0 }}>Firemní údaje</h2>
+        {!editing && (
+          <button type="button" onClick={startEdit} style={secondaryBtnStyle}>
+            {company ? 'Upravit' : 'Přidat firmu'}
+          </button>
+        )}
+      </div>
+
+      {!editing && !company && (
+        <p style={{ color: 'var(--sf-muted, #666)', fontSize: '0.875rem', margin: 0 }}>
+          Nakupujete na firmu? Vyplňte fakturační údaje (IČO/DIČ) a faktury
+          vystavíme na firmu.
+        </p>
+      )}
+
+      {!editing && company && (
+        <div style={{ fontSize: '0.9375rem' }}>
+          <div style={{ fontWeight: 600 }}>{company.name}</div>
+          <div style={{ color: 'var(--sf-muted, #666)', fontSize: '0.8125rem', marginTop: 2 }}>
+            {company.registration_number && `IČO: ${company.registration_number}`}
+            {company.vat_id && ` · DIČ: ${company.vat_id}`}
+          </div>
+          {company.billing_address?.line1 && (
+            <div style={{ color: 'var(--sf-muted, #666)', fontSize: '0.8125rem' }}>
+              {company.billing_address.line1}, {company.billing_address.postalCode}{' '}
+              {company.billing_address.city}
+            </div>
+          )}
+          {company.net_terms_enabled && (
+            <div
+              style={{
+                marginTop: 8,
+                display: 'inline-block',
+                background: 'rgba(40,160,70,0.12)',
+                color: '#1c7c34',
+                borderRadius: 4,
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+              }}
+            >
+              ✓ Platba na fakturu povolena (splatnost {company.net_terms_days} dní)
+            </div>
+          )}
+        </div>
+      )}
+
+      {editing && (
+        <div>
+          <label style={labelStyle}>
+            <span style={labelTextStyle}>Název firmy *</span>
+            <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <label style={{ ...labelStyle, flex: 1 }}>
+              <span style={labelTextStyle}>IČO</span>
+              <input style={inputStyle} value={ico} onChange={(e) => setIco(e.target.value)} />
+            </label>
+            <label style={{ ...labelStyle, flex: 1 }}>
+              <span style={labelTextStyle}>DIČ</span>
+              <input style={inputStyle} value={dic} onChange={(e) => setDic(e.target.value)} />
+            </label>
+          </div>
+          <label style={labelStyle}>
+            <span style={labelTextStyle}>Ulice a č.p.</span>
+            <input style={inputStyle} value={line1} onChange={(e) => setLine1(e.target.value)} />
+          </label>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <label style={{ ...labelStyle, flex: 2 }}>
+              <span style={labelTextStyle}>Město</span>
+              <input style={inputStyle} value={city} onChange={(e) => setCity(e.target.value)} />
+            </label>
+            <label style={{ ...labelStyle, flex: 1 }}>
+              <span style={labelTextStyle}>PSČ</span>
+              <input style={inputStyle} value={psc} onChange={(e) => setPsc(e.target.value)} />
+            </label>
+          </div>
+          {error && (
+            <p style={{ color: '#c0392b', fontSize: '0.8125rem', margin: '0 0 0.75rem' }}>{error}</p>
+          )}
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="button" onClick={() => void save()} disabled={busy} style={primaryBtnStyle(busy)}>
+              {busy ? 'Ukládám…' : 'Uložit'}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} style={secondaryBtnStyle}>
+              Zrušit
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

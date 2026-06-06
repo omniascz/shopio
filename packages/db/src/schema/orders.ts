@@ -53,6 +53,16 @@ export const orders = pgTable(
     shippingAddress: jsonb('shipping_address').notNull(), // { line1, line2, city, postal_code, country_code, ... }
     /** Billing address snapshot (defaults to shipping). */
     billingAddress: jsonb('billing_address'),
+    /** B2B (per `21`): company the order is billed to, nullable. */
+    companyId: uuid('company_id'),
+    /** B2B buyer snapshot for the invoice — { name, registration_number, vat_id, billing_address }. */
+    companySnapshot: jsonb('company_snapshot'),
+    /** B2B optional purchase-order reference entered at checkout. */
+    purchaseOrderNumber: text('purchase_order_number'),
+    /** NET payment terms in days (when paymentMethod='invoice'), null otherwise. */
+    paymentTermsDays: integer('payment_terms_days'),
+    /** Invoice due date for NET orders = placedAt + paymentTermsDays. */
+    dueAt: timestamp('due_at', { withTimezone: true }),
     /** Money totals — minor units. */
     currency: text('currency').notNull(),
     subtotalAmount: bigint('subtotal_amount', { mode: 'bigint' }).notNull(), // sum of line subtotals

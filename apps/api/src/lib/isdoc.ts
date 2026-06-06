@@ -179,7 +179,12 @@ export function buildIsdocXml(invoice: Invoice, items: InvoiceItem[]): string {
       : ''
   }
 ${partyXml('AccountingSupplierParty', seller)}
-${partyXml('AccountingCustomerParty', { ...buyer, name: buyer.name ?? buyer.email })}
+${partyXml('AccountingCustomerParty', {
+  ...buyer,
+  name: buyer.name ?? buyer.email,
+  ico: buyer.registration_number ?? null,
+  dic: buyer.vat_id ?? null,
+})}
   <InvoiceLines>
 ${lines}
   </InvoiceLines>

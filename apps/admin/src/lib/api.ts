@@ -194,6 +194,18 @@ export interface CouponItem {
   created_at: string;
 }
 
+export interface CompanyItem {
+  id: string;
+  name: string;
+  registration_number: string | null;
+  vat_id: string | null;
+  billing_address: Record<string, unknown> | null;
+  net_terms_enabled: boolean;
+  net_terms_days: number;
+  members: number;
+  created_at: string;
+}
+
 export interface ProductListItem {
   id: string;
   slug: string;
@@ -664,6 +676,23 @@ class ApiClient {
 
   async deleteCoupon(id: string): Promise<void> {
     await this.request(`/admin/coupons/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // B2B companies (per `21`)
+  // ---------------------------------------------------------------------------
+  async listCompanies(): Promise<{ companies: CompanyItem[] }> {
+    return this.request('/admin/companies');
+  }
+
+  async updateCompany(
+    id: string,
+    body: { netTermsEnabled?: boolean; netTermsDays?: number },
+  ): Promise<CompanyItem> {
+    return this.request(`/admin/companies/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
   }
 
   // ---------------------------------------------------------------------------

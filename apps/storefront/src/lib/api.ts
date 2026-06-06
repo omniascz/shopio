@@ -291,6 +291,9 @@ export interface CheckoutInput {
   shippingAddress: ShippingAddress;
   customerNote?: string;
   shippingRateId?: string;
+  /** B2B (per `21`): pay on invoice (NET terms). Requires merchant grant. */
+  paymentMethod?: 'invoice';
+  purchaseOrderNumber?: string;
   pickupPoint?: {
     carrierCode: string;
     externalId: string;
@@ -311,6 +314,8 @@ export interface OrderConfirmation {
     payment_method: string | null;
     total: Money;
     placed_at: string;
+    due_at?: string | null;
+    payment_terms_days?: number | null;
     customer_email: string;
     confirmation_url: string;
   };
@@ -417,6 +422,22 @@ export interface CustomerOrder {
   detail_url: string;
 }
 
+export interface CustomerCompany {
+  id: string;
+  name: string;
+  registration_number: string | null;
+  vat_id: string | null;
+  billing_address: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    postalCode?: string;
+    countryCode?: string;
+  } | null;
+  net_terms_enabled: boolean;
+  net_terms_days: number;
+}
+
 async function customerFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   const res = await fetch(`${STOREFRONT_API_BASE}/api/${API_VERSION}${path}`, {
     ...init,
@@ -470,6 +491,39 @@ export async function customerLogin(
 
 export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
+}
+
+// B2B company profile (per `21`) -------------------------------------------------
+export async function customerCompany(tenantSlug: string): Promise<CustomerCompany | null> {
+  try {
+    const data = await customerFetch<{ company: CustomerCompany | null }>(
+      `/storefront/${tenantSlug}/me/company`,
+    );
+    return data?.company ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function customerSaveCompany(
+  tenantSlug: string,
+  body: {
+    name: string;
+    registrationNumber?: string;
+    vatId?: string;
+    billingAddress?: {
+      line1?: string;
+      city?: string;
+      postalCode?: string;
+      countryCode?: string;
+    };
+  },
+): Promise<CustomerCompany> {
+  const data = await customerFetch<{ company: CustomerCompany }>(
+    `/storefront/${tenantSlug}/me/company`,
+    { method: 'PUT', body: JSON.stringify(body) },
+  );
+  return data!.company;
 }
 
 export async function customerVerifyEmail(tenantSlug: string, token: string): Promise<string> {

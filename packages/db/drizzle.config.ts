@@ -29,6 +29,7 @@ export default defineConfig({
     './src/schema/customers.ts',
     './src/schema/reviews.ts',
     './src/schema/coupons.ts',
+    './src/schema/companies.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

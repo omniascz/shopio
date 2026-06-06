@@ -7,6 +7,7 @@ import { useCart } from '@/lib/cart-context';
 import {
   applyCoupon,
   checkout,
+  customerCompany,
   customerMe,
   fetchPickupPoints,
   fetchShippingRates,
@@ -14,6 +15,7 @@ import {
   formatVatRate,
   removeCoupon,
   type Cart,
+  type CustomerCompany,
   type CustomerProfile,
   type Money,
   type PickupPoint,
@@ -79,6 +81,10 @@ export default function CheckoutPage({ params }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  // B2B (per `21`): company + pay-on-invoice choice.
+  const [company, setCompany] = useState<CustomerCompany | null>(null);
+  const [payOnInvoice, setPayOnInvoice] = useState(false);
+  const [poNumber, setPoNumber] = useState('');
 
   // Logged-in customer → prefill contact + saved address (per `18`).
   // Only fills fields the user hasn't typed into yet.
@@ -99,6 +105,9 @@ export default function CheckoutPage({ params }: Props) {
         postalCode: prev.postalCode || (addr.postalCode ?? ''),
         countryCode: prev.countryCode === 'CZ' ? (addr.countryCode ?? 'CZ') : prev.countryCode,
       }));
+      void customerCompany(tenantSlug).then((c) => {
+        if (!cancelled) setCompany(c);
+      });
     });
     return () => {
       cancelled = true;
@@ -210,6 +219,11 @@ export default function CheckoutPage({ params }: Props) {
           countryCode: country,
         },
         ...(form.customerNote.trim() && { customerNote: form.customerNote.trim() }),
+        ...(payOnInvoice &&
+          company?.net_terms_enabled && {
+            paymentMethod: 'invoice' as const,
+            ...(poNumber.trim() && { purchaseOrderNumber: poNumber.trim() }),
+          }),
         ...(selectedOption && { shippingRateId: selectedOption.rate_id }),
         ...(pickup && {
           pickupPoint: {
@@ -506,6 +520,38 @@ export default function CheckoutPage({ params }: Props) {
               style={{ ...inputStyle, resize: 'vertical' }}
             />
           </Field>
+
+          {company?.net_terms_enabled && (
+            <div
+              style={{
+                border: '1px solid rgba(128,128,128,0.3)',
+                borderRadius: 6,
+                padding: '0.875rem 1rem',
+                marginBottom: '0.5rem',
+              }}
+            >
+              <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={payOnInvoice}
+                  onChange={(e) => setPayOnInvoice(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span style={{ fontSize: '0.9375rem' }}>
+                  <strong>Platba na fakturu</strong> (převodem, splatnost{' '}
+                  {company.net_terms_days} dní) — fakturováno na {company.name}
+                </span>
+              </label>
+              {payOnInvoice && (
+                <input
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                  placeholder="Číslo objednávky / PO (volitelné)"
+                  style={{ ...inputStyle, marginTop: '0.75rem' }}
+                />
+              )}
+            </div>
+          )}
 
           {error && <p style={{ color: '#c00', fontSize: '0.875rem', margin: 0 }}>{error}</p>}
 

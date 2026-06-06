@@ -508,6 +508,11 @@ function serializeOrder(
     payment_status: order.paymentStatus,
     payment_method: order.paymentMethod,
     channel_kind: order.channelKind,
+    // B2B (per `21`): present for company orders / NET-terms invoice payment.
+    company: order.companySnapshot ?? null,
+    purchase_order_number: order.purchaseOrderNumber,
+    payment_terms_days: order.paymentTermsDays,
+    due_at: order.dueAt,
     totals: {
       subtotal: { amount: order.subtotalAmount.toString(), currency: order.currency },
       shipping: { amount: order.shippingAmount.toString(), currency: order.currency },

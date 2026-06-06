@@ -23,6 +23,7 @@ import { ProductCreatePage, ProductEditPage } from './pages/product-edit';
 import { SettingsPage } from './pages/settings';
 import { ReturnsListPage } from './pages/returns-list';
 import { CouponsListPage } from './pages/coupons-list';
+import { CompaniesListPage } from './pages/companies-list';
 import { AnalyticsPage } from './pages/analytics';
 import { useAuth } from './lib/auth-store';
 
@@ -134,6 +135,12 @@ const analyticsRoute = createRoute({
   component: AnalyticsPage,
 });
 
+const companiesRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/companies',
+  component: CompaniesListPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -149,6 +156,7 @@ const routeTree = rootRoute.addChildren([
     returnsListRoute,
     couponsListRoute,
     analyticsRoute,
+    companiesRoute,
   ]),
 ]);
 
