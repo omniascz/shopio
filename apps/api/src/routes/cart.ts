@@ -22,8 +22,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { and, asc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import { generatePubId } from '@shopio/authz';
+import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
@@ -103,6 +104,7 @@ interface PluginOptions {
 
 export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptions): Promise<void> {
   const { db, config } = opts;
+  const rlsDb = getRlsDb(config);
   const isProd = config.NODE_ENV === 'production';
 
   // ---------------------------------------------------------------------------
@@ -329,7 +331,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const items = await listCartItems(db, cart.id);
       const goodsGross = items.reduce((s, it) => s + it.unitPriceAmount * BigInt(it.quantity), 0n);
 
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
       try {
         const { coupon } = await validateCoupon(db, {
           tenantId: tenant.id,
@@ -462,7 +464,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
       // Logged-in customer (per `18`) — links the order to the account and
       // remembers the shipping address for the next checkout. Guest stays fine.
-      const customer = await resolveCustomer(db, req, tenant.id);
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
 
       // B2B (per `21`): if the customer belongs to a company, the order is
       // billed to that company. Pay-on-invoice (NET terms) is offered only
@@ -605,9 +607,10 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       // Source channel (per `22`) — web storefront.
       const webChannel = await getOrCreateChannel(db, tenant.id, 'web');
 
-      // Atomic: revalidate stock + decrement + create order + clear cart
+      // Atomic: revalidate stock + decrement + create order + clear cart.
+      // RLS-enforced (per `30`): placement runs under the tenant GUC.
       try {
-        const result = await db.transaction(async (tx) => {
+        const result = await withTenant(rlsDb, tenant.id, async (tx) => {
           // Lock variants + re-fetch latest stock
           const variantIds = items.map((i) => i.variantId);
           const freshVariants = await tx

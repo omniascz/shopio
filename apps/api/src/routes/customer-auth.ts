@@ -22,7 +22,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import { schema } from '@shopio/db';
+import { schema, withTenant } from '@shopio/db';
 import {
   PasswordPolicyError,
   assertPasswordPolicy,
@@ -927,33 +927,36 @@ export async function resolveCustomer(
   const raw = req.cookies[CUSTOMER_COOKIE_NAME];
   if (!raw || !/^[a-f0-9]{64}$/i.test(raw)) return null;
 
-  const [row] = await db
-    .select({
-      session: schema.customerSessions,
-      customer: schema.customers,
-    })
-    .from(schema.customerSessions)
-    .innerJoin(schema.customers, eq(schema.customers.id, schema.customerSessions.customerId))
-    .where(
-      and(
-        eq(schema.customerSessions.tokenHash, hashToken(raw)),
-        eq(schema.customerSessions.tenantId, tenantId),
-        isNull(schema.customerSessions.revokedAt),
-        gt(schema.customerSessions.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
+  const [row] = await withTenant(db, tenantId, (tx) =>
+    tx
+      .select({
+        session: schema.customerSessions,
+        customer: schema.customers,
+      })
+      .from(schema.customerSessions)
+      .innerJoin(schema.customers, eq(schema.customers.id, schema.customerSessions.customerId))
+      .where(
+        and(
+          eq(schema.customerSessions.tokenHash, hashToken(raw)),
+          eq(schema.customerSessions.tenantId, tenantId),
+          isNull(schema.customerSessions.revokedAt),
+          gt(schema.customerSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1),
+  );
   if (!row || row.customer.status !== 'active') return null;
 
-  // Sliding window — bump lastUsed/expiry (best-effort, no await on caller path needed)
-  void db
-    .update(schema.customerSessions)
-    .set({
-      lastUsedAt: new Date(),
-      expiresAt: new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000),
-    })
-    .where(eq(schema.customerSessions.id, row.session.id))
-    .catch(() => {});
+  // Sliding window — bump lastUsed/expiry (best-effort) under its own tenant tx.
+  void withTenant(db, tenantId, (tx) =>
+    tx
+      .update(schema.customerSessions)
+      .set({
+        lastUsedAt: new Date(),
+        expiresAt: new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000),
+      })
+      .where(eq(schema.customerSessions.id, row.session.id)),
+  ).catch(() => {});
 
   return row.customer;
 }
