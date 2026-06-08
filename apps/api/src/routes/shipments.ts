@@ -31,9 +31,8 @@ import {
   formatShipmentNumber,
   isValidShipmentTransition,
   shippableQuantity,
-  splitRecipientName,
 } from '../lib/shipments';
-import { createPacket, getLabelPdf, trackingUrlFor } from '../lib/packeta';
+import { getCarrier, manualTrackingUrl } from '../lib/carriers/registry';
 import { commitShipmentStock } from '../lib/inventory';
 import { renderOrderShippedEmail, sendEmail } from '../lib/email';
 import { getRlsDb } from '../db';
@@ -334,10 +333,7 @@ export async function registerShipmentRoutes(
           )
           .limit(1),
       );
-      const providerOptions = (providerConfig?.options ?? {}) as {
-        home_delivery_carrier_id?: string;
-        api_password?: string;
-      };
+      const providerOptions = (providerConfig?.options ?? {}) as Record<string, unknown>;
 
       const pickup = shipment.pickupPointSnapshot as { external_id?: string; name?: string } | null;
       const address = shipment.shippingAddressSnapshot as {
@@ -345,41 +341,29 @@ export async function registerShipmentRoutes(
         city?: string;
         postalCode?: string;
       };
-      const recipient = splitRecipientName(order.customerName, order.customerEmail);
 
       try {
-        const packet = await createPacket(config, {
-          number: order.orderNumber,
-          mockSeed: shipment.number,
-          apiPassword: providerOptions.api_password ?? null,
-          name: recipient.name,
-          surname: recipient.surname,
-          email: order.customerEmail,
-          phone: order.customerPhone ?? undefined,
-          valueMajor: Number(order.totalAmount) / 100,
-          weightKg: Math.max(0.1, shipment.weightGrams / 1000),
-          pickupPointExternalId: pickup?.external_id,
-          homeDeliveryCarrierId: providerOptions.home_delivery_carrier_id,
-          ...(address.line1 && address.city && address.postalCode
-            ? { address: { street: address.line1, city: address.city, zip: address.postalCode } }
-            : {}),
-        });
-
-        const destinationLine = pickup?.name
-          ? `Výdejní místo: ${pickup.name}`
-          : `${address.line1 ?? ''}, ${address.postalCode ?? ''} ${address.city ?? ''}`;
-        const labelPdf = await getLabelPdf(config, packet, {
+        // Dispatch to the carrier provider (Packeta = real API; PPL/DPD/ČP/…
+        // = manual placeholder label, per `14`). The shipment's carrier_code
+        // selects the implementation.
+        const carrier = getCarrier(shipment.carrierCode, config);
+        const packet = await carrier.createLabel({
           orderNumber: order.orderNumber,
+          shipmentNumber: shipment.number,
           recipientName: order.customerName ?? order.customerEmail,
-          destinationLine,
-          apiPassword: providerOptions.api_password ?? null,
+          recipientEmail: order.customerEmail,
+          recipientPhone: order.customerPhone ?? undefined,
+          weightGrams: shipment.weightGrams,
+          valueMajor: Number(order.totalAmount) / 100,
+          pickup: pickup ? { externalId: pickup.external_id, name: pickup.name } : null,
+          address,
+          providerOptions,
         });
 
         // Atomic claim: only the request that flips pending→label_generated
-        // wins; a concurrent double-click loses and reports a conflict. (In
-        // real mode the loser may have created an orphan packet at the
-        // carrier — logged for manual cleanup; createPacket is deterministic
-        // in mock mode.)
+        // wins; a concurrent double-click loses and reports a conflict. (For a
+        // real carrier the loser may have created an orphan packet — logged for
+        // manual cleanup; label creation is deterministic in mock/manual mode.)
         const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
           tx
             .update(schema.shipments)
@@ -388,8 +372,8 @@ export async function registerShipmentRoutes(
               statusEnteredAt: new Date(),
               carrierShipmentId: packet.carrierShipmentId,
               trackingNumber: packet.barcode,
-              trackingUrl: trackingUrlFor(packet.barcode),
-              labelPdfBase64: labelPdf.toString('base64'),
+              trackingUrl: packet.trackingUrl,
+              labelPdfBase64: packet.labelPdfBase64,
               labelGeneratedAt: new Date(),
               labelProvider: packet.provider,
               updatedAt: new Date(),
@@ -415,7 +399,7 @@ export async function registerShipmentRoutes(
             tenantId,
             shipmentId: shipment.id,
             status: 'label_generated',
-            description: `Štítek vygenerován (${packet.provider === 'mock' ? 'mock' : 'Packeta'}), č. ${packet.barcode}`,
+            description: `Štítek vygenerován (${carrier.displayName}${packet.provider === 'manual' ? ' — předběžný' : ''}), č. ${packet.barcode}`,
             source: 'system',
           });
           return listShipmentItems(tx, shipment.id);
@@ -438,6 +422,55 @@ export async function registerShipmentRoutes(
           },
         });
       }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /admin/shipments/{pubId}/tracking — set the real tracking number for
+  // a manual carrier (PPL/DPD/ČP/…) after the parcel is handed over. Rewrites
+  // the tracking URL from the carrier's public template (per `14`).
+  // ---------------------------------------------------------------------------
+  app.patch<{ Params: { shipmentPubId: string }; Body: { trackingNumber?: string } }>(
+    '/api/2026-05-20/admin/shipments/:shipmentPubId/tracking',
+    { preHandler: [requirePermission(PERMISSIONS.ORDER_EDIT)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const trackingNumber = (req.body?.trackingNumber ?? '').trim();
+      if (!trackingNumber || trackingNumber.length > 120) {
+        return reply.code(422).send({
+          error: { code: 'INVALID_TRACKING', message: 'Sledovací číslo je povinné (max 120 znaků)' },
+        });
+      }
+
+      const shipment = await withTenant(rlsDb, tenantId, (tx) =>
+        findShipment(tx, tenantId, req.params.shipmentPubId),
+      );
+      if (!shipment) return notFound(reply, 'SHIPMENT_NOT_FOUND', 'Shipment not found');
+
+      const [updated] = await withTenant(rlsDb, tenantId, (tx) =>
+        tx
+          .update(schema.shipments)
+          .set({
+            trackingNumber,
+            trackingUrl: manualTrackingUrl(shipment.carrierCode, trackingNumber),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.shipments.id, shipment.id))
+          .returning(),
+      );
+      const items = await withTenant(rlsDb, tenantId, async (tx) => {
+        await tx.insert(schema.shipmentEvents).values({
+          tenantId,
+          shipmentId: shipment.id,
+          status: shipment.status,
+          description: `Sledovací číslo doplněno: ${trackingNumber}`,
+          source: 'manual',
+        });
+        return listShipmentItems(tx, shipment.id);
+      });
+      return reply.send({ data: serializeShipment(updated!, items) });
     },
   );
 

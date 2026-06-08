@@ -775,6 +775,14 @@ class ApiClient {
     return this.request(`/admin/shipments/${shipmentId}/${action}`, { method: 'POST' });
   }
 
+  /** Set the real carrier tracking number for a manual-carrier shipment. */
+  async setShipmentTracking(shipmentId: string, trackingNumber: string): Promise<ShipmentDetail> {
+    return this.request(`/admin/shipments/${shipmentId}/tracking`, {
+      method: 'PATCH',
+      body: JSON.stringify({ trackingNumber }),
+    });
+  }
+
   /** Download the shipping label PDF. */
   async downloadShipmentLabel(shipmentId: string): Promise<void> {
     const headers: Record<string, string> = {};

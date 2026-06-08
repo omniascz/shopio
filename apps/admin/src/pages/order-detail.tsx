@@ -414,6 +414,13 @@ function ShipmentsPanel({ orderId, order }: { orderId: string; order: OrderDetai
                 </button>
               )}
             </div>
+            {shp.label_provider === 'manual' && shp.status !== 'pending' && (
+              <ManualTrackingForm
+                shipmentId={shp.id}
+                current={shp.tracking_number}
+                onSaved={invalidate}
+              />
+            )}
           </div>
         ))
       )}
@@ -839,6 +846,42 @@ const tdStyle: React.CSSProperties = {
 
 const dtStyle: React.CSSProperties = { fontWeight: 500, marginTop: '0.5rem', color: '#666' };
 const ddStyle: React.CSSProperties = { margin: 0 };
+
+/** Manual-carrier (PPL/DPD/ČP) tracking-number entry — the real number is
+ * known only after the parcel is handed to the carrier. */
+function ManualTrackingForm({
+  shipmentId,
+  current,
+  onSaved,
+}: {
+  shipmentId: string;
+  current: string | null;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(current ?? '');
+  const mutation = useMutation({
+    mutationFn: () => api.setShipmentTracking(shipmentId, value.trim()),
+    onSuccess: onSaved,
+  });
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Sledovací číslo dopravce"
+        style={{ flex: 1, padding: '0.35rem 0.5rem', border: '1px solid #ddd', borderRadius: 4, fontSize: '0.8125rem' }}
+      />
+      <button
+        type="button"
+        disabled={mutation.isPending || value.trim().length === 0}
+        onClick={() => mutation.mutate()}
+        style={{ padding: '0.35rem 0.75rem', border: '1px solid #cce0ff', background: '#f0f7ff', color: '#003d99', borderRadius: 4, fontSize: '0.8125rem', cursor: 'pointer' }}
+      >
+        {mutation.isPending ? '…' : 'Uložit číslo'}
+      </button>
+    </div>
+  );
+}
 
 function actionBtn(s: string): React.CSSProperties {
   const isDestructive = s === 'cancelled' || s === 'refunded';
