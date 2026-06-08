@@ -29,6 +29,8 @@ import { createPaypalProvider, type PaypalCredentials } from './paypal';
 import { createStripeAbstractionProvider, type StripeProviderCredentials } from './stripe-provider';
 import { createPrzelewy24Provider, type Przelewy24Credentials } from './przelewy24';
 import { createTrustpayProvider, type TrustpayCredentials } from './trustpay';
+import { createKlarnaProvider, type KlarnaCredentials } from './klarna';
+import { createAlmaProvider, type AlmaCredentials } from './alma';
 import { openCredentials } from '../secrets';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
@@ -101,6 +103,14 @@ export function buildProvider(
     case 'trustpay': {
       const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as TrustpayCredentials;
       return createTrustpayProvider(creds, cfg.isTestMode);
+    }
+    case 'klarna': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as KlarnaCredentials;
+      return createKlarnaProvider(creds, cfg.isTestMode);
+    }
+    case 'alma': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as AlmaCredentials;
+      return createAlmaProvider(creds, cfg.isTestMode);
     }
     default:
       return null;

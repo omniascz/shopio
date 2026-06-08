@@ -138,6 +138,20 @@ const PROVIDER_CATALOG: {
     defaultMethodKinds: ['bnpl'],
   },
   {
+    code: 'klarna',
+    displayName: 'Klarna',
+    kind: 'redirect',
+    description: 'BNPL + Rechnungskauf — dominantní v DACH/UK (faktura, pay-in-3).',
+    defaultMethodKinds: ['bnpl'],
+  },
+  {
+    code: 'alma',
+    displayName: 'Alma',
+    kind: 'redirect',
+    description: 'Francouzské BNPL — paiement en 2/3/4 fois.',
+    defaultMethodKinds: ['bnpl'],
+  },
+  {
     code: 'paypal',
     displayName: 'PayPal',
     kind: 'redirect',
@@ -168,6 +182,8 @@ const WIRED_CODES = new Set([
   'twisto',
   'przelewy24',
   'trustpay',
+  'klarna',
+  'alma',
   'paypal',
   'stripe',
 ]);
@@ -185,6 +201,8 @@ const REQUIRED_CREDENTIALS: Record<string, string[]> = {
   twisto: ['apiKey'],
   przelewy24: ['merchantId', 'apiKey', 'crc'],
   trustpay: ['projectId', 'secret'],
+  klarna: ['username', 'password'],
+  alma: ['apiKey'],
   paypal: ['clientId', 'clientSecret'],
   stripe: ['secretKey'],
 };

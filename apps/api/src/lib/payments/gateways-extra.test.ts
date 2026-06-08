@@ -11,6 +11,8 @@ import { mapBesteronState } from './besteron';
 import { mapTwistoState } from './twisto';
 import { mapPaypalStatus } from './paypal';
 import { mapTrustpayStatus } from './trustpay';
+import { mapKlarnaState } from './klarna';
+import { mapAlmaState } from './alma';
 
 describe('mapGpwebpayResult', () => {
   it('0/0 = captured, else failed/cancelled', () => {
@@ -63,5 +65,23 @@ describe('mapTrustpayStatus', () => {
     expect(mapTrustpayStatus('paid')).toBe('captured');
     expect(mapTrustpayStatus('pending')).toBe('processing');
     expect(mapTrustpayStatus('expired')).toBe('expired');
+  });
+});
+
+describe('mapKlarnaState', () => {
+  it('complete→captured, authorized→processing, cancelled→cancelled', () => {
+    expect(mapKlarnaState('complete')).toBe('captured');
+    expect(mapKlarnaState('authorized')).toBe('processing');
+    expect(mapKlarnaState('cancelled')).toBe('cancelled');
+    expect(mapKlarnaState('expired')).toBe('expired');
+  });
+});
+
+describe('mapAlmaState', () => {
+  it('paid→captured, in_progress→processing, cancelled→cancelled', () => {
+    expect(mapAlmaState('paid')).toBe('captured');
+    expect(mapAlmaState('in_progress')).toBe('processing');
+    expect(mapAlmaState('cancelled')).toBe('cancelled');
+    expect(mapAlmaState('expired')).toBe('expired');
   });
 });

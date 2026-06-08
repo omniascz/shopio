@@ -48,6 +48,8 @@ export const PAYMENT_PROVIDER_CODES = [
   'twisto',
   'przelewy24',
   'trustpay',
+  'klarna',
+  'alma',
   'paypal',
   'bank_transfer',
   'qr_platba',
