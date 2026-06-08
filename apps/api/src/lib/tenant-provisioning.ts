@@ -140,4 +140,28 @@ export async function provisionTenantDefaults(tx: DbConn, tenant: TenantSeed): P
       isActive: c.isActive,
     })),
   );
+
+  // 5) Payment providers (per `13`) — offline methods enabled out of the box so
+  //    a fresh shop can take orders before any gateway is connected. COD first,
+  //    bank transfer second; gateways (GoPay/Stripe) are added by the merchant.
+  await tx.insert(schema.paymentProviderConfigs).values([
+    {
+      tenantId: tenant.id,
+      providerCode: 'cod',
+      isEnabled: true,
+      isTestMode: false,
+      displayName: 'Dobírka',
+      priority: 10,
+      supportedMethodKinds: ['cod'],
+    },
+    {
+      tenantId: tenant.id,
+      providerCode: 'bank_transfer',
+      isEnabled: true,
+      isTestMode: false,
+      displayName: 'Bankovní převod',
+      priority: 5,
+      supportedMethodKinds: ['bank_transfer'],
+    },
+  ]);
 }

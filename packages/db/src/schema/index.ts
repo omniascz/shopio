@@ -43,4 +43,5 @@ export * from './cms';
 export * from './marketplace';
 // Developer platform — API keys + webhooks (Wave 1 — `28-developer-platform.md` MVP)
 export * from './developer';
-// Future: payments, ...
+// Payments — provider-abstracted gateways (Wave 1 — `13-payments.md` MVP)
+export * from './payments';

@@ -28,6 +28,8 @@ import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
+import { initiatePayment, selectCheckoutProvider } from '../lib/payments';
+import type { SelectedProvider } from '../lib/payments';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
 import { computeTax, serializeBreakdown, type TaxResult } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
@@ -76,9 +78,11 @@ const CheckoutBody = z.object({
     state: z.string().max(100).optional(),
   }),
   customerNote: z.string().max(2000).optional(),
-  /** B2B (per `21`): request pay-on-invoice (NET terms). Only honoured when the
-   * logged-in customer's company has merchant-granted NET terms. */
-  paymentMethod: z.enum(['invoice']).optional(),
+  /** Chosen payment method. `'invoice'` = B2B NET terms (only honoured when the
+   * logged-in customer's company has merchant-granted NET terms). Otherwise a
+   * configured payment provider code (`cod`, `bank_transfer`, `gopay`, …); when
+   * omitted the highest-priority enabled provider is used (per `13 §4.4`). */
+  paymentMethod: z.string().max(40).optional(),
   /** B2B optional purchase-order reference. */
   purchaseOrderNumber: z.string().max(120).optional(),
   /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
@@ -496,6 +500,40 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       }
       const useNetTerms = wantsNetTerms && company !== null && company.netTermsEnabled;
 
+      // Resolve the payment provider (per `13 §4.4`). NET-terms orders skip
+      // online payment entirely. Otherwise pick the requested provider code if
+      // enabled, else the highest-priority enabled provider for this currency.
+      // Falls back to null → legacy env-Stripe / mock path below (back-compat).
+      let selectedProvider: SelectedProvider | null = null;
+      if (!useNetTerms) {
+        const requested =
+          input.paymentMethod && input.paymentMethod !== 'invoice'
+            ? input.paymentMethod
+            : undefined;
+        selectedProvider = await selectCheckoutProvider(
+          rlsDb,
+          config,
+          tenant.id,
+          cart.currency,
+          requested,
+        );
+        if (requested && !selectedProvider) {
+          return reply.code(422).send({
+            error: {
+              code: 'PAYMENT_METHOD_UNAVAILABLE',
+              message: `Platební metoda '${requested}' není dostupná`,
+            },
+          });
+        }
+      }
+      const paymentMethodValue = useNetTerms
+        ? 'invoice'
+        : selectedProvider
+          ? selectedProvider.config.providerCode
+          : isStripeEnabled(config)
+            ? 'stripe'
+            : 'mock';
+
       // Shipping selection — resolve + price the chosen rate against the cart
       // metrics + ship-to country (per `14 §5`). Validate pickup point if required.
       const country = input.shippingAddress.countryCode.toUpperCase();
@@ -700,11 +738,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               totalAmount: total,
               status: 'pending_payment',
               paymentStatus: 'pending',
-              paymentMethod: useNetTerms
-                ? 'invoice'
-                : isStripeEnabled(config)
-                  ? 'stripe'
-                  : 'mock',
+              paymentMethod: paymentMethodValue,
               // B2B (per `21`): bill the company + record NET terms / PO ref.
               companyId: company?.id ?? null,
               companySnapshot: company ? buildCompanySnapshot(company) : null,
@@ -858,10 +892,57 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           }
         })();
 
-        // Stripe Checkout Session — if configured. Otherwise mock path.
-        // B2B NET orders skip online payment entirely (pay by bank transfer).
+        // Payment initiation (per `13 §4.4`). Resolution order:
+        //   1. NET-terms (B2B) → skip online payment entirely.
+        //   2. A configured payment provider (COD / bank transfer / gateway) →
+        //      create a `payments` row + (for gateways) a redirect URL.
+        //   3. Legacy fallback: env-Stripe Checkout session, else mock.
         let paymentUrl: string | null = null;
-        if (isStripeEnabled(config) && !useNetTerms) {
+        let offlineProvider = false;
+        if (selectedProvider) {
+          try {
+            const storefrontBase = config.SHOPIO_BASE_URL;
+            const init = await initiatePayment({
+              rlsDb,
+              tenantId: tenant.id,
+              selected: selectedProvider,
+              input: {
+                orderId: result.id,
+                customerId: customer?.id ?? null,
+                orderPubId: result.pubId,
+                orderNumber: result.orderNumber,
+                tenantPubId: tenant.pubId,
+                customerEmail: result.customerEmail,
+                currency: result.currency,
+                amountMinor: result.totalAmount,
+                items: items.map((it) => ({
+                  title: it.titleSnapshot,
+                  quantity: it.quantity,
+                  unitAmountMinor: it.unitPriceAmount,
+                })),
+                shippingAmountMinor: shippingGross,
+                shippingLabel: shippingOption?.display_name ?? 'Doprava',
+                returnUrl: `${storefrontBase}/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
+                cancelUrl: `${storefrontBase}/s/${tenant.slug}/checkout?cancelled=1`,
+              },
+            });
+            paymentUrl = init.redirectUrl;
+            offlineProvider = init.offline;
+            app.log.info(
+              { orderId: result.id, provider: selectedProvider.config.providerCode, offline: init.offline },
+              'checkout.payment_initiated',
+            );
+          } catch (err) {
+            app.log.error({ err, orderId: result.id }, 'checkout.payment_initiation_failed');
+            return reply.code(502).send({
+              error: {
+                code: 'PAYMENT_PROVIDER_ERROR',
+                message: 'Order placed but payment provider unavailable. Contact support.',
+                order_number: result.orderNumber,
+              },
+            });
+          }
+        } else if (isStripeEnabled(config) && !useNetTerms) {
           try {
             const storefrontBase = config.SHOPIO_BASE_URL;
             const session = await createCheckoutSession(config, {
@@ -933,7 +1014,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               ? 'B2B NET order — pay by bank transfer before due_at; merchant marks paid on receipt.'
               : paymentUrl
                 ? 'Redirect customer to payment_url to complete payment'
-                : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
+                : offlineProvider
+                  ? `Offline payment (${result.paymentMethod}) — order placed; payment collected on delivery / bank transfer.`
+                  : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
           },
         });
       } catch (err) {

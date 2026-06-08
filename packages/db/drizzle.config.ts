@@ -35,6 +35,7 @@ export default defineConfig({
     './src/schema/cms.ts',
     './src/schema/marketplace.ts',
     './src/schema/developer.ts',
+    './src/schema/payments.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },
