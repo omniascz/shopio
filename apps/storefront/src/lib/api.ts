@@ -871,6 +871,41 @@ export async function wishlistRemove(tenantSlug: string, productId: string): Pro
   }
 }
 
+// ---------------------------------------------------------------------------
+// Address book (P1 express checkout)
+// ---------------------------------------------------------------------------
+export interface SavedAddress {
+  id: string;
+  label: string | null;
+  recipient_name: string;
+  phone: string | null;
+  line1: string;
+  line2: string | null;
+  city: string;
+  postal_code: string;
+  country_code: string;
+  state: string | null;
+  is_default: boolean;
+}
+
+export async function listAddresses(tenantSlug: string): Promise<SavedAddress[]> {
+  try {
+    const d = await customerFetch<{ addresses: SavedAddress[] }>(`/storefront/${tenantSlug}/me/addresses`);
+    return d?.addresses ?? [];
+  } catch {
+    return [];
+  }
+}
+export async function addAddress(tenantSlug: string, body: Record<string, unknown>): Promise<SavedAddress | null> {
+  return customerFetch<SavedAddress>(`/storefront/${tenantSlug}/me/addresses`, { method: 'POST', body: JSON.stringify(body) });
+}
+export async function deleteAddress(tenantSlug: string, id: string): Promise<void> {
+  await customerFetch(`/storefront/${tenantSlug}/me/addresses/${id}`, { method: 'DELETE' });
+}
+export async function setDefaultAddress(tenantSlug: string, id: string): Promise<void> {
+  await customerFetch(`/storefront/${tenantSlug}/me/addresses/${id}/default`, { method: 'POST' });
+}
+
 /** Re-add a past order's items to the cart (P3 reorder). Returns ok + report. */
 export async function reorder(
   tenantSlug: string,

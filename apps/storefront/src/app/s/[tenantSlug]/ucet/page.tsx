@@ -8,6 +8,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ReorderButton } from '@/components/reorder-button';
+import { AddressBook } from '@/components/address-book';
 import {
   customerCreateReturn,
   customerForgotPassword,
@@ -229,6 +230,8 @@ function LoggedIn({
           </ul>
         )}
       </section>
+
+      <AddressBook tenantSlug={tenantSlug} />
 
       <ReturnsSection
         tenantSlug={tenantSlug}

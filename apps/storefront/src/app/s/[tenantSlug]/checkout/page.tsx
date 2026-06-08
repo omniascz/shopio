@@ -15,10 +15,12 @@ import {
   formatMoney,
   formatVatRate,
   getPaymentMethods,
+  listAddresses,
   removeCoupon,
   type Cart,
   type CustomerCompany,
   type CustomerProfile,
+  type SavedAddress,
   type Money,
   type PaymentMethodOption,
   type PickupPoint,
@@ -94,6 +96,7 @@ export default function CheckoutPage({ params }: Props) {
   // Store credit (per `19`) — balance of the logged-in customer.
   const [creditBalance, setCreditBalance] = useState<bigint | null>(null);
   const [useStoreCredit, setUseStoreCredit] = useState(false);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
 
   // Logged-in customer → prefill contact + saved address (per `18`).
   // Only fills fields the user hasn't typed into yet.
@@ -116,6 +119,9 @@ export default function CheckoutPage({ params }: Props) {
       }));
       void customerCompany(tenantSlug).then((c) => {
         if (!cancelled) setCompany(c);
+      });
+      void listAddresses(tenantSlug).then((a) => {
+        if (!cancelled) setAddresses(a);
       });
     });
     return () => {
@@ -369,6 +375,35 @@ export default function CheckoutPage({ params }: Props) {
           </Field>
 
           <h2 style={{ fontSize: '1.125rem', margin: '1.5rem 0 0.5rem' }}>Doručovací adresa</h2>
+          {addresses.length > 0 && (
+            <Field label="Použít uloženou adresu">
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const a = addresses.find((x) => x.id === e.target.value);
+                  if (!a) return;
+                  setForm((prev) => ({
+                    ...prev,
+                    customerName: prev.customerName || a.recipient_name,
+                    customerPhone: prev.customerPhone || (a.phone ?? ''),
+                    line1: a.line1,
+                    line2: a.line2 ?? '',
+                    city: a.city,
+                    postalCode: a.postal_code,
+                    countryCode: a.country_code,
+                  }));
+                }}
+                style={inputStyle}
+              >
+                <option value="">— vyplnit ručně —</option>
+                {addresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {(a.label ? a.label + ' — ' : '') + a.line1 + ', ' + a.city}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Ulice a č.p." required>
             <input
               type="text"
