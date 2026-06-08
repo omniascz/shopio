@@ -12,6 +12,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { asc, eq } from 'drizzle-orm';
 import { schema } from '@shopio/db';
 import { renderOrderPaidEmail, sendEmail, type OrderEmailContext } from './email';
+import { sendSms } from './sms';
 import { getInvoiceForOrder } from './invoices';
 import { renderInvoicePdf } from './invoice-pdf';
 import type { AppDb } from '../db';
@@ -97,4 +98,18 @@ export async function sendOrderPaidEmail(deps: EmailServiceDeps, orderId: string
     ...(attachments && { attachments }),
   });
   log.info({ orderId: order.id, withInvoice: Boolean(attachments) }, 'order_emails.paid.sent');
+
+  // SMS notification (Shoptet "SMS upozornění") — best-effort; no-op unless an
+  // SMS gateway is configured (SMS_GATEWAY_URL + SMS_ENABLED).
+  if (order.customerPhone) {
+    try {
+      const sent = await sendSms(config, {
+        to: order.customerPhone,
+        text: `${tenant.displayName}: objednavka ${order.orderNumber} byla zaplacena. Dekujeme!`,
+      });
+      if (sent) log.info({ orderId: order.id }, 'order_sms.paid.sent');
+    } catch (err) {
+      log.warn({ err, orderId: order.id }, 'order_sms.paid.failed');
+    }
+  }
 }

@@ -106,6 +106,19 @@ const ConfigSchema = z.object({
       z.boolean(),
     )
     .default(true),
+
+  // SMS notifications (Shoptet "SMS upozornění" — third-party gateway). A generic
+  // HTTP gateway: POST {to, text, from} to SMS_GATEWAY_URL. Absent URL → disabled
+  // (no-op), like SMTP. CZ gateways (SMSbrana, GoSMS) fit this shape.
+  SMS_GATEWAY_URL: z.string().default(''),
+  SMS_API_KEY: z.string().default(''),
+  SMS_SENDER: z.string().default(''),
+  SMS_ENABLED: z
+    .preprocess(
+      (v) => (typeof v === 'string' ? v.toLowerCase() === 'true' : Boolean(v)),
+      z.boolean(),
+    )
+    .default(false),
 });
 
 /** Optional env vars: orchestrators pass empty strings — treat them as unset. */
