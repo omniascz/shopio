@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { computeTax, serializeBreakdown, type ResolvedRate } from './tax';
+import {
+  computeTax,
+  isEuCountry,
+  qualifiesForReverseCharge,
+  serializeBreakdown,
+  type ResolvedRate,
+} from './tax';
 
 // CZ 2024+ rates.
 const CZ_RATES: ResolvedRate[] = [
@@ -7,6 +13,53 @@ const CZ_RATES: ResolvedRate[] = [
   { taxClassCode: 'reduced', rateBasisPoints: 1200 },
   { taxClassCode: 'zero', rateBasisPoints: 0 },
 ];
+
+describe('reverse charge (EU B2B)', () => {
+  it('qualifies only for cross-border EU B2B with a VAT id', () => {
+    const base = { supplierCountry: 'CZ', buyerHasVatId: true };
+    expect(qualifiesForReverseCharge({ ...base, buyerCountry: 'SK' })).toBe(true);
+    expect(qualifiesForReverseCharge({ ...base, buyerCountry: 'DE' })).toBe(true);
+    // domestic CZ→CZ is NOT reverse charge
+    expect(qualifiesForReverseCharge({ ...base, buyerCountry: 'CZ' })).toBe(false);
+    // no VAT id
+    expect(qualifiesForReverseCharge({ supplierCountry: 'CZ', buyerCountry: 'SK', buyerHasVatId: false })).toBe(false);
+    // non-EU buyer (export, not reverse charge)
+    expect(qualifiesForReverseCharge({ ...base, buyerCountry: 'US' })).toBe(false);
+    // explicit failed VIES validation
+    expect(qualifiesForReverseCharge({ ...base, buyerCountry: 'SK', vatValidated: false })).toBe(false);
+  });
+
+  it('isEuCountry', () => {
+    expect(isEuCountry('CZ')).toBe(true);
+    expect(isEuCountry('sk')).toBe(true);
+    expect(isEuCountry('US')).toBe(false);
+    expect(isEuCountry(null)).toBe(false);
+  });
+
+  it('zero-rates lines and strips VAT from a gross input', () => {
+    const r = computeTax({
+      lines: [{ ref: 'a', amount: 60500n, taxClassCode: 'standard' }], // gross incl 21%
+      rates: CZ_RATES,
+      priceIncludesTax: true,
+      reverseCharge: true,
+    });
+    expect(r.isReverseCharge).toBe(true);
+    expect(r.totals.taxAmount).toBe(0n);
+    expect(r.totals.grossAmount).toBe(50000n); // 60500 / 1.21 = 50000 net, no VAT added
+    expect(r.lines[0]!.taxClassCode).toBe('reverse_charge');
+  });
+
+  it('zero-rates an exclusive (net) input unchanged', () => {
+    const r = computeTax({
+      lines: [{ ref: 'a', amount: 50000n, taxClassCode: 'standard' }],
+      rates: CZ_RATES,
+      priceIncludesTax: false,
+      reverseCharge: true,
+    });
+    expect(r.totals.taxAmount).toBe(0n);
+    expect(r.totals.grossAmount).toBe(50000n);
+  });
+});
 
 describe('computeTax — VAT-inclusive (CZ B2C)', () => {
   it('extracts 21 % from a gross 599,00 CZK line', () => {

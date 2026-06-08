@@ -32,7 +32,7 @@ import { initiatePayment, selectCheckoutProvider, buildSpayd } from '../lib/paym
 import type { SelectedProvider } from '../lib/payments';
 import QRCode from 'qrcode';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
-import { computeTax, serializeBreakdown, type TaxResult } from '../lib/tax';
+import { computeTax, qualifiesForReverseCharge, serializeBreakdown, type TaxResult } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
 import type { CartShippingMetrics } from '../lib/shipping';
 import {
@@ -806,6 +806,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       // falling back to the tenant home country. Discount lowers each line's
       // taxable amount; shipping is taxed on the post-discount charge.
       const rates = await resolveRates(db, tenant.id, country, tenant.countryCode);
+      // EU B2B reverse charge (per `15 §4` + `21`): zero-rate when the buyer is
+      // a company VAT-registered in another EU member state.
+      const buyerCountry =
+        (company?.billingAddress as { countryCode?: string } | null)?.countryCode ?? null;
+      const reverseCharge = qualifiesForReverseCharge({
+        supplierCountry: tenant.countryCode,
+        buyerCountry,
+        buyerHasVatId: Boolean(company?.vatId),
+      });
       const tax = computeTax({
         lines: items.map((it) => ({
           ref: it.pubId,
@@ -816,6 +825,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         shippingTaxClass: tenant.shippingTaxClass,
         rates,
         priceIncludesTax: tenant.priceIncludesTax,
+        reverseCharge,
       });
       const taxByRef = new Map(tax.lines.map((l) => [l.ref, l]));
       const totalDiscount = goodsDiscount + shippingDiscount;
@@ -891,7 +901,11 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
           // Totals — VAT-inclusive B2C model: subtotal + shipping are gross,
           // discount lowers the payable; total = subtotal − discount + shipping.
-          const total = grossGoods - goodsDiscount + effectiveShipping;
+          // Reverse charge zero-rates VAT → the buyer pays the ex-VAT amount
+          // (the tax engine already stripped VAT into post-discount net gross).
+          const total = reverseCharge
+            ? tax.totals.grossAmount
+            : grossGoods - goodsDiscount + effectiveShipping;
 
           // Decide store-credit settlement: only when opted in, the customer is
           // logged in, loyalty is on, NOT a NET-terms order, and the balance

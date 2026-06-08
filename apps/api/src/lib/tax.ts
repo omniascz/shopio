@@ -6,10 +6,13 @@
  * them in; this module does the arithmetic + grouping only.
  *
  * Wave 1 MVP boundary:
- * - B2C only. Reverse charge / VAT-ID / OSS are stubbed (always false) until
- *   the customer + company entities land in a later wave.
- * - Single place-of-supply country resolved by the caller (ship-to, else
- *   tenant country). Multi-zone EU/NON_EU comes with OSS.
+ * - Reverse charge (per `15 §4` + `21`): an EU B2B sale to a customer with a
+ *   valid VAT ID in a *different* member state is zero-rated — the buyer
+ *   self-assesses. The caller sets `reverseCharge`; lines are then charged 0 %
+ *   and `isReverseCharge` is true (the invoice carries the legal note).
+ * - Place of supply (ship-to, else tenant country) is resolved by the caller via
+ *   `tax-resolver`. OSS = resolving the destination country's rates (works when
+ *   those rates are configured); threshold tracking is a later slice.
  *
  * Money is always BigInt minor units (haléře / cents). Per-line floor rounding
  * prevents penny drift when summing (per `15 §4.3`).
@@ -40,6 +43,10 @@ export interface TaxComputationInput {
   rates: ResolvedRate[];
   /** True when `amount`s are gross (VAT-inclusive) — CZ B2C default. */
   priceIncludesTax: boolean;
+  /** EU B2B reverse charge: zero-rate every line (buyer self-assesses). When
+   * the input is gross, the VAT is stripped at the line's normal rate so the
+   * buyer pays the ex-VAT price. */
+  reverseCharge?: boolean;
 }
 
 export interface TaxLineResult {
@@ -61,7 +68,7 @@ export interface TaxBreakdownEntry {
 }
 
 export interface TaxResult {
-  isReverseCharge: false;
+  isReverseCharge: boolean;
   lines: TaxLineResult[];
   shipping: TaxLineResult | null;
   totals: {
@@ -103,11 +110,17 @@ function computeAmount(
   amount: bigint,
   rate: ResolvedRate,
   priceIncludesTax: boolean,
+  reverseCharge = false,
 ): TaxLineResult {
   const rbp = BigInt(rate.rateBasisPoints);
   let base: bigint;
   let tax: bigint;
-  if (priceIncludesTax) {
+  if (reverseCharge) {
+    // Zero-rated: strip VAT from a gross input so the buyer pays ex-VAT; an
+    // exclusive input is already net. No VAT is charged either way.
+    base = priceIncludesTax ? (amount * 10000n) / (10000n + rbp) : amount;
+    tax = 0n;
+  } else if (priceIncludesTax) {
     base = (amount * 10000n) / (10000n + rbp); // BigInt division floors toward zero (amounts ≥ 0)
     tax = amount - base;
   } else {
@@ -116,8 +129,8 @@ function computeAmount(
   }
   return {
     ref,
-    taxClassCode: rate.taxClassCode,
-    taxRateBasisPoints: rate.rateBasisPoints,
+    taxClassCode: reverseCharge ? 'reverse_charge' : rate.taxClassCode,
+    taxRateBasisPoints: reverseCharge ? 0 : rate.rateBasisPoints,
     baseAmount: base,
     taxAmount: tax,
     grossAmount: base + tax,
@@ -127,12 +140,14 @@ function computeAmount(
 export function computeTax(input: TaxComputationInput): TaxResult {
   const warnings: string[] = [];
 
+  const rc = input.reverseCharge ?? false;
   const lines: TaxLineResult[] = input.lines.map((line) =>
     computeAmount(
       line.ref,
       line.amount,
       lookupRate(input.rates, line.taxClassCode, warnings),
       input.priceIncludesTax,
+      rc,
     ),
   );
 
@@ -144,6 +159,7 @@ export function computeTax(input: TaxComputationInput): TaxResult {
       input.shippingAmount,
       lookupRate(input.rates, shippingClass, warnings),
       input.priceIncludesTax,
+      rc,
     );
   }
 
@@ -177,7 +193,35 @@ export function computeTax(input: TaxComputationInput): TaxResult {
   }
   const breakdown = [...byRate.values()].sort((a, b) => b.rateBasisPoints - a.rateBasisPoints);
 
-  return { isReverseCharge: false, lines, shipping, totals, breakdown, warnings };
+  return { isReverseCharge: rc, lines, shipping, totals, breakdown, warnings };
+}
+
+/** EU member states (ISO 3166-1 alpha-2) — for reverse-charge eligibility. */
+const EU_COUNTRIES = new Set([
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU',
+  'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+]);
+
+export function isEuCountry(code: string | null | undefined): boolean {
+  return code != null && EU_COUNTRIES.has(code.toUpperCase());
+}
+
+/**
+ * Decide whether an EU B2B order is reverse-charged: the buyer is a company with
+ * a VAT ID, established in an EU member state *other than* the supplier's, and
+ * (recommended) VIES-validated. Domestic B2B is NOT reverse-charged.
+ */
+export function qualifiesForReverseCharge(args: {
+  supplierCountry: string;
+  buyerCountry: string | null | undefined;
+  buyerHasVatId: boolean;
+  vatValidated?: boolean;
+}): boolean {
+  if (!args.buyerHasVatId) return false;
+  if (!isEuCountry(args.supplierCountry) || !isEuCountry(args.buyerCountry)) return false;
+  if (args.buyerCountry!.toUpperCase() === args.supplierCountry.toUpperCase()) return false;
+  // If a validation flag is provided it must be true; if absent we trust the ID.
+  return args.vatValidated !== false;
 }
 
 /** Serialize a breakdown for JSONB storage (BigInt → string minor units). */
