@@ -32,7 +32,8 @@ import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { resolveBlocks } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
-import { frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
+import { bestSellers, frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
+import { addStockWatch } from '../lib/stock-watch';
 import { resolveCollection, type CollectionRules } from '../lib/collections';
 import { subscribe as subscribeNewsletter, unsubscribeByToken } from '../lib/newsletter';
 import { loadRates } from '../lib/fx';
@@ -782,6 +783,67 @@ export async function registerStorefrontRoutes(
       return reply
         .header('cache-control', 'public, max-age=600')
         .send({ data: { frequently_bought_together: data.fbt, related: data.related } });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/bestsellers?limit=&category= (Shoptet "Top
+  // nejprodávanější") — most-sold products, optionally within a category.
+  app.get<{ Params: { tenantSlug: string }; Querystring: { limit?: string; category?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/bestsellers',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 24);
+      const products = await withTenant(rlsDb, tenant.id, async (tx) => {
+        let categoryId: string | undefined;
+        if (req.query.category) {
+          const [cat] = await tx
+            .select({ id: schema.categories.id })
+            .from(schema.categories)
+            .where(and(eq(schema.categories.tenantId, tenant.id), eq(schema.categories.slug, req.query.category!)))
+            .limit(1);
+          categoryId = cat?.id;
+        }
+        return bestSellers(tx, tenant.id, limit, categoryId);
+      });
+      return reply.header('cache-control', 'public, max-age=600').send({ data: { products } });
+    },
+  );
+
+  // POST /storefront/{tenantSlug}/products/{productSlug}/watch (Shoptet "Hlídací
+  // pes") — leave an e-mail to be notified when a variant is back in stock.
+  app.post<{ Params: { tenantSlug: string; productSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/products/:productSlug/watch',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const parsed = z
+        .object({ email: z.string().email().toLowerCase(), variantId: z.string().min(1) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(422).send({ error: { code: 'VALIDATION_FAILED', message: 'Neplatný e-mail nebo varianta' } });
+      }
+      const result = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [v] = await tx
+          .select({ id: schema.productVariants.id })
+          .from(schema.productVariants)
+          .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
+          .where(
+            and(
+              eq(schema.productVariants.tenantId, tenant.id),
+              eq(schema.products.slug, req.params.productSlug),
+              parsed.data.variantId.startsWith('prv_')
+                ? eq(schema.productVariants.pubId, parsed.data.variantId)
+                : eq(schema.productVariants.id, parsed.data.variantId),
+            ),
+          )
+          .limit(1);
+        if (!v) return null;
+        await addStockWatch(tx, tenant.id, v.id, parsed.data.email);
+        return v.id;
+      });
+      if (!result) return notFound(reply, 'variant');
+      return reply.code(201).send({ data: { watching: true } });
     },
   );
 

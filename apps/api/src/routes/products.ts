@@ -26,6 +26,7 @@ import { requireAuth } from '../plugins/auth-middleware';
 import { indexProduct, removeProductFromIndex } from '../lib/search';
 import { mapImportRows, parseCsv } from '../lib/csv';
 import { getRlsDb } from '../db';
+import { notifyRestocked } from '../lib/stock-watch';
 import { emitWebhookEvent } from '../lib/webhooks-out';
 import { planOf, type Plan } from '../lib/plans';
 import type { AppDb } from '../db';
@@ -942,6 +943,7 @@ export async function registerProductRoutes(
         });
       }
 
+      let restocked = false; // out-of-stock → in-stock crossing (Shoptet "Hlídací pes")
       const updated = await withTenant(rlsDb, auth.tenantId!, async (tx) => {
         // Stock set goes through the movements ledger (per `09`:
         // reason='adjustment') — lock the row, compute the delta.
@@ -953,6 +955,7 @@ export async function registerProductRoutes(
             .from(schema.productVariants)
             .where(eq(schema.productVariants.id, variant.id))
             .for('update');
+          if (locked!.stockOnHand <= 0 && input.stockOnHand > 0) restocked = true;
           const delta = input.stockOnHand - locked!.stockOnHand;
           if (delta !== 0) {
             await tx.insert(schema.stockMovements).values({
@@ -981,6 +984,12 @@ export async function registerProductRoutes(
       });
 
       void indexProduct(config, db, variant.productId, app.log);
+      // Back-in-stock notifications — fire-and-forget after the stock crossing.
+      if (restocked) {
+        void notifyRestocked(rlsDb, config, auth.tenantId!, variant.id, app.log).catch((err) =>
+          app.log.warn({ err, variantId: variant.id }, 'stock_watch.notify_failed'),
+        );
+      }
       return reply.send({
         data: {
           id: updated.pubId,

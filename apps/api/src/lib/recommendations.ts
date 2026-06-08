@@ -88,6 +88,38 @@ export async function loadCards(db: Db, tenantId: string, productIds: string[]):
     .map(({ _id, ...card }) => card);
 }
 
+/** Best-sellers (Shoptet "Top nejprodávanější") — products ranked by units sold
+ * across paid orders. Optionally scoped to a category. Built on our own order
+ * data, no external service. */
+export async function bestSellers(
+  db: Db,
+  tenantId: string,
+  limit = 8,
+  categoryId?: string,
+): Promise<ProductCard[]> {
+  const oi = schema.orderItems;
+  const o = schema.orders;
+  const conds = [
+    eq(oi.tenantId, tenantId),
+    inArray(o.status, ['paid', 'partially_paid', 'fulfilling', 'fulfilled']),
+    dsql`${oi.productId} is not null`,
+  ];
+  if (categoryId) {
+    conds.push(
+      dsql`${oi.productId} in (select product_id from product_categories where category_id = ${categoryId})`,
+    );
+  }
+  const rows = await db
+    .select({ productId: oi.productId, qty: dsql<number>`sum(${oi.quantity})::int` })
+    .from(oi)
+    .innerJoin(o, eq(o.id, oi.orderId))
+    .where(and(...conds))
+    .groupBy(oi.productId)
+    .orderBy(dsql`sum(${oi.quantity}) desc`)
+    .limit(limit);
+  return loadCards(db, tenantId, rows.map((r) => r.productId).filter((id): id is string => id != null));
+}
+
 /** Products most often bought in the same order as `productId`. */
 export async function frequentlyBoughtTogether(
   db: Db,
