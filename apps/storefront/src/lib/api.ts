@@ -366,8 +366,9 @@ export interface CheckoutInput {
   shippingAddress: ShippingAddress;
   customerNote?: string;
   shippingRateId?: string;
-  /** B2B (per `21`): pay on invoice (NET terms). Requires merchant grant. */
-  paymentMethod?: 'invoice';
+  /** Payment method: 'invoice' (B2B NET terms) or a provider code (cod,
+   * bank_transfer, gopay, …) chosen at checkout; omitted = highest priority. */
+  paymentMethod?: string;
   purchaseOrderNumber?: string;
   pickupPoint?: {
     carrierCode: string;
@@ -799,6 +800,25 @@ export async function checkout(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export interface PaymentMethodOption {
+  code: string;
+  display_name: string;
+  kind: 'offline' | 'redirect';
+}
+
+export async function getPaymentMethods(
+  tenantSlug: string,
+): Promise<PaymentMethodOption[]> {
+  try {
+    const res = await cartFetch<{ methods: PaymentMethodOption[] }>(
+      `/storefront/${tenantSlug}/payment-methods`,
+    );
+    return res.methods;
+  } catch {
+    return [];
+  }
 }
 
 export async function getOrder(

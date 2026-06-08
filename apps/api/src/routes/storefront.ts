@@ -95,6 +95,48 @@ export async function registerStorefrontRoutes(
   );
 
   // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/payment-methods — enabled methods for checkout
+  // (per `13 §4.4`). Public: only the customer-safe fields, ordered by priority.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/payment-methods',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({
+            code: schema.paymentProviderConfigs.providerCode,
+            displayName: schema.paymentProviderConfigs.displayName,
+            priority: schema.paymentProviderConfigs.priority,
+            methodKinds: schema.paymentProviderConfigs.supportedMethodKinds,
+            currencies: schema.paymentProviderConfigs.supportedCurrencies,
+          })
+          .from(schema.paymentProviderConfigs)
+          .where(
+            and(
+              eq(schema.paymentProviderConfigs.tenantId, tenant.id),
+              eq(schema.paymentProviderConfigs.isEnabled, true),
+            ),
+          )
+          .orderBy(desc(schema.paymentProviderConfigs.priority)),
+      );
+
+      const OFFLINE = new Set(['cod', 'bank_transfer']);
+      const methods = rows
+        .filter((r) => (r.currencies ?? []).length === 0 || r.currencies!.includes(tenant.defaultCurrency))
+        .map((r) => ({
+          code: r.code,
+          display_name: r.displayName,
+          kind: OFFLINE.has(r.code) ? 'offline' : 'redirect',
+        }));
+
+      return reply.send({ data: { methods } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/categories
   // ---------------------------------------------------------------------------
   app.get<{ Params: { tenantSlug: string } }>(

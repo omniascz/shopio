@@ -13,11 +13,13 @@ import {
   fetchShippingRates,
   formatMoney,
   formatVatRate,
+  getPaymentMethods,
   removeCoupon,
   type Cart,
   type CustomerCompany,
   type CustomerProfile,
   type Money,
+  type PaymentMethodOption,
   type PickupPoint,
   type ShippingOption,
 } from '@/lib/api';
@@ -85,6 +87,9 @@ export default function CheckoutPage({ params }: Props) {
   const [company, setCompany] = useState<CustomerCompany | null>(null);
   const [payOnInvoice, setPayOnInvoice] = useState(false);
   const [poNumber, setPoNumber] = useState('');
+  // Payment method (per `13`) — provider codes offered by the merchant.
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
 
   // Logged-in customer → prefill contact + saved address (per `18`).
   // Only fills fields the user hasn't typed into yet.
@@ -108,6 +113,19 @@ export default function CheckoutPage({ params }: Props) {
       void customerCompany(tenantSlug).then((c) => {
         if (!cancelled) setCompany(c);
       });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantSlug]);
+
+  // Payment methods offered by the merchant (per `13`).
+  useEffect(() => {
+    let cancelled = false;
+    void getPaymentMethods(tenantSlug).then((methods) => {
+      if (cancelled) return;
+      setPaymentMethods(methods);
+      setSelectedMethod((prev) => prev ?? methods[0]?.code ?? null);
     });
     return () => {
       cancelled = true;
@@ -219,11 +237,14 @@ export default function CheckoutPage({ params }: Props) {
           countryCode: country,
         },
         ...(form.customerNote.trim() && { customerNote: form.customerNote.trim() }),
-        ...(payOnInvoice &&
-          company?.net_terms_enabled && {
-            paymentMethod: 'invoice' as const,
-            ...(poNumber.trim() && { purchaseOrderNumber: poNumber.trim() }),
-          }),
+        ...(payOnInvoice && company?.net_terms_enabled
+          ? {
+              paymentMethod: 'invoice',
+              ...(poNumber.trim() && { purchaseOrderNumber: poNumber.trim() }),
+            }
+          : selectedMethod
+            ? { paymentMethod: selectedMethod }
+            : {}),
         ...(selectedOption && { shippingRateId: selectedOption.rate_id }),
         ...(pickup && {
           pickupPoint: {
@@ -520,6 +541,31 @@ export default function CheckoutPage({ params }: Props) {
               style={{ ...inputStyle, resize: 'vertical' }}
             />
           </Field>
+
+          {paymentMethods.length > 0 && !payOnInvoice && (
+            <fieldset style={{ border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '0.875rem 1rem', marginBottom: '0.5rem' }}>
+              <legend style={{ fontSize: '0.8125rem', fontWeight: 600, padding: '0 0.375rem' }}>
+                Způsob platby
+              </legend>
+              {paymentMethods.map((m) => (
+                <label
+                  key={m.code}
+                  style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', cursor: 'pointer', padding: '0.375rem 0' }}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    checked={selectedMethod === m.code}
+                    onChange={() => setSelectedMethod(m.code)}
+                  />
+                  <span style={{ fontSize: '0.9375rem' }}>{m.display_name}</span>
+                  {m.kind === 'redirect' && (
+                    <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>(online platba)</span>
+                  )}
+                </label>
+              ))}
+            </fieldset>
+          )}
 
           {company?.net_terms_enabled && (
             <div
