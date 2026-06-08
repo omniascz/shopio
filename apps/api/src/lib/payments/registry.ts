@@ -20,6 +20,12 @@ import { createGopayProvider, type GopayCredentials } from './gopay';
 import { createComgateProvider, type ComgateCredentials } from './comgate';
 import { createThepayProvider, type ThepayCredentials } from './thepay';
 import { createPaysProvider, type PaysCredentials } from './pays';
+import { createGpwebpayProvider, type GpwebpayCredentials } from './gpwebpay';
+import { createPayuProvider, type PayuCredentials } from './payu';
+import { createBarionProvider, type BarionCredentials } from './barion';
+import { createBesteronProvider, type BesteronCredentials } from './besteron';
+import { createTwistoProvider, type TwistoCredentials } from './twisto';
+import { createPaypalProvider, type PaypalCredentials } from './paypal';
 import { openCredentials } from '../secrets';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
@@ -56,6 +62,30 @@ export function buildProvider(
     case 'pays': {
       const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as PaysCredentials;
       return createPaysProvider(creds, cfg.isTestMode);
+    }
+    case 'gpwebpay': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as GpwebpayCredentials;
+      return createGpwebpayProvider(creds, cfg.isTestMode);
+    }
+    case 'payu': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as PayuCredentials;
+      return createPayuProvider(creds, cfg.isTestMode);
+    }
+    case 'barion': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as BarionCredentials;
+      return createBarionProvider(creds, cfg.isTestMode);
+    }
+    case 'besteron': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as BesteronCredentials;
+      return createBesteronProvider(creds, cfg.isTestMode);
+    }
+    case 'twisto': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as TwistoCredentials;
+      return createTwistoProvider(creds, cfg.isTestMode);
+    }
+    case 'paypal': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as PaypalCredentials;
+      return createPaypalProvider(creds, cfg.isTestMode);
     }
     default:
       return null;

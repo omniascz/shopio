@@ -89,6 +89,48 @@ const PROVIDER_CATALOG: {
     defaultMethodKinds: ['card', 'bank_transfer'],
   },
   {
+    code: 'gpwebpay',
+    displayName: 'GP webpay',
+    kind: 'redirect',
+    description: 'Bankovní brána (Global Payments) — za KB SmartPay, ČSOB, Česká spořitelna.',
+    defaultMethodKinds: ['card', 'apple_pay', 'google_pay'],
+  },
+  {
+    code: 'payu',
+    displayName: 'PayU',
+    kind: 'redirect',
+    description: 'Mezinárodní brána s CZ působností — karty, bankovní převody.',
+    defaultMethodKinds: ['card', 'bank_transfer'],
+  },
+  {
+    code: 'barion',
+    displayName: 'Barion',
+    kind: 'redirect',
+    description: 'CZ/SK/EU brána — karty, Apple/Google Pay.',
+    defaultMethodKinds: ['card', 'apple_pay', 'google_pay'],
+  },
+  {
+    code: 'besteron',
+    displayName: 'Besteron',
+    kind: 'redirect',
+    description: 'CZ/SK platební brána — karty, bankovní převody.',
+    defaultMethodKinds: ['card', 'bank_transfer'],
+  },
+  {
+    code: 'twisto',
+    displayName: 'Twisto / Skip Pay',
+    kind: 'redirect',
+    description: 'Odložená platba (BNPL) — kup teď, zaplať později.',
+    defaultMethodKinds: ['bnpl'],
+  },
+  {
+    code: 'paypal',
+    displayName: 'PayPal',
+    kind: 'redirect',
+    description: 'Mezinárodní peněženka + karty.',
+    defaultMethodKinds: ['paypal', 'card'],
+  },
+  {
     code: 'stripe',
     displayName: 'Stripe',
     kind: 'redirect',
@@ -97,7 +139,21 @@ const PROVIDER_CATALOG: {
   },
 ];
 
-const WIRED_CODES = new Set(['cod', 'bank_transfer', 'qr_platba', 'gopay', 'comgate', 'thepay', 'pays']);
+const WIRED_CODES = new Set([
+  'cod',
+  'bank_transfer',
+  'qr_platba',
+  'gopay',
+  'comgate',
+  'thepay',
+  'pays',
+  'gpwebpay',
+  'payu',
+  'barion',
+  'besteron',
+  'twisto',
+  'paypal',
+]);
 
 /** Required credential keys per gateway (live mode). */
 const REQUIRED_CREDENTIALS: Record<string, string[]> = {
@@ -105,6 +161,12 @@ const REQUIRED_CREDENTIALS: Record<string, string[]> = {
   comgate: ['merchant', 'secret'],
   thepay: ['merchantId', 'apiPassword', 'projectId'],
   pays: ['merchantId', 'shopId', 'apiKey'],
+  gpwebpay: ['merchantNumber', 'privateKey'],
+  payu: ['posId', 'clientSecret'],
+  barion: ['posKey'],
+  besteron: ['merchantId', 'apiKey'],
+  twisto: ['apiKey'],
+  paypal: ['clientId', 'clientSecret'],
 };
 
 const UpsertBody = z.object({
