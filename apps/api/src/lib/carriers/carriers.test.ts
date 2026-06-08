@@ -94,4 +94,14 @@ describe('manualTrackingUrl', () => {
   it('returns null for carriers without a known template', () => {
     expect(manualTrackingUrl('unknown', 'X')).toBeNull();
   });
+
+  it('builds DACH/UK/FR carrier tracking URLs', () => {
+    expect(manualTrackingUrl('dhl', 'JD01')).toContain('dhl.de');
+    expect(manualTrackingUrl('hermes', 'X')).toContain('myhermes.de');
+    expect(manualTrackingUrl('royal_mail', 'RM9')).toContain('royalmail.com');
+    expect(manualTrackingUrl('evri', 'H1')).toContain('evri.com');
+    expect(manualTrackingUrl('mondial_relay', 'MR5')).toContain('mondialrelay.fr');
+    expect(manualTrackingUrl('colissimo', 'C7')).toContain('laposte.fr');
+    expect(manualTrackingUrl('chronopost', 'CH2')).toContain('chronopost.fr');
+  });
 });

@@ -18,13 +18,27 @@ export function getCarrier(carrierCode: string, config: ShopioConfig): CarrierPr
 
 /** Carrier catalog for the admin rate editor (code → label + capabilities). */
 export const CARRIER_CATALOG: { code: string; displayName: string; real: boolean }[] = [
+  // CZ
   { code: 'zasilkovna', displayName: 'Zásilkovna', real: true },
-  { code: 'inpost', displayName: 'InPost (Paczkomaty)', real: true },
   { code: 'ppl', displayName: 'PPL', real: false },
   { code: 'dpd', displayName: 'DPD', real: false },
   { code: 'cp', displayName: 'Česká pošta', real: false },
   { code: 'balikovna', displayName: 'Balíkovna', real: false },
   { code: 'gls', displayName: 'GLS', real: false },
+  // PL
+  { code: 'inpost', displayName: 'InPost (Paczkomaty)', real: true },
+  // DACH
+  { code: 'dhl', displayName: 'DHL', real: false },
+  { code: 'hermes', displayName: 'Hermes', real: false },
+  { code: 'dpd_de', displayName: 'DPD (DE)', real: false },
+  // UK
+  { code: 'royal_mail', displayName: 'Royal Mail', real: false },
+  { code: 'evri', displayName: 'Evri', real: false },
+  { code: 'dpd_uk', displayName: 'DPD (UK)', real: false },
+  // FR
+  { code: 'mondial_relay', displayName: 'Mondial Relay', real: false },
+  { code: 'colissimo', displayName: 'Colissimo', real: false },
+  { code: 'chronopost', displayName: 'Chronopost', real: false },
 ];
 
 export * from './types';

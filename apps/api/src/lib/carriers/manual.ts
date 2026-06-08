@@ -20,12 +20,25 @@ const FONT_BOLD = resolve(__dirname, '..', '..', '..', 'assets', 'fonts', 'DejaV
 
 /** Public tracking URL templates ({code} = tracking number). */
 const TRACKING_TEMPLATES: Record<string, string> = {
+  // CZ
   ppl: 'https://www.ppl.cz/sledovani-zasilky?shipmentId={code}',
   dpd: 'https://www.dpd.com/cz/cs/sledovani/?parcelNumber={code}',
   cp: 'https://www.postaonline.cz/trackandtrace/-/zasilka/cislo?parcelNumbers={code}',
   ceska_posta: 'https://www.postaonline.cz/trackandtrace/-/zasilka/cislo?parcelNumbers={code}',
   balikovna: 'https://www.balikovna.cz/cs/sledovani-zasilky?id={code}',
   gls: 'https://gls-group.com/CZ/cs/sledovani-zasilek?match={code}',
+  // DACH
+  dhl: 'https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={code}',
+  hermes: 'https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation/#{code}',
+  dpd_de: 'https://www.dpd.com/de/de/empfangen/sendungsverfolgung/?parcelNumber={code}',
+  // UK
+  royal_mail: 'https://www.royalmail.com/track-your-item#/tracking-results/{code}',
+  evri: 'https://www.evri.com/track/parcel/{code}',
+  dpd_uk: 'https://track.dpd.co.uk/parcels/{code}',
+  // FR
+  mondial_relay: 'https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition={code}',
+  colissimo: 'https://www.laposte.fr/outils/suivre-vos-envois?code={code}',
+  chronopost: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT={code}',
 };
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -35,6 +48,15 @@ const DISPLAY_NAMES: Record<string, string> = {
   ceska_posta: 'Česká pošta',
   balikovna: 'Balíkovna',
   gls: 'GLS',
+  dhl: 'DHL',
+  hermes: 'Hermes',
+  dpd_de: 'DPD',
+  royal_mail: 'Royal Mail',
+  evri: 'Evri',
+  dpd_uk: 'DPD',
+  mondial_relay: 'Mondial Relay',
+  colissimo: 'Colissimo',
+  chronopost: 'Chronopost',
 };
 
 export class ManualCarrier implements CarrierProvider {

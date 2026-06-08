@@ -39,6 +39,31 @@ const VAT_DEFAULTS: Record<string, { code: string; bp: number; name: string }[]>
     { code: 'reduced', bp: 1900, name: 'DPH 19 %' },
     { code: 'zero', bp: 0, name: 'DPH 0 %' },
   ],
+  PL: [
+    { code: 'standard', bp: 2300, name: 'VAT 23 %' },
+    { code: 'reduced', bp: 800, name: 'VAT 8 %' },
+    { code: 'zero', bp: 0, name: 'VAT 0 %' },
+  ],
+  DE: [
+    { code: 'standard', bp: 1900, name: 'MwSt. 19 %' },
+    { code: 'reduced', bp: 700, name: 'MwSt. 7 %' },
+    { code: 'zero', bp: 0, name: 'MwSt. 0 %' },
+  ],
+  AT: [
+    { code: 'standard', bp: 2000, name: 'USt. 20 %' },
+    { code: 'reduced', bp: 1000, name: 'USt. 10 %' },
+    { code: 'zero', bp: 0, name: 'USt. 0 %' },
+  ],
+  GB: [
+    { code: 'standard', bp: 2000, name: 'VAT 20 %' },
+    { code: 'reduced', bp: 500, name: 'VAT 5 %' },
+    { code: 'zero', bp: 0, name: 'VAT 0 %' },
+  ],
+  FR: [
+    { code: 'standard', bp: 2000, name: 'TVA 20 %' },
+    { code: 'reduced', bp: 1000, name: 'TVA 10 %' },
+    { code: 'zero', bp: 0, name: 'TVA 0 %' },
+  ],
 };
 
 /** Fallback for countries we don't have curated rates for yet. */
@@ -52,6 +77,38 @@ const SHIPPING_DEFAULTS: Record<
   CZK: { pickup: 7900n, pickupFreeAbove: 150000n, home: 11900n },
   EUR: { pickup: 290n, pickupFreeAbove: 6000n, home: 490n },
   PLN: { pickup: 1290n, pickupFreeAbove: 20000n, home: 1990n },
+  GBP: { pickup: 299n, pickupFreeAbove: 5000n, home: 399n },
+};
+
+/**
+ * Per-country carrier seeds beyond the home pickup network. `active` carriers
+ * are enabled out of the box; the rest are provisioned inactive so the merchant
+ * enables what they use (Nastavení → Doprava). Labels run through the manual
+ * carrier (tracking templates per `lib/carriers/manual`) until a real API is wired.
+ */
+const MARKET_CARRIERS: Record<
+  string,
+  { code: string; service: 'home_delivery' | 'pickup_point'; name: string; desc: string; active: boolean }[]
+> = {
+  DE: [
+    { code: 'dhl', service: 'home_delivery', name: 'DHL Paket', desc: 'DHL-Zustellung an die Adresse.', active: true },
+    { code: 'hermes', service: 'home_delivery', name: 'Hermes', desc: 'Hermes-Zustellung.', active: false },
+    { code: 'dpd_de', service: 'home_delivery', name: 'DPD', desc: 'DPD-Kurier.', active: false },
+  ],
+  AT: [
+    { code: 'dhl', service: 'home_delivery', name: 'DHL Paket', desc: 'DHL-Zustellung.', active: true },
+    { code: 'dpd_de', service: 'home_delivery', name: 'DPD', desc: 'DPD-Kurier.', active: false },
+  ],
+  GB: [
+    { code: 'royal_mail', service: 'home_delivery', name: 'Royal Mail', desc: 'Royal Mail delivery.', active: true },
+    { code: 'evri', service: 'home_delivery', name: 'Evri', desc: 'Evri courier.', active: false },
+    { code: 'dpd_uk', service: 'home_delivery', name: 'DPD', desc: 'DPD courier.', active: false },
+  ],
+  FR: [
+    { code: 'mondial_relay', service: 'pickup_point', name: 'Mondial Relay — Point Relais', desc: 'Livraison en point relais.', active: true },
+    { code: 'colissimo', service: 'home_delivery', name: 'Colissimo', desc: 'Livraison à domicile La Poste.', active: true },
+    { code: 'chronopost', service: 'home_delivery', name: 'Chronopost', desc: 'Livraison express.', active: false },
+  ],
 };
 
 /**
@@ -211,6 +268,36 @@ export async function provisionTenantDefaults(tx: DbConn, tenant: TenantSeed): P
         priority: 6,
       },
     ]);
+  }
+
+  // 2c) DACH / UK / FR (per `14` + `29`): seed the market's common carriers.
+  // The dominant one(s) are active; the rest inactive. Pickup-network carriers
+  // (Mondial Relay) use a pickup_point service like Zásilkovna/InPost.
+  const marketCarriers = MARKET_CARRIERS[country];
+  if (marketCarriers) {
+    let prio = 9;
+    await tx.insert(schema.shippingRates).values(
+      marketCarriers.map((c) => {
+        const isPickup = c.service === 'pickup_point';
+        return {
+          tenantId: tenant.id,
+          shippingZoneId: zone!.id,
+          carrierCode: c.code,
+          serviceCode: c.service,
+          displayName: c.name,
+          description: c.desc,
+          kind: (isPickup ? 'free_above_threshold' : 'flat') as 'free_above_threshold' | 'flat',
+          amount: isPickup ? prices.pickup : prices.home,
+          currency,
+          ...(isPickup ? { freeAboveAmount: prices.pickupFreeAbove, pickupOnly: true } : {}),
+          supportsCod: true,
+          estimatedDaysMin: 1,
+          estimatedDaysMax: 3,
+          priority: prio--,
+          isActive: c.active,
+        };
+      }),
+    );
   }
 
   // 3) Carrier provider config — disabled until the merchant adds credentials
