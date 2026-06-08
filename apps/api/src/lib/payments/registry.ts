@@ -15,6 +15,7 @@ import type { AppDb } from '../../db';
 import type { PaymentProvider } from './types';
 import { createCodProvider } from './cod';
 import { createBankTransferProvider } from './bank-transfer';
+import { createQrPlatbaProvider } from './qr-platba';
 import { createGopayProvider, type GopayCredentials } from './gopay';
 import { createComgateProvider, type ComgateCredentials } from './comgate';
 import { createThepayProvider, type ThepayCredentials } from './thepay';
@@ -37,6 +38,8 @@ export function buildProvider(
       return createCodProvider();
     case 'bank_transfer':
       return createBankTransferProvider();
+    case 'qr_platba':
+      return createQrPlatbaProvider();
     case 'gopay': {
       // Credentials are sealed at rest (per `30`) — decrypt before use.
       const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as GopayCredentials;

@@ -788,6 +788,11 @@ export function invoicePdfUrl(tenantSlug: string, orderNumber: string, email: st
   return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/invoice.pdf?email=${encodeURIComponent(email)}`;
 }
 
+/** SPAYD QR-platba image for an order (bank transfer / QR platba). */
+export function orderQrUrl(tenantSlug: string, orderNumber: string, email: string): string {
+  return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/qr.png?email=${encodeURIComponent(email)}`;
+}
+
 async function cartFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${STOREFRONT_API_BASE}/api/${API_VERSION}${path}`, {
     ...init,

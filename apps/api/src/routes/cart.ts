@@ -28,8 +28,9 @@ import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 import { createCheckoutSession, isStripeEnabled } from '../lib/stripe';
-import { initiatePayment, selectCheckoutProvider } from '../lib/payments';
+import { initiatePayment, selectCheckoutProvider, buildSpayd } from '../lib/payments';
 import type { SelectedProvider } from '../lib/payments';
+import QRCode from 'qrcode';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
 import { computeTax, serializeBreakdown, type TaxResult } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
@@ -1094,6 +1095,51 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         }
         throw err;
       }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/orders/{orderNumber}/qr.png?email= — QR Platba
+  // (SPAYD QR code for bank-transfer / QR-platba orders). Anti-enum via ?email=.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string; orderNumber: string }; Querystring: { email?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/orders/:orderNumber/qr.png',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const [order] = await db
+        .select()
+        .from(schema.orders)
+        .where(
+          and(
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.orderNumber, req.params.orderNumber),
+          ),
+        )
+        .limit(1);
+      if (!order) return notFound(reply, 'order');
+      const providedEmail = req.query.email?.toLowerCase();
+      if (!providedEmail || providedEmail !== order.customerEmail.toLowerCase()) {
+        return notFound(reply, 'order');
+      }
+      const iban = (
+        ((tenant.settings ?? {}) as { invoicing?: { bank_account_iban?: string } }).invoicing
+          ?.bank_account_iban ?? ''
+      ).trim();
+      if (!iban) return notFound(reply, 'iban');
+
+      const spayd = buildSpayd({
+        iban,
+        amountMinor: order.totalAmount,
+        currency: order.currency,
+        variableSymbol: order.orderNumber,
+        message: `Objednavka ${order.orderNumber}`,
+      });
+      const png = await QRCode.toBuffer(spayd, { type: 'png', margin: 1, width: 320 });
+      return reply
+        .header('content-type', 'image/png')
+        .header('cache-control', 'public, max-age=3600')
+        .send(png);
     },
   );
 

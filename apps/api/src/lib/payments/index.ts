@@ -10,3 +10,4 @@ export * from './gopay';
 export * from './comgate';
 export * from './thepay';
 export * from './pays';
+export * from './qr-platba';

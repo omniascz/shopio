@@ -54,6 +54,13 @@ const PROVIDER_CATALOG: {
     defaultMethodKinds: ['bank_transfer'],
   },
   {
+    code: 'qr_platba',
+    displayName: 'QR platba',
+    kind: 'offline',
+    description: 'Platba převodem přes QR kód (SPAYD). Bez poplatků, ruční potvrzení.',
+    defaultMethodKinds: ['bank_transfer'],
+  },
+  {
     code: 'gopay',
     displayName: 'GoPay',
     kind: 'redirect',
@@ -90,7 +97,7 @@ const PROVIDER_CATALOG: {
   },
 ];
 
-const WIRED_CODES = new Set(['cod', 'bank_transfer', 'gopay', 'comgate', 'thepay', 'pays']);
+const WIRED_CODES = new Set(['cod', 'bank_transfer', 'qr_platba', 'gopay', 'comgate', 'thepay', 'pays']);
 
 /** Required credential keys per gateway (live mode). */
 const REQUIRED_CREDENTIALS: Record<string, string[]> = {

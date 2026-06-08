@@ -11,6 +11,7 @@ import {
   formatMoney,
   formatVatRate,
   invoicePdfUrl,
+  orderQrUrl,
   type OrderDetail,
   type OrderTrackingShipment,
 } from '@/lib/api';
@@ -260,6 +261,22 @@ export default function OrderConfirmationPage({ params }: Props) {
             ⬇ Stáhnout fakturu (PDF)
           </a>
         )}
+        {order.payment_status !== 'paid' &&
+          email &&
+          ['qr_platba', 'bank_transfer'].includes(order.payment_method) && (
+            <div style={{ marginTop: '1rem' }}>
+              <p style={{ fontSize: '0.875rem', margin: '0 0 0.5rem' }}>
+                Zaplaťte naskenováním QR kódu v bankovní aplikaci:
+              </p>
+              <img
+                src={orderQrUrl(tenantSlug, orderNumber, email)}
+                alt="QR platba"
+                width={200}
+                height={200}
+                style={{ border: '1px solid #eee', borderRadius: 8 }}
+              />
+            </div>
+          )}
       </section>
 
       <Link

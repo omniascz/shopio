@@ -43,6 +43,7 @@ export const PAYMENT_PROVIDER_CODES = [
   'pays',
   'paypal',
   'bank_transfer',
+  'qr_platba',
   'cod',
   'gift_card',
   'manual',
