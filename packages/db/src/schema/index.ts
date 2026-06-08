@@ -69,6 +69,8 @@ export * from './wishlist';
 export * from './stock-watch';
 // Wholesale / B2B price levels (Shoptet "Velkoobchod")
 export * from './customer-groups';
+// Content extras — glossary + poll (Shoptet "Slovník pojmů" + "Anketa")
+export * from './content-extras';
 // No-code automation flows (P3 — BaseLinker Automatic Actions / Shopware Flow Builder)
 export * from './flows';
 // Dynamic collections (P3 — Shopify smart collections / Shopware product streams)
