@@ -25,3 +25,13 @@ createRoot(root).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// PWA: register the service worker in production so the admin is installable
+// ("add to home screen") and launches offline. Skipped in dev to keep HMR.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* registration is best-effort */
+    });
+  });
+}
