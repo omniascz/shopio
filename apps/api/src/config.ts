@@ -43,6 +43,10 @@ const ConfigSchema = z.object({
   SHOPIO_JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 chars'),
   SHOPIO_SESSION_PEPPER: z.string().min(16),
 
+  /** Platform operator allowlist (comma-separated e-mails) — these users get the
+   * cross-tenant master-admin back-office (per `30`/`36`). Empty = disabled. */
+  PLATFORM_ADMIN_EMAILS: z.string().default(''),
+
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
 

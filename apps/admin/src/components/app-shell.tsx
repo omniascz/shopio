@@ -1,9 +1,16 @@
 import { Link, Outlet, useRouter } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../lib/auth-store';
+import { api } from '../lib/api';
 
 export function AppShell() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const platform = useQuery({
+    queryKey: ['platform', 'me'],
+    queryFn: () => api.platformMe(),
+    retry: false,
+  });
 
   async function handleLogout() {
     await logout();
@@ -43,6 +50,12 @@ export function AppShell() {
           <NavLink to="/payments">Platby</NavLink>
           <NavLink to="/plan">Plán</NavLink>
           <NavLink to="/settings">Nastavení</NavLink>
+          {platform.data?.is_platform_admin && (
+            <>
+              <div style={{ borderTop: '1px solid #333', margin: '0.75rem 1.5rem' }} />
+              <NavLink to="/platform">⚙ Platforma</NavLink>
+            </>
+          )}
         </nav>
 
         <div

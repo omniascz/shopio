@@ -248,6 +248,25 @@ export interface WebhookDelivery {
   delivered_at: string | null;
 }
 
+export interface PlatformStats {
+  tenants_total: number;
+  tenants_by_status: Record<string, number>;
+  orders_total: number;
+  mrr_eur_estimate: number;
+}
+export interface PlatformTenant {
+  id: string;
+  slug: string;
+  display_name: string;
+  status: string;
+  country_code: string;
+  currency: string;
+  plan: string;
+  products: number;
+  orders: number;
+  created_at: string;
+}
+
 export interface PlanTier {
   code: string;
   name: string;
@@ -1015,6 +1034,28 @@ class ApiClient {
   }
   async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
     return this.request(`/admin/webhooks/${id}/deliveries`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Platform master-admin (per `36`) — cross-tenant operator tooling
+  // ---------------------------------------------------------------------------
+  async platformMe(): Promise<{ is_platform_admin: boolean }> {
+    return this.request('/platform/me');
+  }
+  async platformStats(): Promise<PlatformStats> {
+    return this.request('/platform/stats');
+  }
+  async platformTenants(): Promise<{ tenants: PlatformTenant[] }> {
+    return this.request('/platform/tenants');
+  }
+  async platformTenantStatus(pubId: string, action: 'suspend' | 'activate'): Promise<unknown> {
+    return this.request(`/platform/tenants/${pubId}/${action}`, { method: 'POST' });
+  }
+  async platformSetTenantPlan(pubId: string, plan: string): Promise<unknown> {
+    return this.request(`/platform/tenants/${pubId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    });
   }
 
   // ---------------------------------------------------------------------------
