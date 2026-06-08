@@ -99,7 +99,21 @@ const PROVIDER_CATALOG: {
     code: 'payu',
     displayName: 'PayU',
     kind: 'redirect',
-    description: 'Mezinárodní brána s CZ působností — karty, bankovní převody.',
+    description: 'Lídr v Polsku, působí i v CZ — karty, bankovní převody, BLIK.',
+    defaultMethodKinds: ['card', 'bank_transfer', 'blik'],
+  },
+  {
+    code: 'przelewy24',
+    displayName: 'Przelewy24 (P24)',
+    kind: 'redirect',
+    description: 'Dominantní polská brána — karty, BLIK, polské banky.',
+    defaultMethodKinds: ['card', 'blik', 'bank_transfer'],
+  },
+  {
+    code: 'trustpay',
+    displayName: 'TrustPay',
+    kind: 'redirect',
+    description: 'SK/EU brána — karty, bankovní převody (CZ/SK/PL).',
     defaultMethodKinds: ['card', 'bank_transfer'],
   },
   {
@@ -152,6 +166,8 @@ const WIRED_CODES = new Set([
   'barion',
   'besteron',
   'twisto',
+  'przelewy24',
+  'trustpay',
   'paypal',
   'stripe',
 ]);
@@ -167,6 +183,8 @@ const REQUIRED_CREDENTIALS: Record<string, string[]> = {
   barion: ['posKey'],
   besteron: ['merchantId', 'apiKey'],
   twisto: ['apiKey'],
+  przelewy24: ['merchantId', 'apiKey', 'crc'],
+  trustpay: ['projectId', 'secret'],
   paypal: ['clientId', 'clientSecret'],
   stripe: ['secretKey'],
 };

@@ -18,3 +18,5 @@ export * from './besteron';
 export * from './twisto';
 export * from './paypal';
 export * from './stripe-provider';
+export * from './przelewy24';
+export * from './trustpay';

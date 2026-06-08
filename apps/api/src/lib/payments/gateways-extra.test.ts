@@ -10,6 +10,7 @@ import { mapBarionState } from './barion';
 import { mapBesteronState } from './besteron';
 import { mapTwistoState } from './twisto';
 import { mapPaypalStatus } from './paypal';
+import { mapTrustpayStatus } from './trustpay';
 
 describe('mapGpwebpayResult', () => {
   it('0/0 = captured, else failed/cancelled', () => {
@@ -54,5 +55,13 @@ describe('mapPaypalStatus', () => {
     expect(mapPaypalStatus('COMPLETED')).toBe('captured');
     expect(mapPaypalStatus('APPROVED')).toBe('processing');
     expect(mapPaypalStatus('VOIDED')).toBe('cancelled');
+  });
+});
+
+describe('mapTrustpayStatus', () => {
+  it('paid→captured, pending→processing, expired→expired', () => {
+    expect(mapTrustpayStatus('paid')).toBe('captured');
+    expect(mapTrustpayStatus('pending')).toBe('processing');
+    expect(mapTrustpayStatus('expired')).toBe('expired');
   });
 });

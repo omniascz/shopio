@@ -46,6 +46,8 @@ export const PAYMENT_PROVIDER_CODES = [
   'barion',
   'besteron',
   'twisto',
+  'przelewy24',
+  'trustpay',
   'paypal',
   'bank_transfer',
   'qr_platba',
