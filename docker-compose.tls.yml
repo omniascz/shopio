@@ -1,0 +1,36 @@
+# Shopio TLS overlay (B4) — layer on top of the prod stack to terminate HTTPS
+# with automatic Let's Encrypt certificates (Caddy).
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml \
+#     --env-file .env.prod up -d --build
+#
+# Prereqs: DNS A records for SHOPIO_DOMAIN_* point at this host; ports 80+443 open.
+# The app services no longer need to publish their ports publicly — Caddy reaches
+# them on the internal network.
+
+name: shopio-prod
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SHOPIO_DOMAIN_SHOP: ${SHOPIO_DOMAIN_SHOP:?set SHOPIO_DOMAIN_SHOP in .env.prod}
+      SHOPIO_DOMAIN_ADMIN: ${SHOPIO_DOMAIN_ADMIN:?set SHOPIO_DOMAIN_ADMIN in .env.prod}
+      SHOPIO_DOMAIN_API: ${SHOPIO_DOMAIN_API:?set SHOPIO_DOMAIN_API in .env.prod}
+      SHOPIO_DOMAIN_MEDIA: ${SHOPIO_DOMAIN_MEDIA:?set SHOPIO_DOMAIN_MEDIA in .env.prod}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - storefront
+      - admin
+      - api
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,23 @@
+# Shopio TLS reverse proxy (B4). Caddy auto-provisions Let's Encrypt certs for
+# the domains below (set them in .env.prod). Routes each domain to its service.
+# Point the domains' DNS A records at this host first, and open ports 80 + 443.
+
+{$SHOPIO_DOMAIN_SHOP} {
+	encode zstd gzip
+	reverse_proxy storefront:3030
+}
+
+{$SHOPIO_DOMAIN_ADMIN} {
+	encode zstd gzip
+	reverse_proxy admin:80
+}
+
+{$SHOPIO_DOMAIN_API} {
+	reverse_proxy api:4040
+}
+
+# Public media (MinIO bucket). Front with a CDN later if traffic grows.
+{$SHOPIO_DOMAIN_MEDIA} {
+	encode gzip
+	reverse_proxy minio:9000
+}

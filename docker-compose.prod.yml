@@ -90,6 +90,11 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       PACKETA_API_KEY: ${PACKETA_API_KEY:-}
       PACKETA_API_PASSWORD: ${PACKETA_API_PASSWORD:-}
+      DATABASE_URL_APP: ${DATABASE_URL_APP:-}
+      SHOPIO_SECRET_KEY: ${SHOPIO_SECRET_KEY:-}
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - '${API_PORT:-4040}:4040'
     healthcheck:
@@ -130,8 +135,28 @@ services:
     ports:
       - '${ADMIN_PORT:-3031}:80'
 
+  # Daily Postgres backups (B5) — gzipped dumps to the `backups` volume with
+  # retention. Mount the volume off-box or set BACKUP_S3_* for offsite copies.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-shopio}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - backups:/backups
+      - ./deploy/backup.sh:/backup.sh:ro
+    entrypoint: ['sh', '/backup.sh']
+
 volumes:
   pg_data:
   redis_data:
   meili_data:
   minio_data:
+  backups:
