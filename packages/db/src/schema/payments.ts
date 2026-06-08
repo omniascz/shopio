@@ -40,6 +40,7 @@ export const PAYMENT_PROVIDER_CODES = [
   'gopay',
   'comgate',
   'thepay',
+  'pays',
   'paypal',
   'bank_transfer',
   'cod',

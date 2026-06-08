@@ -86,20 +86,28 @@ export async function registerPaymentWebhookRoutes(
     }
 
     const provider = buildProvider(cfg, config);
-    if (!provider || !provider.getStatus) {
+    if (!provider) {
       return reply.code(400).send({
-        error: { code: 'PROVIDER_UNSUPPORTED', message: 'Provider does not support webhooks' },
+        error: { code: 'PROVIDER_UNSUPPORTED', message: 'Provider not available' },
       });
     }
 
     // Extract the provider payment id — GoPay carries it as ?id=, the CZ
     // gateways (ComGate/Pays/ThePay) post it in the form body.
     const body = (req.body ?? {}) as Record<string, string | undefined>;
+    // Some gateways carry the result (and verification hash) in the payload
+    // (Pays); others only an id, requiring a status fetch (GoPay/ComGate/ThePay).
+    const parsed = provider.parseWebhookEvent
+      ? await provider.parseWebhookEvent(body, req.headers)
+      : null;
+
     const providerPaymentId =
+      parsed?.providerPaymentId ??
       req.query.id ??
       body.transId ?? // ComGate
       body.uid ?? // ThePay
       body.payment_uid ??
+      body.MerchantOrderNumber ?? // Pays
       body.id ??
       body.payment_id ??
       body.paymentId ??
@@ -109,17 +117,24 @@ export async function registerPaymentWebhookRoutes(
       return reply.code(200).send({ received: true, matched: false });
     }
 
-    // Fetch the authoritative status from the gateway (this IS the verification).
+    // Resolve the status: from the verified payload if present, else fetch it.
     let status;
-    let methodKind: string | null;
-    try {
-      const result = await provider.getStatus(providerPaymentId);
-      status = result.status;
-      methodKind = result.methodKind ?? null;
-    } catch (err) {
-      app.log.error({ err, providerPaymentId }, 'payments.webhook.status_fetch_failed');
-      // 500 → provider retries.
-      return reply.code(500).send({ error: { code: 'STATUS_FETCH_FAILED', message: 'Retry' } });
+    let methodKind: string | null = parsed?.methodKind ?? null;
+    if (parsed?.status) {
+      status = parsed.status;
+    } else if (provider.getStatus) {
+      try {
+        const result = await provider.getStatus(providerPaymentId);
+        status = result.status;
+        methodKind = result.methodKind ?? null;
+      } catch (err) {
+        app.log.error({ err, providerPaymentId }, 'payments.webhook.status_fetch_failed');
+        return reply.code(500).send({ error: { code: 'STATUS_FETCH_FAILED', message: 'Retry' } });
+      }
+    } else {
+      // No status in payload and no status API — can't determine outcome.
+      app.log.warn({ providerCode, providerPaymentId }, 'payments.webhook.unverifiable');
+      return reply.code(200).send({ received: true, matched: false });
     }
 
     // Idempotency: one event per (provider, payment, resolved status). Repeated

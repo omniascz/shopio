@@ -9,3 +9,4 @@ export * from './capture';
 export * from './gopay';
 export * from './comgate';
 export * from './thepay';
+export * from './pays';
