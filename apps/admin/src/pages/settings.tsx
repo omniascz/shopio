@@ -33,10 +33,54 @@ export function SettingsPage() {
 
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
+      <FeedsSection slug={settings.slug} />
       <AppearanceSection settings={settings} />
       <HomepageSection settings={settings} />
       <LocalesSection />
     </div>
+  );
+}
+
+// =============================================================================
+// Marketing feedy (per `29-integrations.md`) — Heureka / Zboží.cz / Glami
+// =============================================================================
+
+function FeedsSection({ slug }: { slug: string }) {
+  const base = (import.meta.env.VITE_STOREFRONT_URL ?? 'http://localhost:3030').replace(/\/$/, '');
+  const feeds = [
+    { code: 'heureka', label: 'Heureka.cz' },
+    { code: 'zbozi', label: 'Zboží.cz' },
+    { code: 'glami', label: 'Glami (móda)' },
+  ];
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Marketing feedy</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Vložte tyto XML adresy do administrace srovnávačů. Feed se generuje automaticky z aktivních
+        produktů a aktualizuje se průběžně.
+      </p>
+      {feeds.map((f) => {
+        const url = `${base}/s/${slug}/feeds/${f.code}.xml`;
+        return (
+          <div key={f.code} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ width: 90, fontSize: '0.875rem', fontWeight: 500 }}>{f.label}</span>
+            <input
+              readOnly
+              value={url}
+              onFocus={(e) => e.currentTarget.select()}
+              style={{ flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #ddd', borderRadius: 4, fontSize: '0.8125rem', fontFamily: 'monospace' }}
+            />
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard?.writeText(url)}
+              style={{ padding: '0.4rem 0.75rem', border: '1px solid #ddd', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: '0.8125rem' }}
+            >
+              Kopírovat
+            </button>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
