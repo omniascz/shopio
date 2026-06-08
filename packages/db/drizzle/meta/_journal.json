@@ -197,6 +197,13 @@
       "when": 1780924526205,
       "tag": "0027_bundles",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1780925059030,
+      "tag": "0028_customer_addresses",
+      "breakpoints": true
     }
   ]
 }

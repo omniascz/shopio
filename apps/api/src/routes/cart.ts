@@ -72,17 +72,25 @@ const UpdateItemBody = z.object({
 });
 
 const CheckoutBody = z.object({
-  customerEmail: z.string().email().toLowerCase(),
-  customerName: z.string().min(1).max(255),
+  // Email/name/address are optional only when a logged-in customer supplies a
+  // `savedAddressId` (express checkout) — the server fills them from the book +
+  // account. A runtime guard rejects a checkout that ends up missing them.
+  customerEmail: z.string().email().toLowerCase().optional(),
+  customerName: z.string().min(1).max(255).optional(),
   customerPhone: z.string().max(40).optional(),
-  shippingAddress: z.object({
-    line1: z.string().min(1).max(200),
-    line2: z.string().max(200).optional(),
-    city: z.string().min(1).max(100),
-    postalCode: z.string().min(1).max(20),
-    countryCode: z.string().length(2),
-    state: z.string().max(100).optional(),
-  }),
+  shippingAddress: z
+    .object({
+      line1: z.string().min(1).max(200),
+      line2: z.string().max(200).optional(),
+      city: z.string().min(1).max(100),
+      postalCode: z.string().min(1).max(20),
+      countryCode: z.string().length(2),
+      state: z.string().max(100).optional(),
+    })
+    .optional(),
+  /** Express checkout: use a saved address (per `18`) instead of an inline one.
+   * Only honoured for the logged-in owner of that address. */
+  savedAddressId: z.string().max(40).optional(),
   customerNote: z.string().max(2000).optional(),
   /** Chosen payment method. `'invoice'` = B2B NET terms (only honoured when the
    * logged-in customer's company has merchant-granted NET terms). Otherwise a
@@ -229,6 +237,107 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const items = await listCartItems(db, cart.id);
       return reply.code(201).send({
         data: { ...(await buildCartPayload(db, tenant, cart, items)), added_item_id: resultItemId },
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/cart/reorder/{orderNumber} — 1-click buy-again
+  // (per `18` returning-customer). Repopulates the active cart with a past
+  // order's still-purchasable lines; reports any that are gone / out of stock.
+  // Owner-scoped: the logged-in customer must own the order (id or account email).
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string; orderNumber: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/cart/reorder/:orderNumber',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+
+      const order = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [o] = await tx
+          .select({ id: schema.orders.id, customerId: schema.orders.customerId, email: schema.orders.customerEmail })
+          .from(schema.orders)
+          .where(
+            and(
+              eq(schema.orders.tenantId, tenant.id),
+              eq(schema.orders.orderNumber, req.params.orderNumber),
+            ),
+          )
+          .limit(1);
+        return o ?? null;
+      });
+      // Ownership: account id match OR same verified account email (guest order).
+      if (!order || (order.customerId !== customer.id && order.email !== customer.email)) {
+        return notFound(reply, 'order');
+      }
+
+      const orderLines = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({ variantId: schema.orderItems.variantId, quantity: schema.orderItems.quantity })
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.orderId, order.id)),
+      );
+
+      const sessionId = ensureSession(req, reply, isProd);
+      const cart = await getOrCreateCart(db, tenant.id, sessionId, tenant.defaultCurrency);
+
+      const skipped: { variant_id: string; reason: string }[] = [];
+      let addedLines = 0;
+      for (const line of orderLines) {
+        if (!line.variantId) continue;
+        const variant = await resolveVariant(db, tenant.id, line.variantId);
+        if (!variant) {
+          skipped.push({ variant_id: line.variantId, reason: 'unavailable' });
+          continue;
+        }
+        const [existing] = await db
+          .select({ id: schema.cartItems.id, quantity: schema.cartItems.quantity })
+          .from(schema.cartItems)
+          .where(and(eq(schema.cartItems.cartId, cart.id), eq(schema.cartItems.variantId, variant.id)))
+          .limit(1);
+        const desired = (existing?.quantity ?? 0) + line.quantity;
+        const cap = variant.allowBackorder ? desired : Math.min(desired, availableQuantity(variant));
+        if (cap <= 0) {
+          skipped.push({ variant_id: variant.id, reason: 'out_of_stock' });
+          continue;
+        }
+        if (existing) {
+          await db
+            .update(schema.cartItems)
+            .set({ quantity: cap, updatedAt: new Date() })
+            .where(eq(schema.cartItems.id, existing.id));
+        } else {
+          await db.insert(schema.cartItems).values({
+            tenantId: tenant.id,
+            cartId: cart.id,
+            pubId: generatePubId('cti'),
+            variantId: variant.id,
+            productId: variant.productId,
+            quantity: cap,
+            unitPriceAmount: variant.priceAmount,
+            unitPriceCurrency: variant.priceCurrency,
+            titleSnapshot: `${variant.productTitle} — ${variant.variantTitle}`,
+          });
+        }
+        if (cap < line.quantity) skipped.push({ variant_id: variant.id, reason: 'reduced_to_stock' });
+        addedLines++;
+      }
+
+      await db
+        .update(schema.carts)
+        .set({ updatedAt: new Date() })
+        .where(eq(schema.carts.id, cart.id));
+
+      const items = await listCartItems(db, cart.id);
+      return reply.send({
+        data: {
+          ...(await buildCartPayload(db, tenant, cart, items)),
+          reorder: { added_lines: addedLines, skipped },
+        },
       });
     },
   );
@@ -485,6 +594,60 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       // remembers the shipping address for the next checkout. Guest stays fine.
       const customer = await resolveCustomer(rlsDb, req, tenant.id);
 
+      // Express checkout (per `18`): resolve a saved address for the logged-in
+      // owner, then fill any omitted contact fields from the book + account.
+      let savedAddr: typeof schema.customerAddresses.$inferSelect | null = null;
+      if (input.savedAddressId) {
+        if (!customer) {
+          return reply.code(401).send({
+            error: { code: 'NOT_LOGGED_IN', message: 'Uložené adresy vyžadují přihlášení' },
+          });
+        }
+        savedAddr = await withTenant(rlsDb, tenant.id, async (tx) => {
+          const [row] = await tx
+            .select()
+            .from(schema.customerAddresses)
+            .where(
+              and(
+                eq(schema.customerAddresses.tenantId, tenant.id),
+                eq(schema.customerAddresses.customerId, customer.id),
+                eq(schema.customerAddresses.pubId, input.savedAddressId!),
+              ),
+            )
+            .limit(1);
+          return row ?? null;
+        });
+        if (!savedAddr) {
+          return reply.code(404).send({
+            error: { code: 'ADDRESS_NOT_FOUND', message: 'Uložená adresa nenalezena' },
+          });
+        }
+      }
+
+      // Normalized checkout identity — saved address > inline body > account.
+      const shipAddress = savedAddr
+        ? {
+            line1: savedAddr.line1,
+            line2: savedAddr.line2 ?? undefined,
+            city: savedAddr.city,
+            postalCode: savedAddr.postalCode,
+            countryCode: savedAddr.countryCode,
+            state: savedAddr.state ?? undefined,
+          }
+        : input.shippingAddress;
+      const customerEmail = input.customerEmail ?? customer?.email;
+      const customerName =
+        input.customerName ?? savedAddr?.recipientName ?? customer?.fullName ?? undefined;
+      const customerPhone = input.customerPhone ?? savedAddr?.phone ?? customer?.phone ?? undefined;
+      if (!shipAddress || !customerEmail || !customerName) {
+        return reply.code(422).send({
+          error: {
+            code: 'MISSING_CHECKOUT_FIELDS',
+            message: 'Chybí doručovací adresa, jméno nebo e-mail',
+          },
+        });
+      }
+
       // B2B (per `21`): if the customer belongs to a company, the order is
       // billed to that company. Pay-on-invoice (NET terms) is offered only
       // when the merchant has granted it for that company.
@@ -549,7 +712,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
       // Shipping selection — resolve + price the chosen rate against the cart
       // metrics + ship-to country (per `14 §5`). Validate pickup point if required.
-      const country = input.shippingAddress.countryCode.toUpperCase();
+      const country = shipAddress.countryCode.toUpperCase();
       const metrics = cartMetrics(items);
       let shippingOption = null;
       let pickupSnapshot: Record<string, unknown> | null = null;
@@ -768,11 +931,11 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               pubId: generatePubId('ord'),
               orderNumber,
               customerId: customer?.id ?? null,
-              customerEmail: input.customerEmail,
-              customerName: input.customerName,
-              customerPhone: input.customerPhone ?? null,
-              shippingAddress: input.shippingAddress,
-              billingAddress: input.shippingAddress,
+              customerEmail,
+              customerName,
+              customerPhone: customerPhone ?? null,
+              shippingAddress: shipAddress,
+              billingAddress: shipAddress,
               currency: cart.currency,
               subtotalAmount: grossGoods,
               discountAmount: totalDiscount,
@@ -916,7 +1079,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         });
 
         app.log.info(
-          { orderId: result.id, tenantId: tenant.id, customerEmail: input.customerEmail },
+          { orderId: result.id, tenantId: tenant.id, customerEmail },
           'checkout.order_placed',
         );
 
@@ -934,7 +1097,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         if (customer) {
           void db
             .update(schema.customers)
-            .set({ defaultAddress: input.shippingAddress, updatedAt: new Date() })
+            .set({ defaultAddress: shipAddress, updatedAt: new Date() })
             .where(eq(schema.customers.id, customer.id))
             .catch(() => {});
         }
@@ -949,7 +1112,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               orderNumber: result.orderNumber,
               customerName: result.customerName,
               customerEmail: result.customerEmail,
-              shippingAddress: input.shippingAddress,
+              shippingAddress: shipAddress,
               items: items.map((it) => ({
                 productTitle: it.titleSnapshot.split(' — ')[0] ?? it.titleSnapshot,
                 variantTitle: it.titleSnapshot.split(' — ')[1] ?? '',

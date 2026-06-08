@@ -40,6 +40,7 @@ export default defineConfig({
     './src/schema/subscriptions.ts',
     './src/schema/gift-cards.ts',
     './src/schema/bundles.ts',
+    './src/schema/customer-addresses.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

@@ -53,3 +53,5 @@ export * from './subscriptions';
 export * from './gift-cards';
 // Product bundles (Wave 1 — `06-catalog-pim.md` §3.5 MVP)
 export * from './bundles';
+// Customer address book (Wave 1 — `18-customer-management.md` express checkout)
+export * from './customer-addresses';

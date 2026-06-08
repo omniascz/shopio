@@ -21,7 +21,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createHash, randomBytes } from 'node:crypto';
-import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, or, sql as dsql } from 'drizzle-orm';
 import { schema, withTenant } from '@shopio/db';
 import {
   PasswordPolicyError,
@@ -256,6 +256,185 @@ export async function registerCustomerAuthRoutes(
           })),
         },
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Address book (per `18`) — saved addresses for express / returning checkout.
+  //   GET    /me/addresses
+  //   POST   /me/addresses
+  //   PATCH  /me/addresses/{pubId}
+  //   DELETE /me/addresses/{pubId}
+  //   POST   /me/addresses/{pubId}/default
+  // ---------------------------------------------------------------------------
+  const AddressBody = z.object({
+    label: z.string().max(60).nullable().optional(),
+    recipientName: z.string().min(1).max(255),
+    phone: z.string().max(40).nullable().optional(),
+    line1: z.string().min(1).max(200),
+    line2: z.string().max(200).nullable().optional(),
+    city: z.string().min(1).max(100),
+    postalCode: z.string().min(1).max(20),
+    countryCode: z.string().length(2),
+    state: z.string().max(100).nullable().optional(),
+    isDefault: z.boolean().optional(),
+  });
+
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/addresses',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const rows = await withTenant(rlsDb, ctx.tenant.id, (tx) =>
+        tx
+          .select()
+          .from(schema.customerAddresses)
+          .where(
+            and(
+              eq(schema.customerAddresses.tenantId, ctx.tenant.id),
+              eq(schema.customerAddresses.customerId, ctx.customer.id),
+            ),
+          )
+          .orderBy(desc(schema.customerAddresses.isDefault), desc(schema.customerAddresses.createdAt)),
+      );
+      return reply.send({ data: { addresses: rows.map(serializeAddress) } });
+    },
+  );
+
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/addresses',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const parsed = AddressBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const i = parsed.data;
+      const created = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        // First address (or explicit flag) becomes the default; clear any prior.
+        const countRows = await tx
+          .select({ count: dsql<number>`count(*)::int` })
+          .from(schema.customerAddresses)
+          .where(
+            and(
+              eq(schema.customerAddresses.tenantId, ctx.tenant.id),
+              eq(schema.customerAddresses.customerId, ctx.customer.id),
+            ),
+          );
+        const makeDefault = i.isDefault || (countRows[0]?.count ?? 0) === 0;
+        if (makeDefault) await clearDefaultAddress(tx, ctx.tenant.id, ctx.customer.id);
+        const [row] = await tx
+          .insert(schema.customerAddresses)
+          .values({
+            tenantId: ctx.tenant.id,
+            pubId: generatePubId('adr'),
+            customerId: ctx.customer.id,
+            label: i.label ?? null,
+            recipientName: i.recipientName,
+            phone: i.phone ?? null,
+            line1: i.line1,
+            line2: i.line2 ?? null,
+            city: i.city,
+            postalCode: i.postalCode,
+            countryCode: i.countryCode.toUpperCase(),
+            state: i.state ?? null,
+            isDefault: makeDefault,
+          })
+          .returning();
+        return row!;
+      });
+      return reply.code(201).send({ data: serializeAddress(created) });
+    },
+  );
+
+  app.patch<{ Params: { tenantSlug: string; pubId: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/addresses/:pubId',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const parsed = AddressBody.partial().safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const i = parsed.data;
+      const updated = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const [existing] = await tx
+          .select({ id: schema.customerAddresses.id })
+          .from(schema.customerAddresses)
+          .where(
+            and(
+              eq(schema.customerAddresses.tenantId, ctx.tenant.id),
+              eq(schema.customerAddresses.customerId, ctx.customer.id),
+              eq(schema.customerAddresses.pubId, req.params.pubId),
+            ),
+          )
+          .limit(1);
+        if (!existing) return null;
+        if (i.isDefault) await clearDefaultAddress(tx, ctx.tenant.id, ctx.customer.id);
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        for (const k of ['label', 'recipientName', 'phone', 'line1', 'line2', 'city', 'postalCode', 'state', 'isDefault'] as const) {
+          if (i[k] !== undefined) updates[k] = i[k];
+        }
+        if (i.countryCode !== undefined) updates.countryCode = i.countryCode.toUpperCase();
+        const [row] = await tx
+          .update(schema.customerAddresses)
+          .set(updates)
+          .where(eq(schema.customerAddresses.id, existing.id))
+          .returning();
+        return row!;
+      });
+      if (!updated) return notFound(reply, 'ADDRESS_NOT_FOUND');
+      return reply.send({ data: serializeAddress(updated) });
+    },
+  );
+
+  app.delete<{ Params: { tenantSlug: string; pubId: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/addresses/:pubId',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const ok = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const [row] = await tx
+          .delete(schema.customerAddresses)
+          .where(
+            and(
+              eq(schema.customerAddresses.tenantId, ctx.tenant.id),
+              eq(schema.customerAddresses.customerId, ctx.customer.id),
+              eq(schema.customerAddresses.pubId, req.params.pubId),
+            ),
+          )
+          .returning({ id: schema.customerAddresses.id });
+        return Boolean(row);
+      });
+      if (!ok) return notFound(reply, 'ADDRESS_NOT_FOUND');
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: { tenantSlug: string; pubId: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/addresses/:pubId/default',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const ok = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const [existing] = await tx
+          .select({ id: schema.customerAddresses.id })
+          .from(schema.customerAddresses)
+          .where(
+            and(
+              eq(schema.customerAddresses.tenantId, ctx.tenant.id),
+              eq(schema.customerAddresses.customerId, ctx.customer.id),
+              eq(schema.customerAddresses.pubId, req.params.pubId),
+            ),
+          )
+          .limit(1);
+        if (!existing) return false;
+        await clearDefaultAddress(tx, ctx.tenant.id, ctx.customer.id);
+        await tx
+          .update(schema.customerAddresses)
+          .set({ isDefault: true, updatedAt: new Date() })
+          .where(eq(schema.customerAddresses.id, existing.id));
+        return true;
+      });
+      if (!ok) return notFound(reply, 'ADDRESS_NOT_FOUND');
+      return reply.code(204).send();
     },
   );
 
@@ -1260,6 +1439,60 @@ async function resolveTenant(db: AppDb, slug: string) {
     .limit(1);
   if (!t || t.status !== 'active') return null;
   return t;
+}
+
+/**
+ * Resolve the tenant + logged-in customer in one step, writing the 404/401
+ * response itself. Returns null when it has already replied (caller bails).
+ */
+async function requireCustomer(
+  rlsDb: AppDb,
+  db: AppDb,
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<{ tenant: { id: string }; customer: typeof schema.customers.$inferSelect } | null> {
+  const slug = (req.params as { tenantSlug: string }).tenantSlug;
+  const tenant = await resolveTenant(db, slug);
+  if (!tenant) {
+    notFound(reply, 'TENANT_NOT_FOUND');
+    return null;
+  }
+  const customer = await resolveCustomer(rlsDb, req, tenant.id);
+  if (!customer) {
+    reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+    return null;
+  }
+  return { tenant: { id: tenant.id }, customer };
+}
+
+/** Clear the current default flag (the partial unique index allows only one). */
+async function clearDefaultAddress(tx: any, tenantId: string, customerId: string): Promise<void> {
+  await tx
+    .update(schema.customerAddresses)
+    .set({ isDefault: false })
+    .where(
+      and(
+        eq(schema.customerAddresses.tenantId, tenantId),
+        eq(schema.customerAddresses.customerId, customerId),
+        eq(schema.customerAddresses.isDefault, true),
+      ),
+    );
+}
+
+function serializeAddress(a: typeof schema.customerAddresses.$inferSelect) {
+  return {
+    id: a.pubId,
+    label: a.label,
+    recipient_name: a.recipientName,
+    phone: a.phone,
+    line1: a.line1,
+    line2: a.line2,
+    city: a.city,
+    postal_code: a.postalCode,
+    country_code: a.countryCode,
+    state: a.state,
+    is_default: a.isDefault,
+  };
 }
 
 function notFound(reply: any, code: string) {
