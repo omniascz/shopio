@@ -661,12 +661,33 @@ export async function registerStorefrontRoutes(
           brand_name: product.brandName,
           published_at: product.publishedAt,
           attributes: product.attributes,
+          // Statutory disclosures (CZ): recycling fee (PHE, included in price) +
+          // returnable deposit (added on top, no VAT).
+          recycling_fee: product.recyclingFeeAmount ? present.money(product.recyclingFeeAmount) : null,
+          deposit: product.depositAmount ? present.money(product.depositAmount) : null,
+          // Unit pricing (EU 98/6/ES) — "cena za měrnou jednotku".
+          unit_pricing: unitPricing(
+            present,
+            product.basePriceAmount ?? variants[0]?.priceAmount ?? null,
+            product.unitContentAmount,
+            product.unitContentUom,
+            product.unitBaseAmount,
+          ),
           variants: variants.map((v) => ({
             id: v.pubId,
             sku: v.sku,
             title: v.title,
             price: present.money(v.priceAmount),
             compare_at: v.compareAtAmount ? present.money(v.compareAtAmount) : null,
+            min_order_quantity: v.minOrderQuantity,
+            max_order_quantity: v.maxOrderQuantity,
+            unit_pricing: unitPricing(
+              present,
+              v.priceAmount,
+              product.unitContentAmount,
+              product.unitContentUom,
+              product.unitBaseAmount,
+            ),
             // EU Omnibus (per directive 2019/2161): lowest price of the last 30
             // days — shown next to the sale price. Only meaningful when on sale.
             lowest_price_30d:
@@ -1031,6 +1052,34 @@ interface Presenter {
   currency: string;
   /** Convert a base-currency minor amount to the presentment currency. */
   money: (minor: bigint) => { amount: string; currency: string };
+}
+
+/** Sensible "price per …" base when the merchant didn't set one explicitly. */
+function defaultUnitBase(uom: string): number {
+  return uom === 'g' || uom === 'ml' ? 100 : 1; // Kč/100 g, Kč/100 ml; else Kč/1 unit
+}
+
+/** EU 98/6/ES unit price ("cena za měrnou jednotku"): price scaled to the base
+ * measure. Null unless the product declares content amount + unit. */
+function unitPricing(
+  present: Presenter,
+  price: bigint | null,
+  contentAmount: string | null,
+  uom: string | null,
+  baseAmount: string | null,
+) {
+  if (price == null || !contentAmount || !uom) return null;
+  const content = Number(contentAmount);
+  if (!Number.isFinite(content) || content <= 0) return null;
+  const base = baseAmount ? Number(baseAmount) : defaultUnitBase(uom);
+  if (!Number.isFinite(base) || base <= 0) return null;
+  const perBase = BigInt(Math.round(Number(price) * (base / content)));
+  return {
+    price_per_base: present.money(perBase),
+    base_amount: base,
+    uom,
+    content_amount: content,
+  };
 }
 
 /**

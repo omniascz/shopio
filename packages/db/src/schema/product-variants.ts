@@ -52,6 +52,10 @@ export const productVariants = pgTable(
     /** Denormalized Σ of active reservations — maintained transactionally. */
     stockReserved: integer('stock_reserved').notNull().default(0),
     allowBackorder: boolean('allow_backorder').notNull().default(false),
+    // Orderable quantity bounds (Shoptet "Min & Max objednatelné množství").
+    // Enforced in the cart. min defaults to 1; max null = uncapped.
+    minOrderQuantity: integer('min_order_quantity').notNull().default(1),
+    maxOrderQuantity: integer('max_order_quantity'),
     // Options (e.g. { color: 'black', size: 'L' })
     optionValues: jsonb('option_values')
       .notNull()

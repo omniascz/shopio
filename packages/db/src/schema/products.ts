@@ -10,6 +10,7 @@ import {
   bigint,
   index,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -42,6 +43,17 @@ export const products = pgTable(
     basePriceAmount: bigint('base_price_amount', { mode: 'bigint' }), // minor units (e.g. haléře)
     basePriceCurrency: text('base_price_currency'), // ISO 4217
     compareAtAmount: bigint('compare_at_amount', { mode: 'bigint' }), // strikethrough
+    // Unit pricing (per EU 98/6/ES + CZ ZoOS — "cena za měrnou jednotku"). The
+    // product's content (e.g. 500 g) + the base it's quoted against (e.g. 100 g);
+    // storefront shows "X Kč / 100 g". Null → not a unit-priced good.
+    unitContentAmount: numeric('unit_content_amount'), // e.g. 500
+    unitContentUom: text('unit_content_uom'), // 'g' | 'kg' | 'ml' | 'l' | 'ks' | 'm' | 'm2' | …
+    unitBaseAmount: numeric('unit_base_amount'), // e.g. 100 (defaults to a sensible base per UOM)
+    // Recycling fee / PHE (CZ zák. 542/2020 o výrobcích s ukončenou životností):
+    // included in the price by law, but must be disclosed. Minor units.
+    recyclingFeeAmount: bigint('recycling_fee_amount', { mode: 'bigint' }),
+    // Returnable deposit (vratná záloha, e.g. kegs/bottles). Added on top, no VAT.
+    depositAmount: bigint('deposit_amount', { mode: 'bigint' }),
     // Tax (per `15-tax-compliance.md` §4 — tax class drives VAT rate at checkout)
     taxClassCode: text('tax_class_code').notNull().default('standard'),
     // SEO

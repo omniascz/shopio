@@ -73,9 +73,25 @@ const VariantInput = z.object({
   requiresShipping: z.boolean().default(true),
   stockOnHand: z.number().int().nonnegative().default(0),
   allowBackorder: z.boolean().default(false),
+  minOrderQuantity: z.number().int().positive().max(9999).default(1),
+  maxOrderQuantity: z.number().int().positive().max(9999).nullable().optional(),
   optionValues: z.record(z.string(), z.string()).default({}),
   position: z.number().int().default(0),
 });
+
+/** Unit pricing + statutory surcharges, shared by create/update product. */
+const moneyField = z
+  .union([z.bigint(), z.number(), z.string()])
+  .transform((v) => (v === '' || v == null ? null : BigInt(v)))
+  .nullable()
+  .optional();
+const ProductChargeFields = {
+  unitContentAmount: z.union([z.number(), z.string()]).nullable().optional(),
+  unitContentUom: z.string().max(16).nullable().optional(),
+  unitBaseAmount: z.union([z.number(), z.string()]).nullable().optional(),
+  recyclingFeeAmount: moneyField,
+  depositAmount: moneyField,
+};
 
 const MediaInput = z.object({
   kind: z.enum(['image', 'video', 'model_3d']).default('image'),
@@ -108,6 +124,7 @@ const CreateProductBody = z.object({
     .array(z.object({ name: z.string().min(1).max(80), value: z.string().min(1).max(200) }))
     .max(50)
     .default([]),
+  ...ProductChargeFields,
   variants: z.array(VariantInput).min(1).max(100),
   media: z.array(MediaInput).max(50).default([]),
   categoryIds: z.array(z.string().uuid()).max(20).default([]),
@@ -140,6 +157,7 @@ const UpdateProductBody = z.object({
   /** Full replacement of category assignments (M:M sync). Accepts category
    * pub_ids (cat_…) or internal UUIDs. */
   categoryIds: z.array(z.string().min(1)).max(20).optional(),
+  ...ProductChargeFields,
 });
 
 const UpdateVariantBody = z.object({
@@ -155,6 +173,8 @@ const UpdateVariantBody = z.object({
     .optional(),
   weightGrams: z.number().int().nonnegative().nullable().optional(),
   allowBackorder: z.boolean().optional(),
+  minOrderQuantity: z.number().int().positive().max(9999).optional(),
+  maxOrderQuantity: z.number().int().positive().max(9999).nullable().optional(),
   /** Absolute stock level — recorded as an `adjustment` ledger movement. */
   stockOnHand: z.number().int().nonnegative().optional(),
   stockNote: z.string().max(500).optional(),
@@ -391,6 +411,11 @@ export async function registerProductRoutes(
             vendor: input.vendor ?? null,
             brandName: input.brandName ?? null,
             attributes: input.attributes,
+            unitContentAmount: input.unitContentAmount != null ? String(input.unitContentAmount) : null,
+            unitContentUom: input.unitContentUom ?? null,
+            unitBaseAmount: input.unitBaseAmount != null ? String(input.unitBaseAmount) : null,
+            recyclingFeeAmount: input.recyclingFeeAmount ?? null,
+            depositAmount: input.depositAmount ?? null,
             publishedAt: input.status === 'active' ? new Date() : null,
             createdByUserId: auth.userId,
           })
@@ -415,6 +440,8 @@ export async function registerProductRoutes(
               requiresShipping: v.requiresShipping,
               stockOnHand: v.stockOnHand,
               allowBackorder: v.allowBackorder,
+              minOrderQuantity: v.minOrderQuantity,
+              maxOrderQuantity: v.maxOrderQuantity ?? null,
               optionValues: v.optionValues,
               position: v.position ?? i,
             })),
@@ -684,6 +711,10 @@ export async function registerProductRoutes(
 
       const { categoryIds, vendorId: vendorPubId, ...fieldInput } = parsed.data;
       const updates: Record<string, unknown> = { ...fieldInput, updatedAt: new Date() };
+      // numeric columns take strings in Drizzle
+      for (const k of ['unitContentAmount', 'unitBaseAmount'] as const) {
+        if (updates[k] != null) updates[k] = String(updates[k]);
+      }
 
       // Auto-set publishedAt on first publish
       if (parsed.data.status === 'active' && existing.status !== 'active') {

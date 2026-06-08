@@ -200,6 +200,11 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         )
         .limit(1);
 
+      // Min/Max orderable quantity (Shoptet parity) — checked on the resulting line.
+      const resultingQty = (existing?.quantity ?? 0) + quantity;
+      const bound = orderBoundsError(variant, resultingQty);
+      if (bound) return reply.code(409).send({ error: bound });
+
       let resultItemId: string;
       if (existing) {
         const newQty = existing.quantity + quantity;
@@ -397,6 +402,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             },
           });
         }
+        const bound = orderBoundsError(variant, parsed.data.quantity);
+        if (bound) return reply.code(409).send({ error: bound });
         await db
           .update(schema.cartItems)
           .set({ quantity: parsed.data.quantity, updatedAt: new Date() })
@@ -1577,6 +1584,31 @@ interface ResolvedVariant {
   stockOnHand: number;
   stockReserved: number;
   allowBackorder: boolean;
+  minOrderQuantity: number;
+  maxOrderQuantity: number | null;
+}
+
+/** Min/Max orderable-quantity guard (Shoptet parity). Returns an error payload
+ * for the resulting line quantity, or null when within bounds. */
+function orderBoundsError(
+  variant: Pick<ResolvedVariant, 'minOrderQuantity' | 'maxOrderQuantity'>,
+  resultingQty: number,
+): { code: string; message: string; min?: number; max?: number } | null {
+  if (resultingQty < variant.minOrderQuantity) {
+    return {
+      code: 'MIN_ORDER_QUANTITY',
+      message: `Minimální objednatelné množství je ${variant.minOrderQuantity} ks`,
+      min: variant.minOrderQuantity,
+    };
+  }
+  if (variant.maxOrderQuantity != null && resultingQty > variant.maxOrderQuantity) {
+    return {
+      code: 'MAX_ORDER_QUANTITY',
+      message: `Maximální objednatelné množství je ${variant.maxOrderQuantity} ks`,
+      max: variant.maxOrderQuantity,
+    };
+  }
+  return null;
 }
 
 async function resolveVariant(
@@ -1596,6 +1628,8 @@ async function resolveVariant(
       stockOnHand: schema.productVariants.stockOnHand,
       stockReserved: schema.productVariants.stockReserved,
       allowBackorder: schema.productVariants.allowBackorder,
+      minOrderQuantity: schema.productVariants.minOrderQuantity,
+      maxOrderQuantity: schema.productVariants.maxOrderQuantity,
       productStatus: schema.products.status,
     })
     .from(schema.productVariants)
@@ -1620,6 +1654,8 @@ async function resolveVariant(
     stockOnHand: v.stockOnHand,
     stockReserved: v.stockReserved,
     allowBackorder: v.allowBackorder,
+    minOrderQuantity: v.minOrderQuantity,
+    maxOrderQuantity: v.maxOrderQuantity,
   };
 }
 
