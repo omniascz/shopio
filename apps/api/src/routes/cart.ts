@@ -43,8 +43,12 @@ import {
 import {
   UNPAID_RESERVATION_TTL_HOURS,
   availableQuantity,
+  clearReservationExpiry,
   reserveStock,
 } from '../lib/inventory';
+import { getLoyaltyBalance, grantEarnedCredit, redeemCredit } from '../lib/loyalty';
+import { issueInvoiceForOrder } from '../lib/invoices';
+import { sendOrderPaidEmail } from '../lib/order-emails';
 import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
 import { buildCompanySnapshot } from '../lib/companies';
 import { getOrCreateChannel } from '../lib/channels';
@@ -85,6 +89,9 @@ const CheckoutBody = z.object({
   paymentMethod: z.string().max(40).optional(),
   /** B2B optional purchase-order reference. */
   purchaseOrderNumber: z.string().max(120).optional(),
+  /** Pay the whole order with store credit (per `19`), when the balance covers
+   * it. Partial redemption (credit + gateway) is a follow-up. */
+  useStoreCredit: z.boolean().default(false),
   /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
   shippingRateId: z.string().optional(),
   /** Selected pickup point for pickup_point services. The full address fields are
@@ -647,6 +654,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       // Source channel (per `22`) — web storefront.
       const webChannel = await getOrCreateChannel(db, tenant.id, 'web');
 
+      // Store-credit redemption (per `19`) — full coverage only in this slice:
+      // when the customer opts in and their balance covers the whole order, the
+      // order is settled by credit at placement (no gateway). Set inside the tx.
+      const loyaltySettings = (tenant.settings ?? {}) as {
+        loyalty?: { enabled?: boolean };
+      };
+      const loyaltyEnabled = Boolean(loyaltySettings.loyalty?.enabled);
+      let paidByCredit = false;
+
       // Atomic: revalidate stock + decrement + create order + clear cart.
       // RLS-enforced (per `30`): placement runs under the tenant GUC.
       try {
@@ -704,6 +720,21 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           // discount lowers the payable; total = subtotal − discount + shipping.
           const total = grossGoods - goodsDiscount + effectiveShipping;
 
+          // Decide store-credit settlement: only when opted in, the customer is
+          // logged in, loyalty is on, NOT a NET-terms order, and the balance
+          // covers the full total (partial redemption is a follow-up).
+          if (
+            input.useStoreCredit &&
+            customer &&
+            loyaltyEnabled &&
+            !useNetTerms &&
+            total > 0n
+          ) {
+            const balance = await getLoyaltyBalance(tx, tenant.id, customer.id);
+            if (balance >= total) paidByCredit = true;
+          }
+          const now = new Date();
+
           // Insert order
           const [order] = await tx
             .insert(schema.orders)
@@ -736,9 +767,11 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               priceIncludesTax: tenant.priceIncludesTax,
               taxBreakdown: serializeBreakdown(tax.breakdown),
               totalAmount: total,
-              status: 'pending_payment',
-              paymentStatus: 'pending',
-              paymentMethod: paymentMethodValue,
+              status: paidByCredit ? 'paid' : 'pending_payment',
+              statusEnteredAt: now,
+              paymentStatus: paidByCredit ? 'paid' : 'pending',
+              paidAt: paidByCredit ? now : null,
+              paymentMethod: paidByCredit ? 'store_credit' : paymentMethodValue,
               // B2B (per `21`): bill the company + record NET terms / PO ref.
               companyId: company?.id ?? null,
               companySnapshot: company ? buildCompanySnapshot(company) : null,
@@ -794,6 +827,19 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             lines: items.map((it) => ({ variantId: it.variantId, quantity: it.quantity })),
             expiresAt: new Date(Date.now() + UNPAID_RESERVATION_TTL_HOURS * 60 * 60 * 1000),
           });
+
+          // Store-credit settlement (per `19`): debit the credit ledger + hold
+          // the reservation indefinitely (the order is already paid).
+          if (paidByCredit && customer) {
+            await redeemCredit(tx, {
+              tenantId: tenant.id,
+              customerId: customer.id,
+              orderId: order.id,
+              amount: total,
+              currency: cart.currency,
+            });
+            await clearReservationExpiry(tx, order.id);
+          }
 
           // Record coupon redemption + bump usage atomically (per `10` RULE-PRICING-010)
           if (validatedCoupon && totalDiscount > 0n) {
@@ -899,7 +945,25 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         //   3. Legacy fallback: env-Stripe Checkout session, else mock.
         let paymentUrl: string | null = null;
         let offlineProvider = false;
-        if (selectedProvider) {
+        if (paidByCredit) {
+          // Settled entirely by store credit — run the paid side effects
+          // (invoice, email, loyalty earn, outbound webhook), best-effort.
+          try {
+            await issueInvoiceForOrder(db, tenant.id, result.id);
+          } catch (err) {
+            app.log.error({ err, orderId: result.id }, 'checkout.credit_invoice_failed');
+          }
+          await grantEarnedCredit(db, tenant.id, result.id, app.log).catch(() => {});
+          await sendOrderPaidEmail({ db, config, log: app.log }, result.id).catch(() => {});
+          emitWebhookEvent(db, tenant.id, 'order.paid', {
+            order_number: result.orderNumber,
+            status: 'paid',
+            payment_status: 'paid',
+            total: { amount: result.totalAmount.toString(), currency: result.currency },
+            customer_email: result.customerEmail,
+            paid_at: new Date(),
+          });
+        } else if (selectedProvider) {
           try {
             const storefrontBase = config.SHOPIO_BASE_URL;
             const init = await initiatePayment({
@@ -1011,13 +1075,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               confirmation_url: `/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
             },
             payment_url: paymentUrl,
-            next_step: useNetTerms
-              ? 'B2B NET order — pay by bank transfer before due_at; merchant marks paid on receipt.'
-              : paymentUrl
-                ? 'Redirect customer to payment_url to complete payment'
-                : offlineProvider
-                  ? `Offline payment (${result.paymentMethod}) — order placed; payment collected on delivery / bank transfer.`
-                  : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
+            next_step: paidByCredit
+              ? 'Zaplaceno věrnostním kreditem — objednávka je uhrazena.'
+              : useNetTerms
+                ? 'B2B NET order — pay by bank transfer before due_at; merchant marks paid on receipt.'
+                : paymentUrl
+                  ? 'Redirect customer to payment_url to complete payment'
+                  : offlineProvider
+                    ? `Offline payment (${result.paymentMethod}) — order placed; payment collected on delivery / bank transfer.`
+                    : 'MVP mock mode — order placed with payment_status=pending. Set STRIPE_SECRET_KEY to enable real payments.',
           },
         });
       } catch (err) {
@@ -1134,6 +1200,7 @@ async function resolveTenant(db: AppDb, slug: string) {
       countryCode: schema.tenants.countryCode,
       priceIncludesTax: schema.tenants.priceIncludesTax,
       shippingTaxClass: schema.tenants.shippingTaxClass,
+      settings: schema.tenants.settings,
       status: schema.tenants.status,
     })
     .from(schema.tenants)

@@ -9,6 +9,7 @@ import {
   checkout,
   customerCompany,
   customerMe,
+  customerLoyalty,
   fetchPickupPoints,
   fetchShippingRates,
   formatMoney,
@@ -90,6 +91,9 @@ export default function CheckoutPage({ params }: Props) {
   // Payment method (per `13`) — provider codes offered by the merchant.
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  // Store credit (per `19`) — balance of the logged-in customer.
+  const [creditBalance, setCreditBalance] = useState<bigint | null>(null);
+  const [useStoreCredit, setUseStoreCredit] = useState(false);
 
   // Logged-in customer → prefill contact + saved address (per `18`).
   // Only fills fields the user hasn't typed into yet.
@@ -126,6 +130,9 @@ export default function CheckoutPage({ params }: Props) {
       if (cancelled) return;
       setPaymentMethods(methods);
       setSelectedMethod((prev) => prev ?? methods[0]?.code ?? null);
+    });
+    void customerLoyalty(tenantSlug).then((loy) => {
+      if (!cancelled && loy) setCreditBalance(BigInt(loy.balance));
     });
     return () => {
       cancelled = true;
@@ -237,6 +244,7 @@ export default function CheckoutPage({ params }: Props) {
           countryCode: country,
         },
         ...(form.customerNote.trim() && { customerNote: form.customerNote.trim() }),
+        ...(useStoreCredit && { useStoreCredit: true }),
         ...(payOnInvoice && company?.net_terms_enabled
           ? {
               paymentMethod: 'invoice',
@@ -301,6 +309,8 @@ export default function CheckoutPage({ params }: Props) {
     amount: (goodsGross - goodsDiscount + shippingGross).toString(),
     currency: cart.currency,
   };
+  const canPayWithCredit =
+    creditBalance !== null && creditBalance > 0n && creditBalance >= BigInt(totalMoney.amount);
 
   return (
     <main style={pageStyle}>
@@ -542,7 +552,23 @@ export default function CheckoutPage({ params }: Props) {
             />
           </Field>
 
-          {paymentMethods.length > 0 && !payOnInvoice && (
+          {canPayWithCredit && !payOnInvoice && (
+            <div style={{ border: '1px solid #1c7c34', background: '#e3f5e8', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={useStoreCredit}
+                  onChange={(e) => setUseStoreCredit(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.9375rem' }}>
+                  Zaplatit věrnostním kreditem (máte{' '}
+                  {formatMoney({ amount: creditBalance!.toString(), currency: cart.currency })})
+                </span>
+              </label>
+            </div>
+          )}
+
+          {paymentMethods.length > 0 && !payOnInvoice && !useStoreCredit && (
             <fieldset style={{ border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '0.875rem 1rem', marginBottom: '0.5rem' }}>
               <legend style={{ fontSize: '0.8125rem', fontWeight: 600, padding: '0 0.375rem' }}>
                 Způsob platby
