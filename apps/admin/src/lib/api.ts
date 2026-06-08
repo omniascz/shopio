@@ -229,6 +229,13 @@ export interface GiftCardTransaction {
   occurred_at: string;
 }
 
+/** Page-builder block (per `32`) — loose shape; type drives the fields used. */
+export interface PageBlock {
+  id: string;
+  type: 'hero' | 'rich_text' | 'image_banner' | 'product_grid' | 'featured_category' | 'newsletter' | 'spacer';
+  [key: string]: unknown;
+}
+
 export interface OAuthApp {
   id: string;
   name: string;
@@ -1040,6 +1047,17 @@ class ApiClient {
 
   async deleteOAuthApp(pubId: string): Promise<void> {
     await this.request(`/admin/oauth/apps/${pubId}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Page builder — homepage blocks (per `32`)
+  // ---------------------------------------------------------------------------
+  async getHomepageBlocks(): Promise<{ blocks: PageBlock[] }> {
+    return this.request('/admin/settings/homepage-blocks');
+  }
+
+  async putHomepageBlocks(blocks: PageBlock[]): Promise<{ blocks: PageBlock[] }> {
+    return this.request('/admin/settings/homepage-blocks', { method: 'PUT', body: JSON.stringify({ blocks }) });
   }
 
   // ---------------------------------------------------------------------------

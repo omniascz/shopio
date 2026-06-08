@@ -3,11 +3,11 @@
  * Tabs: Stránky / Blog. Each = list + simple editor (title/slug/HTML/status/SEO).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type CmsPageInput, type CmsPageItem, type CmsPostInput, type CmsPostItem } from '../lib/api';
+import { api, type CmsPageInput, type CmsPageItem, type CmsPostInput, type CmsPostItem, type PageBlock } from '../lib/api';
 
-type Tab = 'pages' | 'blog';
+type Tab = 'pages' | 'blog' | 'homepage';
 
 export function ContentPage() {
   const [tab, setTab] = useState<Tab>('pages');
@@ -15,7 +15,7 @@ export function ContentPage() {
     <div style={{ maxWidth: 880 }}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 1rem' }}>Obsah</h1>
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {(['pages', 'blog'] as Tab[]).map((t) => (
+        {(['pages', 'blog', 'homepage'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -29,14 +29,178 @@ export function ContentPage() {
               fontWeight: tab === t ? 600 : 400,
             }}
           >
-            {t === 'pages' ? 'Stránky' : 'Blog'}
+            {t === 'pages' ? 'Stránky' : t === 'blog' ? 'Blog' : 'Domovská stránka'}
           </button>
         ))}
       </div>
-      {tab === 'pages' ? <PagesTab /> : <BlogTab />}
+      {tab === 'pages' ? <PagesTab /> : tab === 'blog' ? <BlogTab /> : <HomepageTab />}
     </div>
   );
 }
+
+// ===== Homepage page-builder =================================================
+
+const BLOCK_TYPES: { type: PageBlock['type']; label: string }[] = [
+  { type: 'hero', label: 'Hero banner' },
+  { type: 'rich_text', label: 'Text (HTML)' },
+  { type: 'image_banner', label: 'Obrázkový banner' },
+  { type: 'product_grid', label: 'Mřížka produktů' },
+  { type: 'featured_category', label: 'Kategorie' },
+  { type: 'newsletter', label: 'Newsletter' },
+  { type: 'spacer', label: 'Mezera' },
+];
+
+let blockSeq = 0;
+function newBlock(type: PageBlock['type']): PageBlock {
+  blockSeq += 1;
+  const id = `b${Date.now()}_${blockSeq}`;
+  switch (type) {
+    case 'hero': return { id, type, headline: '', subheadline: '', imageUrl: null, ctaLabel: null, ctaHref: null, align: 'center' };
+    case 'rich_text': return { id, type, html: '' };
+    case 'image_banner': return { id, type, imageUrl: '', href: null, alt: '' };
+    case 'product_grid': return { id, type, title: '', productSlugs: [] };
+    case 'featured_category': return { id, type, title: '', categorySlug: '', limit: 8 };
+    case 'newsletter': return { id, type, headline: '', subheadline: '' };
+    case 'spacer': return { id, type, size: 'md' };
+  }
+}
+
+function HomepageTab() {
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ['admin', 'homepage-blocks'], queryFn: () => api.getHomepageBlocks() });
+  const [blocks, setBlocks] = useState<PageBlock[]>([]);
+  const [addType, setAddType] = useState<PageBlock['type']>('hero');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (query.data) setBlocks(query.data.blocks as PageBlock[]);
+  }, [query.data]);
+
+  const save = useMutation({
+    mutationFn: () => api.putHomepageBlocks(blocks),
+    onSuccess: () => { setSaved(true); queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-blocks'] }); setTimeout(() => setSaved(false), 2000); },
+  });
+
+  function update(i: number, patch: Partial<PageBlock>) {
+    setBlocks((b) => b.map((blk, idx) => (idx === i ? { ...blk, ...patch } : blk)));
+  }
+  function move(i: number, dir: -1 | 1) {
+    setBlocks((b) => {
+      const j = i + dir;
+      if (j < 0 || j >= b.length) return b;
+      const copy = [...b];
+      [copy[i], copy[j]] = [copy[j]!, copy[i]!];
+      return copy;
+    });
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: '0.875rem', color: '#666', marginTop: 0 }}>
+        Poskládejte domovskou stránku z bloků. Produkty/kategorie se na storefrontu načtou živě podle slugů.
+      </p>
+      {blocks.map((blk, i) => (
+        <div key={blk.id} style={{ background: '#fff', border: '1px solid #e9ecef', borderRadius: 8, padding: '1rem', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <strong style={{ fontSize: '0.875rem' }}>{BLOCK_TYPES.find((t) => t.type === blk.type)?.label ?? blk.type}</strong>
+            <span style={{ display: 'flex', gap: 4 }}>
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} style={iconBtn}>↑</button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === blocks.length - 1} style={iconBtn}>↓</button>
+              <button type="button" onClick={() => setBlocks((b) => b.filter((_, idx) => idx !== i))} style={iconBtnDanger}>×</button>
+            </span>
+          </div>
+          <BlockFields block={blk} onChange={(patch) => update(i, patch)} />
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+        <select value={addType} onChange={(e) => setAddType(e.target.value as PageBlock['type'])} style={fieldStyle}>
+          {BLOCK_TYPES.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
+        </select>
+        <button type="button" onClick={() => setBlocks((b) => [...b, newBlock(addType)])} style={addBtn}>+ Přidat blok</button>
+        <span style={{ flex: 1 }} />
+        <button type="button" onClick={() => save.mutate()} disabled={save.isPending} style={saveBtn}>
+          {save.isPending ? 'Ukládám…' : saved ? '✓ Uloženo' : 'Uložit'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BlockFields({ block, onChange }: { block: PageBlock; onChange: (patch: Partial<PageBlock>) => void }) {
+  const s = (k: string) => (block[k] as string) ?? '';
+  if (block.type === 'hero') {
+    return (
+      <div style={grid2}>
+        <In label="Nadpis" value={s('headline')} onChange={(v) => onChange({ headline: v })} />
+        <In label="Podnadpis" value={s('subheadline')} onChange={(v) => onChange({ subheadline: v })} />
+        <In label="URL obrázku" value={s('imageUrl')} onChange={(v) => onChange({ imageUrl: v })} />
+        <In label="Text tlačítka" value={s('ctaLabel')} onChange={(v) => onChange({ ctaLabel: v })} />
+        <In label="Odkaz tlačítka" value={s('ctaHref')} onChange={(v) => onChange({ ctaHref: v })} />
+      </div>
+    );
+  }
+  if (block.type === 'rich_text') {
+    return <textarea value={s('html')} onChange={(e) => onChange({ html: e.target.value })} rows={4} style={{ ...fieldStyle, width: '100%', fontFamily: 'monospace' }} placeholder="<p>…</p>" />;
+  }
+  if (block.type === 'image_banner') {
+    return (
+      <div style={grid2}>
+        <In label="URL obrázku" value={s('imageUrl')} onChange={(v) => onChange({ imageUrl: v })} />
+        <In label="Odkaz" value={s('href')} onChange={(v) => onChange({ href: v })} />
+        <In label="Alt text" value={s('alt')} onChange={(v) => onChange({ alt: v })} />
+      </div>
+    );
+  }
+  if (block.type === 'product_grid') {
+    const slugs = ((block.productSlugs as string[]) ?? []).join(', ');
+    return (
+      <div style={grid2}>
+        <In label="Titulek" value={s('title')} onChange={(v) => onChange({ title: v })} />
+        <In label="Slugy produktů (čárkou)" value={slugs} onChange={(v) => onChange({ productSlugs: v.split(',').map((x) => x.trim()).filter(Boolean) })} />
+      </div>
+    );
+  }
+  if (block.type === 'featured_category') {
+    return (
+      <div style={grid2}>
+        <In label="Titulek" value={s('title')} onChange={(v) => onChange({ title: v })} />
+        <In label="Slug kategorie" value={s('categorySlug')} onChange={(v) => onChange({ categorySlug: v })} />
+        <In label="Max. produktů" value={String((block.limit as number) ?? 8)} onChange={(v) => onChange({ limit: Number(v) || 8 })} />
+      </div>
+    );
+  }
+  if (block.type === 'newsletter') {
+    return (
+      <div style={grid2}>
+        <In label="Nadpis" value={s('headline')} onChange={(v) => onChange({ headline: v })} />
+        <In label="Podnadpis" value={s('subheadline')} onChange={(v) => onChange({ subheadline: v })} />
+      </div>
+    );
+  }
+  // spacer
+  return (
+    <select value={(block.size as string) ?? 'md'} onChange={(e) => onChange({ size: e.target.value })} style={fieldStyle}>
+      <option value="sm">Malá</option><option value="md">Střední</option><option value="lg">Velká</option>
+    </select>
+  );
+}
+
+function In({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label style={{ fontSize: '0.8125rem' }}>
+      <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} style={{ ...fieldStyle, width: '100%', boxSizing: 'border-box' }} />
+    </label>
+  );
+}
+
+const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' };
+const fieldStyle: React.CSSProperties = { padding: '0.5rem 0.625rem', border: '1px solid #ddd', borderRadius: 4, fontSize: '0.875rem' };
+const iconBtn: React.CSSProperties = { padding: '0.2rem 0.5rem', background: '#f0f7ff', border: '1px solid #cce0ff', borderRadius: 4, cursor: 'pointer' };
+const iconBtnDanger: React.CSSProperties = { padding: '0.2rem 0.5rem', background: '#fff0f0', border: '1px solid #ffcccc', color: '#990000', borderRadius: 4, cursor: 'pointer' };
+const addBtn: React.CSSProperties = { padding: '0.45rem 0.875rem', background: '#f0f7ff', border: '1px solid #cce0ff', color: '#003d99', borderRadius: 4, fontSize: '0.8125rem', cursor: 'pointer' };
+const saveBtn: React.CSSProperties = { padding: '0.5rem 1.25rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 4, fontSize: '0.875rem', cursor: 'pointer' };
 
 // ===== Pages =================================================================
 
