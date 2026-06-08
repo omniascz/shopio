@@ -64,6 +64,7 @@ export async function registerStorefrontRoutes(
           logo_url?: string;
         };
         homepage?: { announcement?: Record<string, unknown>; hero?: Record<string, unknown> };
+        integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
       };
       const appearance = s.appearance;
 
@@ -88,6 +89,10 @@ export async function registerStorefrontRoutes(
             homepage: {
               announcement: s.homepage?.announcement ?? { enabled: false },
               hero: s.homepage?.hero ?? { enabled: false },
+            },
+            analytics: {
+              ga4_measurement_id: s.integrations?.ga4_measurement_id ?? null,
+              meta_pixel_id: s.integrations?.meta_pixel_id ?? null,
             },
           },
         },

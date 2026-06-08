@@ -45,6 +45,10 @@ export interface Tenant {
   country_code: string;
   appearance?: TenantAppearance;
   homepage?: StorefrontHomepage;
+  analytics?: {
+    ga4_measurement_id?: string | null;
+    meta_pixel_id?: string | null;
+  };
 }
 
 export interface ProductListItem {

@@ -34,6 +34,7 @@ export function SettingsPage() {
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
       <FeedsSection slug={settings.slug} />
+      <IntegrationsSection settings={settings} />
       <AccountingSection />
       <AppearanceSection settings={settings} />
       <HomepageSection settings={settings} />
@@ -89,6 +90,66 @@ function AccountingSection() {
           {busy ? 'Exportuji…' : 'Stáhnout XML'}
         </button>
       </div>
+      {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}
+    </section>
+  );
+}
+
+// =============================================================================
+// Marketing a analytika (per `29-integrations.md`) — GA4 + Meta Pixel
+// =============================================================================
+
+function IntegrationsSection({ settings }: { settings: ShopSettings }) {
+  const queryClient = useQueryClient();
+  const [ga4, setGa4] = useState(settings.integrations?.ga4_measurement_id ?? '');
+  const [pixel, setPixel] = useState(settings.integrations?.meta_pixel_id ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateIntegrations({ ga4MeasurementId: ga4.trim(), metaPixelId: pixel.trim() }),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Uložení selhalo'),
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Marketing a analytika</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Měřicí kódy se vloží do storefrontu. GA4 pro analytiku návštěvnosti, Meta Pixel pro
+        retargeting na Facebooku/Instagramu.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8125rem' }}>
+          GA4 Measurement ID
+          <input
+            value={ga4}
+            onChange={(e) => setGa4(e.target.value)}
+            placeholder="G-XXXXXXXXXX"
+            style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: 4, fontFamily: 'monospace' }}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8125rem' }}>
+          Meta Pixel ID
+          <input
+            value={pixel}
+            onChange={(e) => setPixel(e.target.value)}
+            placeholder="123456789012345"
+            style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: 4, fontFamily: 'monospace' }}
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending}
+        style={{ marginTop: '0.75rem', padding: '0.5rem 1rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer' }}
+      >
+        {mutation.isPending ? 'Ukládám…' : 'Uložit'}
+      </button>
       {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}
     </section>
   );

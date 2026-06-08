@@ -64,6 +64,14 @@ const PatchAppearanceBody = z.object({
   logoUrl: z.string().url().or(z.string().startsWith('/')).nullable().optional(),
 });
 
+/** Marketing/analytics integrations (per `29`) — client-side tracking IDs. */
+const PatchIntegrationsBody = z.object({
+  /** GA4 Measurement ID, e.g. "G-XXXXXXXXXX". */
+  ga4MeasurementId: z.string().max(40).regex(/^G-[A-Z0-9]+$/i).or(z.literal('')).nullish(),
+  /** Meta (Facebook) Pixel ID — numeric. */
+  metaPixelId: z.string().max(40).regex(/^\d+$/).or(z.literal('')).nullish(),
+});
+
 /** Storefront homepage config (announcement bar + hero) per `26`. */
 const PatchHomepageBody = z.object({
   announcement: z
@@ -241,6 +249,47 @@ export async function registerSettingsRoutes(
         ...(input.font !== undefined && { font: input.font }),
         ...(input.radius !== undefined && { radius: input.radius }),
         ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
+      };
+
+      const [updated] = await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId))
+        .returning();
+
+      return reply.send({ data: serializeSettings(updated!) });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /admin/settings/integrations — GA4 + Meta Pixel IDs (per `29`)
+  // ---------------------------------------------------------------------------
+  app.patch(
+    '/api/2026-05-20/admin/settings/integrations',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const parsed = PatchIntegrationsBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const input = parsed.data;
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>) };
+      const prior = (settings.integrations ?? {}) as Record<string, unknown>;
+      settings.integrations = {
+        ...prior,
+        ...(input.ga4MeasurementId !== undefined && {
+          ga4_measurement_id: input.ga4MeasurementId || null,
+        }),
+        ...(input.metaPixelId !== undefined && { meta_pixel_id: input.metaPixelId || null }),
       };
 
       const [updated] = await db
@@ -549,6 +598,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
       announcement?: { enabled?: boolean; text?: string; url?: string };
       hero?: Record<string, unknown>;
     };
+    integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
   };
   return {
     slug: tenant.slug,
@@ -580,6 +630,10 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
         url: settings.homepage?.announcement?.url ?? '',
       },
       hero: (settings.homepage?.hero as Record<string, unknown>) ?? { enabled: false },
+    },
+    integrations: {
+      ga4_measurement_id: settings.integrations?.ga4_measurement_id ?? null,
+      meta_pixel_id: settings.integrations?.meta_pixel_id ?? null,
     },
   };
 }

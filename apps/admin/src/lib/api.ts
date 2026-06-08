@@ -438,6 +438,10 @@ export interface ShopSettings {
       align?: string;
     };
   };
+  integrations?: {
+    ga4_measurement_id: string | null;
+    meta_pixel_id: string | null;
+  };
 }
 
 export interface ShippingSettings {
@@ -1291,6 +1295,16 @@ class ApiClient {
     };
   }): Promise<ShopSettings> {
     return this.request('/admin/settings/homepage', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateIntegrations(body: {
+    ga4MeasurementId?: string | null;
+    metaPixelId?: string | null;
+  }): Promise<ShopSettings> {
+    return this.request('/admin/settings/integrations', {
       method: 'PATCH',
       body: JSON.stringify(body),
     });

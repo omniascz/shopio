@@ -8,6 +8,7 @@ import { CartDrawer } from '@/components/cart-drawer';
 import { CartButton } from '@/components/cart-button';
 import { SavedNav } from '@/components/saved-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { AnalyticsScripts } from '@/components/analytics-scripts';
 import { getStorefrontLocale } from '@/lib/locale';
 
 interface Props {
@@ -65,6 +66,10 @@ export default async function TenantLayout({ children, params }: Props) {
   return (
     <CartProvider tenantSlug={tenantSlug}>
      <CompareProvider tenantSlug={tenantSlug}>
+      <AnalyticsScripts
+        ga4Id={tenant.analytics?.ga4_measurement_id}
+        metaPixelId={tenant.analytics?.meta_pixel_id}
+      />
       <div
         data-theme={appearance.theme}
         style={
