@@ -28,6 +28,7 @@ import {
 } from '../lib/returns';
 import { issueCreditNote, type CreditNoteLine } from '../lib/invoices';
 import { createRefund, isStripeEnabled } from '../lib/stripe';
+import { buildProvider } from '../lib/payments';
 import { restockReturn } from '../lib/inventory';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
@@ -423,10 +424,73 @@ export async function registerReturnRoutes(
           // call single-flight per return, and a rollback after success is
           // safe to retry (idempotent at the provider). MVP trade-off — moves
           // to an outbox/worker with the BullMQ wave.
+          //
+          // Resolution order:
+          //   1. A `payments` row with a refund-capable provider (GoPay/…) →
+          //      route through the provider abstraction (per `13`).
+          //   2. Legacy Stripe-from-env (order.metadata.stripe_payment_intent_id).
+          //   3. Offline (COD/bank transfer) / no gateway → manual refund; the
+          //      merchant returns the money out-of-band, we record the dobropis.
           const orderMeta = (order.metadata ?? {}) as { stripe_payment_intent_id?: string };
           let refundMethod: string;
           let refundReference: string;
+
+          const [payment] = await tx
+            .select()
+            .from(schema.payments)
+            .where(
+              and(
+                eq(schema.payments.tenantId, tenantId),
+                eq(schema.payments.orderId, order.id),
+                eq(schema.payments.status, 'captured'),
+              ),
+            )
+            .orderBy(desc(schema.payments.initiatedAt))
+            .limit(1);
+
+          let providerForRefund: ReturnType<typeof buildProvider> = null;
+          if (payment?.providerPaymentId) {
+            const [cfg] = await tx
+              .select()
+              .from(schema.paymentProviderConfigs)
+              .where(
+                and(
+                  eq(schema.paymentProviderConfigs.tenantId, tenantId),
+                  eq(schema.paymentProviderConfigs.providerCode, payment.providerCode),
+                ),
+              )
+              .limit(1);
+            if (cfg) providerForRefund = buildProvider(cfg, config);
+          }
+
           if (
+            payment?.providerPaymentId &&
+            providerForRefund?.refund &&
+            providerForRefund.capabilities.supportsRefund
+          ) {
+            const res = await providerForRefund.refund({
+              providerPaymentId: payment.providerPaymentId,
+              amountMinor: refundTotal,
+              currency: order.currency,
+              idempotencyKey: `refund_${found.pubId}`,
+            });
+            refundMethod = payment.providerCode;
+            refundReference = res.providerRefundId;
+            // Track refunded amount + status on the payment row.
+            const newRefunded = (payment.amountRefunded ?? 0n) + refundTotal;
+            await tx
+              .update(schema.payments)
+              .set({
+                amountRefunded: newRefunded,
+                status:
+                  newRefunded >= (payment.amountCaptured ?? payment.amount)
+                    ? 'refunded'
+                    : 'partially_refunded',
+                refundedAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.payments.id, payment.id));
+          } else if (
             isStripeEnabled(config) &&
             order.paymentMethod === 'stripe' &&
             orderMeta.stripe_payment_intent_id
@@ -439,8 +503,9 @@ export async function registerReturnRoutes(
             refundMethod = 'stripe';
             refundReference = res.refundId;
           } else {
-            refundMethod = 'mock';
-            refundReference = `re_mock_${found.pubId}`;
+            // Offline / manual — money returned out-of-band by the merchant.
+            refundMethod = payment ? `${payment.providerCode}_manual` : 'manual';
+            refundReference = `re_manual_${found.pubId}`;
           }
 
           // Credit note (dobropis) — RULE-RTN-014. A failure here throws and
