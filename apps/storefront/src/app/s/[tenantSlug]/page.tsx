@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
 import { getStorefrontLocale } from '@/lib/locale';
+import { getStorefrontCurrency } from '@/lib/currency';
 import { RatingBadge } from '@/components/stars';
 import { SaveButtons } from '@/components/save-buttons';
 
@@ -36,12 +37,14 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
   }
 
   const locale = await getStorefrontLocale();
+  const currency = await getStorefrontCurrency();
   const [{ products, facets }, categories] = await Promise.all([
     getProducts(tenantSlug, {
       limit: 24,
       ...(q && { q }),
       ...(categorySlug && { categorySlug }),
       ...(locale && { locale }),
+      ...(currency && { currency }),
       facets: selectedFacets,
     }),
     getCategories(tenantSlug, locale),

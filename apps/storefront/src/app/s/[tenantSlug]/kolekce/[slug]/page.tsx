@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getCollection } from '@/lib/api';
+import { getStorefrontCurrency } from '@/lib/currency';
 import { ProductCardRow } from '@/components/product-card-row';
 
 interface Props {
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function CollectionPage({ params }: Props) {
   const { tenantSlug, slug } = await params;
-  const col = await getCollection(tenantSlug, slug);
+  const col = await getCollection(tenantSlug, slug, await getStorefrontCurrency());
   if (!col) notFound();
 
   return (

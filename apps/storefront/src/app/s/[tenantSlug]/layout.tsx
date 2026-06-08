@@ -8,9 +8,11 @@ import { CartDrawer } from '@/components/cart-drawer';
 import { CartButton } from '@/components/cart-button';
 import { SavedNav } from '@/components/saved-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { CurrencySwitcher } from '@/components/currency-switcher';
 import { NewsletterBox } from '@/components/newsletter-box';
 import { AnalyticsScripts } from '@/components/analytics-scripts';
 import { getStorefrontLocale } from '@/lib/locale';
+import { getStorefrontCurrency } from '@/lib/currency';
 
 interface Props {
   children: ReactNode;
@@ -52,6 +54,7 @@ export default async function TenantLayout({ children, params }: Props) {
   const currentLocale = enabledLocales.includes(cookieLocale ?? '')
     ? cookieLocale!
     : tenant.default_locale;
+  const currentCurrency = await getStorefrontCurrency();
 
   const appearance = tenant.appearance ?? {
     theme: 'minimal',
@@ -147,6 +150,7 @@ export default async function TenantLayout({ children, params }: Props) {
           >
             <SavedNav tenantSlug={tenantSlug} />
             <LocaleSwitcher locales={enabledLocales} current={currentLocale} />
+            <CurrencySwitcher currencies={tenant.supported_currencies ?? []} current={currentCurrency} />
             <Link
               href={`/s/${tenantSlug}/ucet`}
               style={{ fontSize: '0.875rem', color: 'inherit', textDecoration: 'none', opacity: 0.85 }}

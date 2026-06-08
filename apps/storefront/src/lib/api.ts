@@ -197,6 +197,7 @@ export async function getProducts(
     offset?: number;
     facets?: Record<string, string[]>;
     locale?: string;
+    currency?: string;
   } = {},
 ): Promise<{
   products: ProductListItem[];
@@ -211,6 +212,7 @@ export async function getProducts(
   if (options.limit !== undefined) params.set('limit', String(options.limit));
   if (options.offset !== undefined) params.set('offset', String(options.offset));
   if (options.locale) params.set('locale', options.locale);
+  if (options.currency) params.set('currency', options.currency);
   for (const [name, values] of Object.entries(options.facets ?? {})) {
     for (const v of values) params.append(`facet.${name}`, v);
   }

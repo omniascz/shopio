@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct, getRecommendations } from '@/lib/api';
 import { getStorefrontLocale } from '@/lib/locale';
+import { getStorefrontCurrency } from '@/lib/currency';
 import { AddToCart } from '@/components/add-to-cart';
 import { SaveButtons } from '@/components/save-buttons';
 import { RatingBadge } from '@/components/stars';
@@ -81,7 +82,7 @@ function productJsonLd(
 
 export default async function ProductPage({ params }: Props) {
   const { tenantSlug, productSlug } = await params;
-  const product = await getProduct(tenantSlug, productSlug, await getStorefrontLocale());
+  const product = await getProduct(tenantSlug, productSlug, await getStorefrontLocale(), await getStorefrontCurrency());
   if (!product) notFound();
 
   const primaryMedia = product.media.find((m) => m.is_primary) ?? product.media[0];
