@@ -29,6 +29,7 @@ import { ManualOrderPage } from './pages/manual-order';
 import { ContentPage } from './pages/content';
 import { VendorsListPage } from './pages/vendors-list';
 import { DevelopersPage } from './pages/developers';
+import { PaymentsPage } from './pages/payments';
 import { AnalyticsPage } from './pages/analytics';
 import { useAuth } from './lib/auth-store';
 
@@ -176,6 +177,12 @@ const developersRoute = createRoute({
   component: DevelopersPage,
 });
 
+const paymentsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/payments',
+  component: PaymentsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -197,6 +204,7 @@ const routeTree = rootRoute.addChildren([
     contentRoute,
     vendorsRoute,
     developersRoute,
+    paymentsRoute,
   ]),
 ]);
 

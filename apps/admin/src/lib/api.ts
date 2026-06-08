@@ -248,6 +248,36 @@ export interface WebhookDelivery {
   delivered_at: string | null;
 }
 
+export interface PaymentProviderConfigView {
+  code: string;
+  is_enabled: boolean;
+  is_test_mode: boolean;
+  display_name: string;
+  priority: number;
+  supported_currencies: string[];
+  supported_method_kinds: string[];
+  has_credentials: boolean;
+  has_webhook_secret: boolean;
+  updated_at: string;
+}
+export interface PaymentProviderItem {
+  code: string;
+  displayName: string;
+  kind: 'offline' | 'redirect';
+  description: string;
+  defaultMethodKinds: string[];
+  wired: boolean;
+  config: PaymentProviderConfigView | null;
+}
+export interface PaymentProviderUpdate {
+  isEnabled?: boolean;
+  isTestMode?: boolean;
+  displayName?: string;
+  priority?: number;
+  supportedCurrencies?: string[];
+  credentials?: Record<string, string>;
+}
+
 export interface VendorItem {
   id: string;
   slug: string;
@@ -926,6 +956,22 @@ class ApiClient {
   }
   async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
     return this.request(`/admin/webhooks/${id}/deliveries`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Payment providers (per `13`)
+  // ---------------------------------------------------------------------------
+  async listPaymentProviders(): Promise<{ providers: PaymentProviderItem[] }> {
+    return this.request('/admin/payment-providers');
+  }
+  async updatePaymentProvider(
+    code: string,
+    body: PaymentProviderUpdate,
+  ): Promise<PaymentProviderConfigView> {
+    return this.request(`/admin/payment-providers/${code}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
   }
 
   // ---------------------------------------------------------------------------
