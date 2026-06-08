@@ -55,3 +55,5 @@ export * from './gift-cards';
 export * from './bundles';
 // Customer address book (Wave 1 — `18-customer-management.md` express checkout)
 export * from './customer-addresses';
+// OAuth apps + marketplace (Wave 1 — `28-developer-platform.md`)
+export * from './oauth';

@@ -22,6 +22,7 @@ import {
 import { getConfig } from '../config';
 import { getDb } from '../db';
 import { isApiKey, resolveApiKey } from '../lib/api-keys';
+import { isOAuthAccessToken, resolveAccessToken } from '../lib/oauth';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -155,6 +156,21 @@ async function tryAuth(req: FastifyRequest): Promise<AuthContext | null> {
       permissions: key.permissions as AuthContext['permissions'],
       assuranceLevel: 'mfa_verified',
       sessionId: `apikey:${key.id}`,
+    };
+  }
+
+  // OAuth access token path (per `28`): a third-party app calling on a merchant's
+  // behalf. The token determines the tenant + carries the consented scopes,
+  // mapped to admin permission codes so per-endpoint checks work unchanged.
+  if (isOAuthAccessToken(token)) {
+    const resolved = await resolveAccessToken(getDb(config), token);
+    if (!resolved) return null;
+    return {
+      userId: `app:${resolved.appId}`,
+      tenantId: resolved.tenantId,
+      permissions: resolved.permissions as AuthContext['permissions'],
+      assuranceLevel: 'mfa_verified',
+      sessionId: `oauth:${resolved.tokenId}`,
     };
   }
 

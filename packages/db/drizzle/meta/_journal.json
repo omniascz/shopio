@@ -211,6 +211,13 @@
       "when": 1780925468199,
       "tag": "0029_cms_page_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1780925905658,
+      "tag": "0030_oauth_apps",
+      "breakpoints": true
     }
   ]
 }

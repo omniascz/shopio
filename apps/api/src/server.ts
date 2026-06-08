@@ -33,6 +33,7 @@ import { registerCmsAdminRoutes } from './routes/cms-admin';
 import { registerMarketplaceAdminRoutes } from './routes/marketplace-admin';
 import { registerAiAdminRoutes } from './routes/ai-admin';
 import { registerDeveloperAdminRoutes } from './routes/developer-admin';
+import { registerOAuthRoutes } from './routes/oauth';
 import { registerPaymentAdminRoutes } from './routes/payments-admin';
 import { registerPaymentWebhookRoutes } from './routes/payments-webhooks';
 import { registerPlanAdminRoutes } from './routes/plan-admin';
@@ -146,6 +147,7 @@ export async function buildServer() {
   await registerMarketplaceAdminRoutes(server, { config, db });
   await registerAiAdminRoutes(server, { config, db });
   await registerDeveloperAdminRoutes(server, { config, db });
+  await registerOAuthRoutes(server, { config, db });
   await registerPaymentAdminRoutes(server, { config, db });
   await registerPaymentWebhookRoutes(server, { config, db });
   await registerPlanAdminRoutes(server, { config, db });

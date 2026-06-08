@@ -41,6 +41,7 @@ export default defineConfig({
     './src/schema/gift-cards.ts',
     './src/schema/bundles.ts',
     './src/schema/customer-addresses.ts',
+    './src/schema/oauth.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },
