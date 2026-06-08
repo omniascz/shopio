@@ -15,6 +15,7 @@ import type { AppDb } from '../../db';
 import type { PaymentProvider } from './types';
 import { createCodProvider } from './cod';
 import { createBankTransferProvider } from './bank-transfer';
+import { createGopayProvider, type GopayCredentials } from './gopay';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
 type ProviderCode = (typeof schema.paymentProviderConfigs.$inferInsert)['providerCode'];
@@ -32,6 +33,10 @@ export function buildProvider(
       return createCodProvider();
     case 'bank_transfer':
       return createBankTransferProvider();
+    case 'gopay': {
+      const creds = (cfg.credentials as GopayCredentials) ?? {};
+      return createGopayProvider(creds, cfg.isTestMode);
+    }
     default:
       return null;
   }

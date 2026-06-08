@@ -68,7 +68,12 @@ const PROVIDER_CATALOG: {
   },
 ];
 
-const WIRED_CODES = new Set(['cod', 'bank_transfer']); // can be enabled today
+const WIRED_CODES = new Set(['cod', 'bank_transfer', 'gopay']); // can be enabled today
+
+/** Required credential keys per gateway (live mode). */
+const REQUIRED_CREDENTIALS: Record<string, string[]> = {
+  gopay: ['goId', 'clientId', 'clientSecret'],
+};
 
 const UpsertBody = z.object({
   isEnabled: z.boolean().optional(),
@@ -182,6 +187,18 @@ export async function registerPaymentAdminRoutes(
           ...(input.credentials ?? {}),
         };
 
+        // Live-mode gateways need their credentials before they can go live.
+        // Test mode is allowed without them (mock fallback).
+        const effectiveTestMode = input.isTestMode ?? existing?.isTestMode ?? true;
+        const willEnable = input.isEnabled ?? existing?.isEnabled ?? false;
+        const required = REQUIRED_CREDENTIALS[code] ?? [];
+        if (willEnable && !effectiveTestMode && required.length > 0) {
+          const missing = required.filter((k) => !mergedCredentials[k]);
+          if (missing.length > 0) {
+            return { __error: `Chybí přístupové údaje: ${missing.join(', ')}` } as const;
+          }
+        }
+
         if (existing) {
           const [row] = await tx
             .update(schema.paymentProviderConfigs)
@@ -226,6 +243,11 @@ export async function registerPaymentAdminRoutes(
         return row;
       });
 
+      if (updated && '__error' in updated) {
+        return reply.code(422).send({
+          error: { code: 'MISSING_CREDENTIALS', message: updated.__error },
+        });
+      }
       return reply.send({ data: serializeConfig(updated!) });
     },
   );

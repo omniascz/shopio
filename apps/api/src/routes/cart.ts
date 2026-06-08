@@ -924,6 +924,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 shippingLabel: shippingOption?.display_name ?? 'Doprava',
                 returnUrl: `${storefrontBase}/s/${tenant.slug}/orders/${result.orderNumber}?email=${encodeURIComponent(result.customerEmail)}`,
                 cancelUrl: `${storefrontBase}/s/${tenant.slug}/checkout?cancelled=1`,
+                notificationUrl: `${config.SHOPIO_API_URL}/api/2026-05-20/webhooks/payments/${selectedProvider.config.providerCode}/${tenant.pubId}`,
               },
             });
             paymentUrl = init.redirectUrl;

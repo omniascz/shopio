@@ -57,6 +57,8 @@ export interface CreatePaymentInput {
   /** Where the gateway should send the customer back to. */
   returnUrl: string;
   cancelUrl: string;
+  /** Server-to-server notification (webhook) URL for async status updates. */
+  notificationUrl: string;
   /** Idempotency key forwarded to the provider (RULE-PAY-003). */
   idempotencyKey: string;
 }
