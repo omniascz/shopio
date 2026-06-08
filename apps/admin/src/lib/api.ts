@@ -219,6 +219,67 @@ export interface GiftCardItem {
   created_at: string;
 }
 
+export interface PromotionItem {
+  id: string;
+  name: string;
+  kind: 'order_percentage' | 'order_fixed' | 'free_shipping' | 'bogo';
+  value: string;
+  currency: string | null;
+  max_discount_amount: string | null;
+  min_subtotal: string;
+  min_quantity: number;
+  buy_quantity: number;
+  get_quantity: number;
+  get_discount_bps: number;
+  priority: number;
+  stackable: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+}
+
+export interface CollectionItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  rules: {
+    minPrice?: number;
+    maxPrice?: number;
+    onSaleOnly?: boolean;
+    inStockOnly?: boolean;
+    brand?: string;
+    vendor?: string;
+    sort?: 'price_asc' | 'price_desc' | 'newest';
+  };
+  position: number;
+  is_active: boolean;
+}
+
+export interface FlowItem {
+  id: string;
+  name: string;
+  trigger_event: string;
+  conditions: { field: string; op: string; value: string | number | (string | number)[] }[];
+  actions: { type: string; tag?: string; note?: string; to?: string; subject?: string }[];
+  priority: number;
+  is_active: boolean;
+  last_run_at: string | null;
+  run_count: number;
+}
+
+export interface CampaignItem {
+  id: string;
+  name: string;
+  subject: string;
+  body_html: string;
+  status: 'draft' | 'sending' | 'sent';
+  recipient_count: number;
+  sent_count: number;
+  sent_at: string | null;
+  created_at: string;
+}
+
 export interface GiftCardTransaction {
   kind: string;
   amount: string;
@@ -1058,6 +1119,95 @@ class ApiClient {
 
   async putHomepageBlocks(blocks: PageBlock[]): Promise<{ blocks: PageBlock[] }> {
     return this.request('/admin/settings/homepage-blocks', { method: 'PUT', body: JSON.stringify({ blocks }) });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promotions (P2)
+  // ---------------------------------------------------------------------------
+  async listPromotions(): Promise<{ promotions: PromotionItem[] }> {
+    return this.request('/admin/promotions');
+  }
+  async createPromotion(body: Record<string, unknown>): Promise<PromotionItem> {
+    return this.request('/admin/promotions', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updatePromotion(id: string, body: Record<string, unknown>): Promise<PromotionItem> {
+    return this.request(`/admin/promotions/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deletePromotion(id: string): Promise<void> {
+    await this.request(`/admin/promotions/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dynamic collections (P3)
+  // ---------------------------------------------------------------------------
+  async listCollections(): Promise<{ collections: CollectionItem[] }> {
+    return this.request('/admin/collections');
+  }
+  async createCollection(body: Record<string, unknown>): Promise<CollectionItem> {
+    return this.request('/admin/collections', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateCollection(id: string, body: Record<string, unknown>): Promise<CollectionItem> {
+    return this.request(`/admin/collections/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deleteCollection(id: string): Promise<void> {
+    await this.request(`/admin/collections/${id}`, { method: 'DELETE' });
+  }
+  async previewCollection(id: string): Promise<{ products: { id: string; slug: string; title: string; base_price: Money | null; primary_image: { url: string } | null }[] }> {
+    return this.request(`/admin/collections/${id}/preview`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Automation flows (P3)
+  // ---------------------------------------------------------------------------
+  async getFlowMeta(): Promise<{ triggers: string[]; fields: string[]; operators: string[]; action_types: string[] }> {
+    return this.request('/admin/flows/meta');
+  }
+  async listFlows(): Promise<{ flows: FlowItem[] }> {
+    return this.request('/admin/flows');
+  }
+  async createFlow(body: Record<string, unknown>): Promise<FlowItem> {
+    return this.request('/admin/flows', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateFlow(id: string, body: Record<string, unknown>): Promise<FlowItem> {
+    return this.request(`/admin/flows/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deleteFlow(id: string): Promise<void> {
+    await this.request(`/admin/flows/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Newsletter (P3)
+  // ---------------------------------------------------------------------------
+  async listSubscribers(): Promise<{ active_count: number; subscribers: { email: string; status: string; source: string | null; created_at: string }[] }> {
+    return this.request('/admin/newsletter/subscribers');
+  }
+  async listCampaigns(): Promise<{ campaigns: CampaignItem[] }> {
+    return this.request('/admin/newsletter/campaigns');
+  }
+  async createCampaign(body: { name: string; subject: string; bodyHtml: string }): Promise<CampaignItem> {
+    return this.request('/admin/newsletter/campaigns', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async updateCampaign(id: string, body: Partial<{ name: string; subject: string; bodyHtml: string }>): Promise<CampaignItem> {
+    return this.request(`/admin/newsletter/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async deleteCampaign(id: string): Promise<void> {
+    await this.request(`/admin/newsletter/campaigns/${id}`, { method: 'DELETE' });
+  }
+  async sendCampaign(id: string): Promise<{ sent: number; recipients: number }> {
+    return this.request(`/admin/newsletter/campaigns/${id}/send`, { method: 'POST' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Presentment currencies (P1)
+  // ---------------------------------------------------------------------------
+  async getCurrencies(): Promise<{ base: string; presentment: string[] }> {
+    return this.request('/admin/settings/currencies');
+  }
+  async putCurrencies(presentment: string[]): Promise<{ base: string; presentment: string[] }> {
+    return this.request('/admin/settings/currencies', { method: 'PUT', body: JSON.stringify({ presentment }) });
+  }
+  async refreshFx(): Promise<{ fixingDate: string; count: number }> {
+    return this.request('/admin/fx/refresh', { method: 'POST' });
   }
 
   // ---------------------------------------------------------------------------

@@ -31,6 +31,11 @@ import { ContentPage } from './pages/content';
 import { VendorsListPage } from './pages/vendors-list';
 import { DevelopersPage } from './pages/developers';
 import { AppsPage } from './pages/apps';
+import { PromotionsListPage } from './pages/promotions-list';
+import { CollectionsListPage } from './pages/collections-list';
+import { FlowsListPage } from './pages/flows-list';
+import { NewsletterPage } from './pages/newsletter';
+import { CurrenciesPage } from './pages/currencies';
 import { PaymentsPage } from './pages/payments';
 import { PlanPage } from './pages/plan';
 import { PlatformPage } from './pages/platform';
@@ -193,6 +198,12 @@ const appsRoute = createRoute({
   component: AppsPage,
 });
 
+const promotionsRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/promotions', component: PromotionsListPage });
+const collectionsRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/collections', component: CollectionsListPage });
+const flowsRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/flows', component: FlowsListPage });
+const newsletterRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/newsletter', component: NewsletterPage });
+const currenciesRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/currencies', component: CurrenciesPage });
+
 const paymentsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/payments',
@@ -234,6 +245,11 @@ const routeTree = rootRoute.addChildren([
     vendorsRoute,
     developersRoute,
     appsRoute,
+    promotionsRoute,
+    collectionsRoute,
+    flowsRoute,
+    newsletterRoute,
+    currenciesRoute,
     paymentsRoute,
     planRoute,
     platformRoute,
