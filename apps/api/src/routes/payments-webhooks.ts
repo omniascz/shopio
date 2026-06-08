@@ -36,6 +36,22 @@ export async function registerPaymentWebhookRoutes(
 ): Promise<void> {
   const { db, config } = opts;
 
+  // Form-encoded webhook bodies (ComGate, Pays, ThePay post application/x-www-
+  // form-urlencoded) → parse into an object so the handler can read transId etc.
+  if (!app.hasContentTypeParser('application/x-www-form-urlencoded')) {
+    app.addContentTypeParser(
+      'application/x-www-form-urlencoded',
+      { parseAs: 'string' },
+      (_req, body, done) => {
+        try {
+          done(null, Object.fromEntries(new URLSearchParams(body as string)));
+        } catch (err) {
+          done(err as Error, undefined);
+        }
+      },
+    );
+  }
+
   const handler = async (
     req: import('fastify').FastifyRequest<{ Params: Params; Querystring: Query }>,
     reply: import('fastify').FastifyReply,
@@ -76,8 +92,11 @@ export async function registerPaymentWebhookRoutes(
       });
     }
 
-    // Extract the provider payment id. GoPay carries it as ?id=.
-    const providerPaymentId = req.query.id ?? null;
+    // Extract the provider payment id — GoPay carries it as ?id=, the CZ
+    // gateways (ComGate/Pays/ThePay) post it in the form body.
+    const body = (req.body ?? {}) as Record<string, string | undefined>;
+    const providerPaymentId =
+      req.query.id ?? body.transId ?? body.id ?? body.payment_id ?? body.paymentId ?? null;
     if (!providerPaymentId) {
       app.log.warn({ providerCode, tenantId: tenant.id }, 'payments.webhook.no_payment_id');
       return reply.code(200).send({ received: true, matched: false });

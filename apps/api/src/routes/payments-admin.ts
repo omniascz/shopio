@@ -61,6 +61,13 @@ const PROVIDER_CATALOG: {
     defaultMethodKinds: ['card', 'bank_transfer', 'apple_pay', 'google_pay'],
   },
   {
+    code: 'comgate',
+    displayName: 'ComGate',
+    kind: 'redirect',
+    description: 'CZ platební brána — karty, bankovní převody, Apple/Google Pay.',
+    defaultMethodKinds: ['card', 'bank_transfer', 'apple_pay', 'google_pay'],
+  },
+  {
     code: 'stripe',
     displayName: 'Stripe',
     kind: 'redirect',
@@ -69,11 +76,12 @@ const PROVIDER_CATALOG: {
   },
 ];
 
-const WIRED_CODES = new Set(['cod', 'bank_transfer', 'gopay']); // can be enabled today
+const WIRED_CODES = new Set(['cod', 'bank_transfer', 'gopay', 'comgate']); // can be enabled today
 
 /** Required credential keys per gateway (live mode). */
 const REQUIRED_CREDENTIALS: Record<string, string[]> = {
   gopay: ['goId', 'clientId', 'clientSecret'],
+  comgate: ['merchant', 'secret'],
 };
 
 const UpsertBody = z.object({
