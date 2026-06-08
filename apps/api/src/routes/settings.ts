@@ -15,7 +15,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne, sql as dsql } from 'drizzle-orm';
 import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
@@ -70,6 +70,17 @@ const PatchIntegrationsBody = z.object({
   ga4MeasurementId: z.string().max(40).regex(/^G-[A-Z0-9]+$/i).or(z.literal('')).nullish(),
   /** Meta (Facebook) Pixel ID — numeric. */
   metaPixelId: z.string().max(40).regex(/^\d+$/).or(z.literal('')).nullish(),
+});
+
+/** Custom storefront domain (per `22`). */
+const PatchDomainBody = z.object({
+  /** Bare hostname, e.g. "obchod.example.cz". Empty string clears it. */
+  customDomain: z
+    .string()
+    .max(253)
+    .regex(/^([a-z0-9-]+\.)+[a-z]{2,}$/i, 'Neplatná doména')
+    .or(z.literal(''))
+    .nullish(),
 });
 
 /** Loyalty / store-credit program config (per `19`). */
@@ -305,6 +316,55 @@ export async function registerSettingsRoutes(
         .where(eq(schema.tenants.id, tenantId))
         .returning();
 
+      return reply.send({ data: serializeSettings(updated!) });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /admin/settings/domain — custom storefront domain (per `22`)
+  // ---------------------------------------------------------------------------
+  app.patch(
+    '/api/2026-05-20/admin/settings/domain',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const parsed = PatchDomainBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const domain = (parsed.data.customDomain ?? '').toLowerCase().trim();
+
+      // Enforce global uniqueness — a domain maps to exactly one shop.
+      if (domain) {
+        const [clash] = await db
+          .select({ id: schema.tenants.id })
+          .from(schema.tenants)
+          .where(
+            and(
+              eq(dsql`lower(${schema.tenants.settings} ->> 'custom_domain')`, domain),
+              ne(schema.tenants.id, tenantId),
+            ),
+          )
+          .limit(1);
+        if (clash) {
+          return reply.code(409).send({
+            error: { code: 'DOMAIN_TAKEN', message: 'Tato doména je již použita jiným e-shopem' },
+          });
+        }
+      }
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>), custom_domain: domain || null };
+      const [updated] = await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId))
+        .returning();
       return reply.send({ data: serializeSettings(updated!) });
     },
   );
@@ -646,6 +706,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
     };
     integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
     loyalty?: { enabled?: boolean; earn_rate_bps?: number };
+    custom_domain?: string | null;
   };
   return {
     slug: tenant.slug,
@@ -686,6 +747,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
       enabled: settings.loyalty?.enabled ?? false,
       earn_rate_bps: settings.loyalty?.earn_rate_bps ?? 0,
     },
+    custom_domain: settings.custom_domain ?? null,
   };
 }
 

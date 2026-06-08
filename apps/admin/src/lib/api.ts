@@ -485,6 +485,7 @@ export interface ShopSettings {
     enabled: boolean;
     earn_rate_bps: number;
   };
+  custom_domain?: string | null;
 }
 
 export interface ShippingSettings {
@@ -1389,6 +1390,13 @@ class ApiClient {
     return this.request('/admin/settings/loyalty', {
       method: 'PATCH',
       body: JSON.stringify(body),
+    });
+  }
+
+  async updateDomain(customDomain: string): Promise<ShopSettings> {
+    return this.request('/admin/settings/domain', {
+      method: 'PATCH',
+      body: JSON.stringify({ customDomain }),
     });
   }
 

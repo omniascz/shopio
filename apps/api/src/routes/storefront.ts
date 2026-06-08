@@ -143,6 +143,32 @@ export async function registerStorefrontRoutes(
   );
 
   // ---------------------------------------------------------------------------
+  // GET /storefront/resolve-domain?host= — map a custom domain → tenant slug
+  // (per `22`). Public, used by the storefront middleware for host-based routing.
+  // ---------------------------------------------------------------------------
+  app.get<{ Querystring: { host?: string } }>(
+    '/api/2026-05-20/storefront/resolve-domain',
+    async (req, reply) => {
+      const host = (req.query.host ?? '').toLowerCase().replace(/:\d+$/, '').trim();
+      if (!host) return notFound(reply, 'domain');
+      const [row] = await db
+        .select({ slug: schema.tenants.slug })
+        .from(schema.tenants)
+        .where(
+          and(
+            eq(schema.tenants.status, 'active'),
+            dsql`lower(${schema.tenants.settings} ->> 'custom_domain') = ${host}`,
+          ),
+        )
+        .limit(1);
+      if (!row) return notFound(reply, 'domain');
+      return reply
+        .header('cache-control', 'public, max-age=300')
+        .send({ data: { slug: row.slug } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/feeds/{provider}.xml — comparison-shopping
   // feed (Heureka / Zboží.cz / Glami), per `29-integrations.md`. Public XML the
   // merchant registers in the engine's admin. CZ acquisition essential.

@@ -34,6 +34,7 @@ export function SettingsPage() {
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
       <FeedsSection slug={settings.slug} />
+      <DomainSection settings={settings} />
       <IntegrationsSection settings={settings} />
       <LoyaltySection settings={settings} />
       <AccountingSection />
@@ -41,6 +42,59 @@ export function SettingsPage() {
       <HomepageSection settings={settings} />
       <LocalesSection />
     </div>
+  );
+}
+
+// =============================================================================
+// Vlastní doména (per `22`)
+// =============================================================================
+
+function DomainSection({ settings }: { settings: ShopSettings }) {
+  const queryClient = useQueryClient();
+  const [domain, setDomain] = useState(settings.custom_domain ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => api.updateDomain(domain.trim()),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Uložení selhalo'),
+  });
+
+  const platformHost = import.meta.env.VITE_PLATFORM_HOST ?? 'shopio.app';
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Vlastní doména</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Provozujte e-shop na vlastní doméně místo <code>/s/{settings.slug}</code>.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="obchod.example.cz"
+          style={{ flex: 1, minWidth: 220, padding: '0.5rem', border: '1px solid #ddd', borderRadius: 4, fontFamily: 'monospace' }}
+        />
+        <button
+          type="button"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          style={{ padding: '0.5rem 1rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer' }}
+        >
+          {mutation.isPending ? 'Ukládám…' : 'Uložit'}
+        </button>
+      </div>
+      {domain.trim() && (
+        <p style={{ fontSize: '0.75rem', color: '#666', margin: '0.75rem 0 0' }}>
+          Nasměrujte DNS: <code>CNAME {domain.trim()} → {platformHost}</code>. Po propagaci DNS bude
+          e-shop dostupný na vaší doméně (HTTPS zajistí platforma).
+        </p>
+      )}
+      {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}
+    </section>
   );
 }
 
