@@ -30,6 +30,7 @@ import { ManualOrderPage } from './pages/manual-order';
 import { ContentPage } from './pages/content';
 import { VendorsListPage } from './pages/vendors-list';
 import { DevelopersPage } from './pages/developers';
+import { AppsPage } from './pages/apps';
 import { PaymentsPage } from './pages/payments';
 import { PlanPage } from './pages/plan';
 import { PlatformPage } from './pages/platform';
@@ -186,6 +187,12 @@ const developersRoute = createRoute({
   component: DevelopersPage,
 });
 
+const appsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/apps',
+  component: AppsPage,
+});
+
 const paymentsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/payments',
@@ -226,6 +233,7 @@ const routeTree = rootRoute.addChildren([
     contentRoute,
     vendorsRoute,
     developersRoute,
+    appsRoute,
     paymentsRoute,
     planRoute,
     platformRoute,

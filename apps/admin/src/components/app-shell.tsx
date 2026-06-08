@@ -48,6 +48,7 @@ export function AppShell() {
           <NavLink to="/content">Obsah</NavLink>
           <NavLink to="/vendors">Prodejci</NavLink>
           <NavLink to="/developers">Vývojáři</NavLink>
+          <NavLink to="/apps">Aplikace</NavLink>
           <NavLink to="/payments">Platby</NavLink>
           <NavLink to="/plan">Plán</NavLink>
           <NavLink to="/settings">Nastavení</NavLink>

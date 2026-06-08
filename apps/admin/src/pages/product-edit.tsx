@@ -240,6 +240,7 @@ export function ProductEditPage() {
       <AttributesPanel product={product} onSaved={invalidate} />
       <MediaPanel product={product} onSaved={invalidate} />
       <VariantsPanel product={product} onSaved={invalidate} />
+      <BundlePanel product={product} />
       <CategoriesPanel product={product} onSaved={invalidate} />
       <AiAssistPanel product={product} onSaved={invalidate} />
       <VendorPanel product={product} onSaved={invalidate} />
@@ -1082,6 +1083,119 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+// =============================================================================
+// Bundle composition (per `06` §3.5) — make this product a bundle of others
+// =============================================================================
+
+function BundlePanel({ product }: { product: ProductDetail }) {
+  const queryClient = useQueryClient();
+  const itemsQuery = useQuery({
+    queryKey: ['admin', 'bundle-items', product.id],
+    queryFn: () => api.listBundleItems(product.id),
+  });
+  const items = itemsQuery.data?.bundle_items ?? [];
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'bundle-items', product.id] });
+
+  // Pick a child variant: choose another product, then one of its variants.
+  const productsQuery = useQuery({ queryKey: ['admin', 'products', 'all'], queryFn: () => api.listProducts() });
+  const products = (productsQuery.data?.products ?? []).filter((p) => p.id !== product.id);
+  const [pickProduct, setPickProduct] = useState('');
+  const [qty, setQty] = useState('1');
+  const [error, setError] = useState<string | null>(null);
+  const detailQuery = useQuery({
+    queryKey: ['admin', 'product', pickProduct],
+    queryFn: () => api.getProduct(pickProduct),
+    enabled: Boolean(pickProduct),
+  });
+  const [pickVariant, setPickVariant] = useState('');
+
+  const add = useMutation({
+    mutationFn: () => {
+      if (!pickVariant) throw new Error('Vyberte variantu');
+      return api.addBundleItem(product.id, { childVariantId: pickVariant, quantity: Number(qty) || 1 });
+    },
+    onSuccess: () => { setPickProduct(''); setPickVariant(''); setQty('1'); invalidate(); },
+    onError: (e) => {
+      const code = (e as { code?: string }).code;
+      setError(
+        code === 'BUNDLE_CYCLE'
+          ? 'Tato varianta by vytvořila cyklus.'
+          : code === 'DUPLICATE_ITEM'
+            ? 'Varianta už je v bundlu.'
+            : code === 'SELF_REFERENCE'
+              ? 'Bundle nemůže obsahovat vlastní variantu.'
+              : (e as Error).message,
+      );
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (itemId: string) => api.deleteBundleItem(product.id, itemId),
+    onSuccess: invalidate,
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Sada / bundle</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', marginTop: 0 }}>
+        Přidáním komponent se z produktu stane bundle. Bundle má vlastní cenu (nastavte ji výše); zde
+        jen určujete, co obsahuje. Dostupnost se počítá z dětí.
+      </p>
+
+      {items.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Produkt</th>
+              <th style={thStyle}>Varianta</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Počet</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Skladem</th>
+              <th style={thStyle} />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it) => (
+              <tr key={it.id}>
+                <td style={tdStyle}>{it.title}</td>
+                <td style={tdStyle}>{it.variant_title}</td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>{it.quantity}×</td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>{it.available_units}</td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <button type="button" onClick={() => remove.mutate(it.id)} style={smallBtnStyle}>Odebrat</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: '0.8125rem' }}>
+          <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Produkt</span>
+          <select value={pickProduct} onChange={(e) => { setPickProduct(e.target.value); setPickVariant(''); }} style={{ ...inputStyle, width: 200 }}>
+            <option value="">— vyberte —</option>
+            {products.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: '0.8125rem' }}>
+          <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Varianta</span>
+          <select value={pickVariant} onChange={(e) => setPickVariant(e.target.value)} disabled={!pickProduct} style={{ ...inputStyle, width: 180 }}>
+            <option value="">— vyberte —</option>
+            {(detailQuery.data?.variants ?? []).map((v) => <option key={v.id} value={v.id}>{v.title}{v.sku ? ` (${v.sku})` : ''}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: '0.8125rem' }}>
+          <span style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Počet</span>
+          <input value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="1" style={{ ...inputStyle, width: 70 }} />
+        </label>
+        <button type="button" disabled={!pickVariant || add.isPending} onClick={() => { setError(null); add.mutate(); }} style={primaryBtnStyle}>
+          Přidat
+        </button>
+      </div>
+      {error && <p style={errorStyle}>{error}</p>}
+    </section>
   );
 }
 

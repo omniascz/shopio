@@ -229,6 +229,29 @@ export interface GiftCardTransaction {
   occurred_at: string;
 }
 
+export interface OAuthApp {
+  id: string;
+  name: string;
+  description: string | null;
+  client_id: string;
+  client_secret_hint?: string;
+  redirect_uris: string[];
+  scopes: string[];
+  icon_url: string | null;
+  website_url: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface InstalledApp {
+  id: string;
+  app_id: string;
+  name: string;
+  icon_url: string | null;
+  scopes: string[];
+  installed_at: string;
+}
+
 export interface CompanyItem {
   id: string;
   name: string;
@@ -424,6 +447,20 @@ export interface ProductVariantDetail {
   allow_backorder: boolean;
   option_values?: Record<string, string>;
   position?: number;
+}
+
+export interface BundleItem {
+  id: string;
+  child_variant_id: string;
+  product_id: string;
+  product_slug: string;
+  title: string;
+  variant_title: string;
+  sku: string | null;
+  quantity: number;
+  is_optional: boolean;
+  position: number;
+  available_units: number;
 }
 
 export interface ImportReport {
@@ -969,6 +1006,43 @@ class ApiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // OAuth apps + marketplace (per `28`)
+  // ---------------------------------------------------------------------------
+  async listOAuthScopes(): Promise<{ scopes: { scope: string; label: string }[] }> {
+    return this.request('/oauth/scopes');
+  }
+
+  async listMarketplaceApps(): Promise<{ apps: OAuthApp[] }> {
+    return this.request('/admin/apps');
+  }
+
+  async listInstalledApps(): Promise<{ installed: InstalledApp[] }> {
+    return this.request('/admin/apps/installed');
+  }
+
+  async uninstallApp(pubId: string): Promise<void> {
+    await this.request(`/admin/apps/installed/${pubId}`, { method: 'DELETE' });
+  }
+
+  async listMyOAuthApps(): Promise<{ apps: OAuthApp[] }> {
+    return this.request('/admin/oauth/apps');
+  }
+
+  async registerOAuthApp(body: {
+    name: string;
+    description?: string | null;
+    redirectUris: string[];
+    scopes: string[];
+    websiteUrl?: string | null;
+  }): Promise<OAuthApp & { client_secret: string }> {
+    return this.request('/admin/oauth/apps', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async deleteOAuthApp(pubId: string): Promise<void> {
+    await this.request(`/admin/oauth/apps/${pubId}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
   // B2B companies (per `21`)
   // ---------------------------------------------------------------------------
   async listCompanies(): Promise<{ companies: CompanyItem[] }> {
@@ -1238,6 +1312,27 @@ class ApiClient {
 
   async getProduct(idOrSlug: string): Promise<ProductDetail> {
     return this.request(`/products/${idOrSlug}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Product bundles (per `06` §3.5)
+  // ---------------------------------------------------------------------------
+  async listBundleItems(productId: string): Promise<{ bundle_items: BundleItem[] }> {
+    return this.request(`/admin/products/${productId}/bundle-items`);
+  }
+
+  async addBundleItem(
+    productId: string,
+    body: { childVariantId: string; quantity: number; isOptional?: boolean },
+  ): Promise<{ id: string }> {
+    return this.request(`/admin/products/${productId}/bundle-items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteBundleItem(productId: string, itemId: string): Promise<void> {
+    await this.request(`/admin/products/${productId}/bundle-items/${itemId}`, { method: 'DELETE' });
   }
 
   async createProduct(body: {
