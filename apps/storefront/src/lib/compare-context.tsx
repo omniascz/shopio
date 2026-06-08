@@ -8,6 +8,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { wishlistAdd, wishlistList, wishlistRemove } from '@/lib/api';
 
 export interface SavedProduct {
   id: string;
@@ -57,15 +58,51 @@ export function CompareProvider({
   useEffect(() => {
     if (ready) localStorage.setItem(wishKey, JSON.stringify(wishlist));
   }, [wishlist, ready, wishKey]);
+
+  // Server-side wishlist (P2): when logged in, merge the cross-device list into
+  // the local one (best-effort; 401 for guests → no-op).
+  useEffect(() => {
+    let active = true;
+    void wishlistList(tenantSlug).then((items) => {
+      if (!active || items.length === 0) return;
+      setWishlist((prev) => {
+        const byId = new Map(prev.map((x) => [x.id, x]));
+        for (const it of items) {
+          if (!byId.has(it.id)) {
+            byId.set(it.id, {
+              id: it.id,
+              slug: it.slug,
+              title: it.title,
+              image: it.primary_image?.url ?? null,
+              priceAmount: it.base_price?.amount ?? null,
+              priceCurrency: it.base_price?.currency ?? null,
+            });
+          }
+        }
+        return [...byId.values()];
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [tenantSlug]);
   useEffect(() => {
     if (ready) localStorage.setItem(cmpKey, JSON.stringify(compare));
   }, [compare, ready, cmpKey]);
 
-  const toggleWishlist = useCallback((p: SavedProduct) => {
-    setWishlist((prev) =>
-      prev.some((x) => x.id === p.id) ? prev.filter((x) => x.id !== p.id) : [...prev, p],
-    );
-  }, []);
+  const toggleWishlist = useCallback(
+    (p: SavedProduct) => {
+      setWishlist((prev) => {
+        if (prev.some((x) => x.id === p.id)) {
+          void wishlistRemove(tenantSlug, p.id); // persist when logged in
+          return prev.filter((x) => x.id !== p.id);
+        }
+        void wishlistAdd(tenantSlug, p.id);
+        return [...prev, p];
+      });
+    },
+    [tenantSlug],
+  );
 
   const toggleCompare = useCallback((p: SavedProduct) => {
     setCompare((prev) => {

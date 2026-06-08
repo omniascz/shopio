@@ -845,6 +845,48 @@ export async function customerOrders(tenantSlug: string): Promise<CustomerOrder[
   }
 }
 
+// ---------------------------------------------------------------------------
+// Wishlist (server-side, P2) + reorder (P3) — best-effort (401 when guest).
+// ---------------------------------------------------------------------------
+export async function wishlistList(tenantSlug: string): Promise<RecCard[]> {
+  try {
+    const d = await customerFetch<{ items: RecCard[] }>(`/storefront/${tenantSlug}/me/wishlist`);
+    return d?.items ?? [];
+  } catch {
+    return [];
+  }
+}
+export async function wishlistAdd(tenantSlug: string, productId: string): Promise<void> {
+  try {
+    await customerFetch(`/storefront/${tenantSlug}/me/wishlist`, { method: 'POST', body: JSON.stringify({ productId }) });
+  } catch {
+    /* guest / offline → local only */
+  }
+}
+export async function wishlistRemove(tenantSlug: string, productId: string): Promise<void> {
+  try {
+    await customerFetch(`/storefront/${tenantSlug}/me/wishlist/${productId}`, { method: 'DELETE' });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Re-add a past order's items to the cart (P3 reorder). Returns ok + report. */
+export async function reorder(
+  tenantSlug: string,
+  orderNumber: string,
+): Promise<{ ok: boolean; added: number }> {
+  try {
+    const d = await customerFetch<{ reorder: { added_lines: number } }>(
+      `/storefront/${tenantSlug}/cart/reorder/${orderNumber}`,
+      { method: 'POST' },
+    );
+    return { ok: true, added: d?.reorder?.added_lines ?? 0 };
+  } catch {
+    return { ok: false, added: 0 };
+  }
+}
+
 /** Direct download URL for the order's tax invoice PDF (404 until issued). */
 export function invoicePdfUrl(tenantSlug: string, orderNumber: string, email: string): string {
   return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/orders/${orderNumber}/invoice.pdf?email=${encodeURIComponent(email)}`;

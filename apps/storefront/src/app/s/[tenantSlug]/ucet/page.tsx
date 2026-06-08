@@ -7,6 +7,7 @@
 
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ReorderButton } from '@/components/reorder-button';
 import {
   customerCreateReturn,
   customerForgotPassword,
@@ -219,7 +220,10 @@ function LoggedIn({
                     {ORDER_STATUS_LABELS[o.status] ?? o.status}
                   </div>
                 </div>
-                <div style={{ fontWeight: 600 }}>{formatMoney(o.total)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <ReorderButton tenantSlug={tenantSlug} orderNumber={o.number} />
+                  <span style={{ fontWeight: 600 }}>{formatMoney(o.total)}</span>
+                </div>
               </li>
             ))}
           </ul>
