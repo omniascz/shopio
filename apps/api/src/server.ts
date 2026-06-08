@@ -41,6 +41,7 @@ import {
   registerCustomerReviewRoutes,
 } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
+import { sweepAbandonedCarts } from './lib/abandoned-cart';
 
 export async function buildServer() {
   const config = getConfig();
@@ -154,6 +155,24 @@ export async function buildServer() {
   }, 5 * 60 * 1000);
   sweepInterval.unref(); // never keep the process alive just for the sweeper
   server.addHook('onClose', async () => clearInterval(sweepInterval));
+
+  // JOB-SEND-ABANDONED-CART-EMAIL (per `11`/`19`) — recovery e-mails for idle
+  // carts of logged-in customers. Every 15 min; BullMQ later. Guarded.
+  let recovering = false;
+  const recoveryInterval = setInterval(() => {
+    if (recovering) return;
+    recovering = true;
+    void sweepAbandonedCarts(db, config, server.log)
+      .then((count) => {
+        if (count > 0) server.log.info({ count }, 'abandoned_cart.recovery.sent');
+      })
+      .catch((err) => server.log.error({ err }, 'abandoned_cart.recovery.failed'))
+      .finally(() => {
+        recovering = false;
+      });
+  }, 15 * 60 * 1000);
+  recoveryInterval.unref();
+  server.addHook('onClose', async () => clearInterval(recoveryInterval));
 
   return server;
 }

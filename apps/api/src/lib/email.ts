@@ -458,3 +458,94 @@ export function renderOrderShippedEmail(ctx: OrderShippedEmailContext): {
 
   return { subject, text, html };
 }
+
+// =============================================================================
+// Abandoned cart recovery (per `11-cart.md` + `19-marketing-seo.md`)
+// =============================================================================
+
+export interface AbandonedCartEmailContext {
+  tenantName: string;
+  tenantSlug: string;
+  storefrontBaseUrl: string;
+  customerName: string | null;
+  currency: string;
+  items: { title: string; quantity: number; lineTotalMinor: bigint }[];
+  totalMinor: bigint;
+  /** Optional coupon to entice completion. */
+  couponCode?: string | null;
+}
+
+export function renderAbandonedCartEmail(ctx: AbandonedCartEmailContext): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const cartUrl = `${ctx.storefrontBaseUrl}/s/${ctx.tenantSlug}/checkout`;
+  const subject = `Zapomněli jste něco v košíku? 🛒`;
+  const totalStr = fmtMoney(ctx.totalMinor, ctx.currency);
+
+  const text = [
+    `Dobrý den${ctx.customerName ? ` ${ctx.customerName}` : ''},`,
+    '',
+    `ve vašem košíku v obchodě ${ctx.tenantName} na vás čekají tyto položky:`,
+    '',
+    ...ctx.items.map(
+      (it) => `  • ${it.title} × ${it.quantity} — ${fmtMoney(it.lineTotalMinor, ctx.currency)}`,
+    ),
+    '',
+    `Celkem: ${totalStr}`,
+    ...(ctx.couponCode ? ['', `Použijte kód ${ctx.couponCode} a dokončete nákup se slevou.`] : []),
+    '',
+    `Dokončit nákup: ${cartUrl}`,
+    '',
+    `S pozdravem,`,
+    `${ctx.tenantName}`,
+  ].join('\n');
+
+  const itemRows = ctx.items
+    .map(
+      (it) => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;">
+            <strong>${escapeHtml(it.title)}</strong>
+            <span style="color:#666;font-size:13px;"> · × ${it.quantity}</span>
+          </td>
+          <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">
+            ${escapeHtml(fmtMoney(it.lineTotalMinor, ctx.currency))}
+          </td>
+        </tr>`,
+    )
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="cs">
+<head><meta charset="UTF-8"/><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#222;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="padding:24px 28px;background:#fff7e0;border-bottom:1px solid #ffe0a3;">
+      <h1 style="margin:0;font-size:22px;">🛒 Váš košík na vás čeká</h1>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="margin:0 0 16px;">Dobrý den${ctx.customerName ? ` <strong>${escapeHtml(ctx.customerName)}</strong>` : ''},</p>
+      <p style="margin:0 0 16px;">nedokončili jste nákup v obchodě <strong>${escapeHtml(ctx.tenantName)}</strong>. Vaše položky jsme vám uschovali:</p>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 16px;">${itemRows}
+        <tr><td style="padding:12px 0 0;font-weight:bold;">Celkem</td><td style="padding:12px 0 0;text-align:right;font-weight:bold;">${escapeHtml(totalStr)}</td></tr>
+      </table>
+      ${
+        ctx.couponCode
+          ? `<p style="margin:0 0 16px;padding:12px;background:#e3f5e8;border-radius:6px;">Použijte kód <strong>${escapeHtml(ctx.couponCode)}</strong> a dokončete nákup se slevou.</p>`
+          : ''
+      }
+      <div style="margin:24px 0;text-align:center;">
+        <a href="${cartUrl}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:4px;font-weight:500;">
+          Dokončit nákup
+        </a>
+      </div>
+      <p style="margin:24px 0 0;color:#666;font-size:13px;">S pozdravem,<br/>${escapeHtml(ctx.tenantName)}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
