@@ -232,6 +232,13 @@
       "when": 1780931274340,
       "tag": "0032_exchange_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780933018265,
+      "tag": "0033_promotions",
+      "breakpoints": true
     }
   ]
 }

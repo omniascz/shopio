@@ -36,6 +36,7 @@ import { computeTax, qualifiesForReverseCharge, serializeBreakdown, type TaxResu
 import { resolveRates } from '../lib/tax-resolver';
 import { loadRates } from '../lib/fx';
 import { makeConverter, readCurrencyConfig, resolvePresentmentCurrency } from '../lib/presentment';
+import { evaluatePromotions, loadActivePromotions } from '../lib/promotions';
 import type { CartShippingMetrics } from '../lib/shipping';
 import {
   resolveShippingOptions,
@@ -833,6 +834,23 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           throw err;
         }
       }
+
+      // Automatic promotions (per `10`, P2) — no-code cart rules, summed on top
+      // of any coupon and clamped. order_fixed promotions carry a base-currency
+      // amount, so they're skipped for a non-base charge currency (like coupons).
+      const promoCandidates = (await loadActivePromotions(db, tenant.id, new Date())).filter(
+        (p) => chargeCurrency === baseCurrency || p.kind !== 'order_fixed',
+      );
+      const promo = evaluatePromotions(promoCandidates, {
+        goodsGross: grossGoods,
+        shippingGross,
+        lines: items.map((it) => ({ unitPrice: unitOf(it), quantity: it.quantity })),
+      });
+      goodsDiscount = goodsDiscount + promo.goodsDiscount;
+      if (goodsDiscount > grossGoods) goodsDiscount = grossGoods;
+      shippingDiscount = shippingDiscount + promo.shippingDiscount;
+      if (shippingDiscount > shippingGross) shippingDiscount = shippingGross;
+
       const lineDiscounts = distributeDiscount(
         items.map((it) => unitOf(it) * BigInt(it.quantity)),
         goodsDiscount,
@@ -1689,6 +1707,20 @@ async function buildCartPayload(
     }
   }
 
+  // Automatic promotions preview (per `10`, P2) — goods discount only in the
+  // cart (shipping isn't known yet). Summed on top of any coupon, clamped.
+  let promoNames: { name: string; kind: string }[] = [];
+  if (items.length > 0) {
+    const promo = evaluatePromotions(await loadActivePromotions(db, tenant.id, new Date()), {
+      goodsGross,
+      shippingGross: 0n,
+      lines: items.map((it) => ({ unitPrice: it.unitPriceAmount, quantity: it.quantity })),
+    });
+    discount = discount + promo.goodsDiscount;
+    if (discount > goodsGross) discount = goodsGross;
+    promoNames = promo.applied.map((a) => ({ name: a.name, kind: a.kind }));
+  }
+
   let tax: TaxResult | null = null;
   if (items.length > 0) {
     const lineDiscounts = distributeDiscount(
@@ -1710,6 +1742,7 @@ async function buildCartPayload(
     discount,
     appliedCode,
     kind: couponKind,
+    promotions: promoNames,
   });
 }
 
@@ -1718,7 +1751,12 @@ function serializeCart(
   items: Awaited<ReturnType<typeof listCartItems>>,
   tax: TaxResult | null,
   priceIncludesTax: boolean,
-  coupon: { discount: bigint; appliedCode: string | null; kind: string | null },
+  coupon: {
+    discount: bigint;
+    appliedCode: string | null;
+    kind: string | null;
+    promotions: { name: string; kind: string }[];
+  },
 ) {
   let subtotal = 0n;
   for (const it of items) {
@@ -1734,6 +1772,8 @@ function serializeCart(
     subtotal: { amount: subtotal.toString(), currency: cart.currency },
     coupon_code: coupon.appliedCode,
     coupon_kind: coupon.kind,
+    // Automatically-applied promotions (no code) — for the cart UI.
+    promotions: coupon.promotions,
     discount: { amount: coupon.discount.toString(), currency: cart.currency },
     total: { amount: total.toString(), currency: cart.currency },
     tax_included: priceIncludesTax,

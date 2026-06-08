@@ -61,3 +61,5 @@ export * from './oauth';
 export * from './price-history';
 // FX reference rates (P1 multi-currency — ČNB daily fixing)
 export * from './exchange-rates';
+// Automatic promotions (P2 — `10-pricing-promotions.md` Magento-style cart rules)
+export * from './promotions';
