@@ -33,6 +33,7 @@ import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { resolveBlocks } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
 import { frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
+import { resolveCollection, type CollectionRules } from '../lib/collections';
 import { loadRates } from '../lib/fx';
 import {
   makeConverter,
@@ -759,6 +760,74 @@ export async function registerStorefrontRoutes(
       return reply
         .header('cache-control', 'public, max-age=600')
         .send({ data: { frequently_bought_together: data.fbt, related: data.related } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/collections — active dynamic collections (P3).
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/collections',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select({
+            pubId: schema.collections.pubId,
+            name: schema.collections.name,
+            slug: schema.collections.slug,
+            description: schema.collections.description,
+          })
+          .from(schema.collections)
+          .where(and(eq(schema.collections.tenantId, tenant.id), eq(schema.collections.isActive, true)))
+          .orderBy(desc(schema.collections.position)),
+      );
+      return reply
+        .header('cache-control', 'public, max-age=600')
+        .send({ data: { collections: rows.map((r) => ({ id: r.pubId, name: r.name, slug: r.slug, description: r.description })) } });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/collections/{slug} — resolved products (P3),
+  // in the requested presentment currency.
+  app.get<{ Params: { tenantSlug: string; collectionSlug: string }; Querystring: { currency?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/collections/:collectionSlug',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const present = await buildPresenter(db, tenant, req.query.currency);
+      const loaded = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [col] = await tx
+          .select()
+          .from(schema.collections)
+          .where(
+            and(
+              eq(schema.collections.tenantId, tenant.id),
+              eq(schema.collections.slug, req.params.collectionSlug),
+              eq(schema.collections.isActive, true),
+            ),
+          )
+          .limit(1);
+        if (!col) return null;
+        const products = await resolveCollection(tx, tenant.id, col.rules as CollectionRules, 48);
+        return { col, products };
+      });
+      if (!loaded) return notFound(reply, 'collection');
+      return reply.send({
+        data: {
+          name: loaded.col.name,
+          slug: loaded.col.slug,
+          description: loaded.col.description,
+          seo_title: loaded.col.seoTitle,
+          seo_description: loaded.col.seoDescription,
+          currency: present.currency,
+          products: loaded.products.map((p) => ({
+            ...p,
+            base_price: p.base_price ? present.money(BigInt(p.base_price.amount)) : null,
+          })),
+        },
+      });
     },
   );
 
