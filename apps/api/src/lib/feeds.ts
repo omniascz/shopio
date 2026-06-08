@@ -26,7 +26,7 @@ interface TenantInfo {
   priceIncludesTax: boolean;
 }
 
-interface FeedItem {
+export interface FeedItem {
   variantPubId: string;
   productPubId: string;
   productSlug: string;
@@ -42,6 +42,7 @@ interface FeedItem {
   currency: string;
   categoryPath: string[];
   hasSiblings: boolean;
+  available: boolean;
   params: { name: string; value: string }[];
 }
 
@@ -124,6 +125,9 @@ export async function loadFeedItems(
         title: schema.productVariants.title,
         priceAmount: schema.productVariants.priceAmount,
         priceCurrency: schema.productVariants.priceCurrency,
+        stockOnHand: schema.productVariants.stockOnHand,
+        stockReserved: schema.productVariants.stockReserved,
+        allowBackorder: schema.productVariants.allowBackorder,
       })
       .from(schema.productVariants)
       .where(
@@ -213,6 +217,7 @@ export async function loadFeedItems(
           currency: v.priceCurrency || tenant.defaultCurrency,
           categoryPath: catList,
           hasSiblings: pv.length > 1,
+          available: v.allowBackorder || v.stockOnHand - v.stockReserved > 0,
           params,
         });
       }
@@ -269,4 +274,106 @@ export function buildFeedXml(
     .join('\n');
 
   return `<?xml version="1.0" encoding="utf-8"?>\n<SHOP>\n${body}\n</SHOP>\n`;
+}
+
+/**
+ * Google Shopping / Google Merchant feed — RSS 2.0 with the `g:` namespace.
+ * The global comparison/ads standard; also the base for Free Listings + AI
+ * shopping surfaces.
+ */
+export function buildGoogleFeed(items: FeedItem[], storefrontBase: string, tenantSlug: string): string {
+  const shopBase = `${storefrontBase.replace(/\/$/, '')}/s/${tenantSlug}`;
+  const body = items
+    .map((it) => {
+      const url = `${shopBase}/p/${it.productSlug}`;
+      const lines: string[] = [];
+      lines.push(`      <g:id>${xmlEscape(it.variantPubId)}</g:id>`);
+      lines.push(`      <title>${xmlEscape(it.name)}</title>`);
+      if (it.description) lines.push(`      <description>${xmlEscape(it.description)}</description>`);
+      lines.push(`      <link>${xmlEscape(url)}</link>`);
+      if (it.imageUrl) lines.push(`      <g:image_link>${xmlEscape(it.imageUrl)}</g:image_link>`);
+      lines.push(`      <g:price>${money(it.grossMinor)} ${it.currency}</g:price>`);
+      lines.push(`      <g:availability>${it.available ? 'in_stock' : 'out_of_stock'}</g:availability>`);
+      if (it.brand) lines.push(`      <g:brand>${xmlEscape(it.brand)}</g:brand>`);
+      if (it.ean) lines.push(`      <g:gtin>${xmlEscape(it.ean)}</g:gtin>`);
+      if (it.sku) lines.push(`      <g:mpn>${xmlEscape(it.sku)}</g:mpn>`);
+      if (it.hasSiblings) lines.push(`      <g:item_group_id>${xmlEscape(it.productPubId)}</g:item_group_id>`);
+      if (it.categoryPath.length > 0) {
+        lines.push(`      <g:product_type>${xmlEscape(it.categoryPath.join(' > '))}</g:product_type>`);
+      }
+      lines.push(`      <g:condition>new</g:condition>`);
+      return `    <item>\n${lines.join('\n')}\n    </item>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>${xmlEscape(tenantSlug)}</title>
+    <link>${xmlEscape(shopBase)}</link>
+${body}
+  </channel>
+</rss>
+`;
+}
+
+/**
+ * Ceneo.pl feed — the dominant Polish price-comparison engine (PL must-have).
+ * `<offers><o>…</o></offers>` format.
+ */
+export function buildCeneoFeed(items: FeedItem[], storefrontBase: string, tenantSlug: string): string {
+  const shopBase = `${storefrontBase.replace(/\/$/, '')}/s/${tenantSlug}`;
+  const body = items
+    .map((it) => {
+      const url = `${shopBase}/p/${it.productSlug}`;
+      const cat = it.categoryPath.join('/');
+      const attrs = it.params
+        .map((p) => `        <a name="${xmlEscape(p.name)}">${xmlEscape(p.value)}</a>`)
+        .join('\n');
+      return `    <o id="${xmlEscape(it.variantPubId)}" url="${xmlEscape(url)}" price="${money(it.grossMinor)}" avail="${it.available ? '1' : '0'}" stock="${it.available ? '1' : '0'}"${it.ean ? ` ean="${xmlEscape(it.ean)}"` : ''}>
+      <cat><![CDATA[${cat}]]></cat>
+      <name><![CDATA[${it.name}]]></name>
+      ${it.imageUrl ? `<imgs><main url="${xmlEscape(it.imageUrl)}"/></imgs>` : ''}
+      <desc><![CDATA[${it.description}]]></desc>
+      <attrs>
+${it.brand ? `        <a name="Producent">${xmlEscape(it.brand)}</a>\n` : ''}${attrs}
+      </attrs>
+    </o>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>\n<offers version="1">\n${body}\n</offers>\n`;
+}
+
+/**
+ * AI / agentic-commerce product feed (per the 2026 trend) — a clean structured
+ * JSON catalog that LLM shopping agents (ChatGPT, Gemini, Perplexity, Copilot)
+ * and the storefront's llms.txt can consume. Real-time price + availability;
+ * the open-feed counterpart to Shopify's agentic Catalog.
+ */
+export function buildAiFeed(items: FeedItem[], storefrontBase: string, tenantSlug: string, shopName: string): string {
+  const shopBase = `${storefrontBase.replace(/\/$/, '')}/s/${tenantSlug}`;
+  return JSON.stringify(
+    {
+      shop: { name: shopName, url: shopBase },
+      generated_at: null, // stamped by the caller if needed
+      products: items.map((it) => ({
+        id: it.variantPubId,
+        group_id: it.hasSiblings ? it.productPubId : undefined,
+        name: it.name,
+        description: it.description || undefined,
+        url: `${shopBase}/p/${it.productSlug}`,
+        image: it.imageUrl || undefined,
+        brand: it.brand || undefined,
+        gtin: it.ean || undefined,
+        sku: it.sku || undefined,
+        price: { amount: money(it.grossMinor), currency: it.currency, includes_tax: true },
+        availability: it.available ? 'in_stock' : 'out_of_stock',
+        category: it.categoryPath.length ? it.categoryPath.join(' > ') : undefined,
+        attributes: it.params.length
+          ? Object.fromEntries(it.params.map((p) => [p.name, p.value]))
+          : undefined,
+      })),
+    },
+    null,
+    2,
+  );
 }

@@ -20,7 +20,14 @@ import { searchProducts } from '../lib/search';
 import { listPublishedReviews, ratingSummaries, ratingSummary } from '../lib/reviews';
 import { facetDistribution } from '../lib/search';
 import { loadTranslations, resolveServeLocale } from '../lib/translations';
-import { buildFeedXml, loadFeedItems, type FeedProvider } from '../lib/feeds';
+import {
+  buildAiFeed,
+  buildCeneoFeed,
+  buildFeedXml,
+  buildGoogleFeed,
+  loadFeedItems,
+  type FeedProvider,
+} from '../lib/feeds';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -170,15 +177,19 @@ export async function registerStorefrontRoutes(
 
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/feeds/{provider}.xml — comparison-shopping
-  // feed (Heureka / Zboží.cz / Glami), per `29-integrations.md`. Public XML the
-  // merchant registers in the engine's admin. CZ acquisition essential.
+  // feed, per `29-integrations.md`. Public XML the merchant registers in the
+  // engine's admin. CZ: Heureka / Zboží.cz / Glami; global: Google Shopping
+  // (RSS+g:); PL: Ceneo. Market acquisition essential.
   // ---------------------------------------------------------------------------
   app.get<{ Params: { tenantSlug: string; provider: string } }>(
     '/api/2026-05-20/storefront/:tenantSlug/feeds/:provider.xml',
     async (req, reply) => {
       const providerRaw = req.params.provider;
-      const valid: FeedProvider[] = ['heureka', 'zbozi', 'glami'];
-      if (!valid.includes(providerRaw as FeedProvider)) {
+      const cz: FeedProvider[] = ['heureka', 'zbozi', 'glami'];
+      const isCz = cz.includes(providerRaw as FeedProvider);
+      const isGoogle = providerRaw === 'google';
+      const isCeneo = providerRaw === 'ceneo';
+      if (!isCz && !isGoogle && !isCeneo) {
         return notFound(reply, 'feed');
       }
       const tenant = await resolveTenant(db, req.params.tenantSlug);
@@ -191,16 +202,42 @@ export async function registerStorefrontRoutes(
         defaultCurrency: tenant.defaultCurrency,
         priceIncludesTax: tenant.priceIncludesTax,
       });
-      const xml = buildFeedXml(
-        providerRaw as FeedProvider,
-        items,
-        config.SHOPIO_BASE_URL,
-        tenant.slug,
-      );
+      const xml = isGoogle
+        ? buildGoogleFeed(items, config.SHOPIO_BASE_URL, tenant.slug)
+        : isCeneo
+          ? buildCeneoFeed(items, config.SHOPIO_BASE_URL, tenant.slug)
+          : buildFeedXml(providerRaw as FeedProvider, items, config.SHOPIO_BASE_URL, tenant.slug);
       return reply
         .header('content-type', 'application/xml; charset=utf-8')
         .header('cache-control', 'public, max-age=3600')
         .send(xml);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/feeds/ai.json — AI / agentic-commerce product
+  // feed (2026 trend). Structured JSON catalog for LLM shopping agents (ChatGPT,
+  // Gemini, Perplexity, Copilot) and the storefront's llms.txt. Real-time price
+  // + availability — the open counterpart to agentic catalogs.
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/feeds/ai.json',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+
+      const items = await loadFeedItems(rlsDb, {
+        id: tenant.id,
+        slug: tenant.slug,
+        countryCode: tenant.countryCode,
+        defaultCurrency: tenant.defaultCurrency,
+        priceIncludesTax: tenant.priceIncludesTax,
+      });
+      const json = buildAiFeed(items, config.SHOPIO_BASE_URL, tenant.slug, tenant.displayName ?? tenant.slug);
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('cache-control', 'public, max-age=1800')
+        .send(json);
     },
   );
 
