@@ -284,6 +284,9 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
+      '@shopio/authz':
+        specifier: workspace:*
+        version: link:../authz
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.19

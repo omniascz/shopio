@@ -31,6 +31,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@shopio/authz": "workspace:*",
     "@types/node": "^22.10.0",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.0",
