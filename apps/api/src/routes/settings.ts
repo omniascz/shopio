@@ -498,6 +498,58 @@ export async function registerSettingsRoutes(
   );
 
   // ---------------------------------------------------------------------------
+  // GET/PUT /admin/settings/currencies — presentment currencies (P1).
+  // Base = tenant.defaultCurrency; the merchant enables extras (EUR/PLN/…).
+  // ---------------------------------------------------------------------------
+  app.get(
+    '/api/2026-05-20/admin/settings/currencies',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const [t] = await db
+        .select({ base: schema.tenants.defaultCurrency, settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!t) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+      const s = (t.settings ?? {}) as { currencies?: { presentment?: string[] } };
+      return reply.send({ data: { base: t.base, presentment: s.currencies?.presentment ?? [] } });
+    },
+  );
+
+  app.put(
+    '/api/2026-05-20/admin/settings/currencies',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const parsed = z
+        .object({ presentment: z.array(z.string().length(3)).max(10) })
+        .safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+
+      const [t] = await db
+        .select({ base: schema.tenants.defaultCurrency, settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!t) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+      const base = t.base.toUpperCase();
+      const presentment = [
+        ...new Set(parsed.data.presentment.map((c) => c.toUpperCase()).filter((c) => c !== base)),
+      ];
+      const settings = { ...(t.settings as Record<string, unknown>) };
+      settings.currencies = { ...(settings.currencies as object), presentment };
+      await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId));
+      return reply.send({ data: { base, presentment } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // GET /admin/settings/shipping — zones + rates + providers
   // ---------------------------------------------------------------------------
   app.get(

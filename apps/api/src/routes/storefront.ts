@@ -32,6 +32,13 @@ import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { resolveBlocks } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
+import { loadRates } from '../lib/fx';
+import {
+  makeConverter,
+  readCurrencyConfig,
+  resolvePresentmentCurrency,
+  supportedCurrencies,
+} from '../lib/presentment';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -76,8 +83,10 @@ export async function registerStorefrontRoutes(
         };
         homepage?: { announcement?: Record<string, unknown>; hero?: Record<string, unknown> };
         integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
+        currencies?: { presentment?: string[] };
       };
       const appearance = s.appearance;
+      const currencyCfg = readCurrencyConfig(tenant.defaultCurrency, tenant.settings);
 
       return reply.send({
         data: {
@@ -88,6 +97,9 @@ export async function registerStorefrontRoutes(
             default_locale: tenant.defaultLocale,
             enabled_locales: (tenant.enabledLocales as string[]) ?? [tenant.defaultLocale],
             default_currency: tenant.defaultCurrency,
+            // Presentment currencies (P1) — base first; storefront shows a
+            // switcher and passes ?currency= to catalog endpoints.
+            supported_currencies: supportedCurrencies(currencyCfg),
             country_code: tenant.countryCode,
             appearance: {
               theme: appearance?.theme ?? 'minimal',
@@ -343,11 +355,12 @@ export async function registerStorefrontRoutes(
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/products
   // ---------------------------------------------------------------------------
-  app.get<{ Params: { tenantSlug: string } }>(
+  app.get<{ Params: { tenantSlug: string }; Querystring: { currency?: string } }>(
     '/api/2026-05-20/storefront/:tenantSlug/products',
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
+      const present = await buildPresenter(db, tenant, req.query.currency);
 
       const parsed = ListQuery.safeParse(req.query);
       if (!parsed.success) {
@@ -528,9 +541,7 @@ export async function registerStorefrontRoutes(
               id: r.pubId,
               slug: r.slug,
               title: tr.get(r.id)?.get('title') ?? r.title,
-              base_price: r.basePriceAmount
-                ? { amount: r.basePriceAmount.toString(), currency: r.basePriceCurrency }
-                : null,
+              base_price: r.basePriceAmount ? present.money(r.basePriceAmount) : null,
               vendor: r.vendor,
               brand_name: r.brandName,
               published_at: r.publishedAt,
@@ -539,6 +550,7 @@ export async function registerStorefrontRoutes(
             };
           }),
           count: rows.length,
+          currency: present.currency,
           facets: facetFilters,
           offset,
           limit,
@@ -550,11 +562,14 @@ export async function registerStorefrontRoutes(
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/products/{productSlug}
   // ---------------------------------------------------------------------------
-  app.get<{ Params: { tenantSlug: string; productSlug: string } }>(
+  app.get<{ Params: { tenantSlug: string; productSlug: string }; Querystring: { currency?: string } }>(
     '/api/2026-05-20/storefront/:tenantSlug/products/:productSlug',
     async (req, reply) => {
       const tenant = await resolveTenant(db, req.params.tenantSlug);
       if (!tenant) return notFound(reply, 'tenant');
+
+      // Presentment currency (P1) — convert displayed prices via ČNB FX.
+      const present = await buildPresenter(db, tenant, req.query.currency);
 
       const locale = resolveServeLocale(
         requestedLocale(req),
@@ -636,15 +651,9 @@ export async function registerStorefrontRoutes(
           type: product.type,
           title: po?.get('title') ?? product.title,
           description_html: po?.get('description_html') ?? product.descriptionHtml,
-          base_price: product.basePriceAmount
-            ? {
-                amount: product.basePriceAmount.toString(),
-                currency: product.basePriceCurrency,
-              }
-            : null,
-          compare_at: product.compareAtAmount
-            ? { amount: product.compareAtAmount.toString(), currency: product.basePriceCurrency }
-            : null,
+          base_price: product.basePriceAmount ? present.money(product.basePriceAmount) : null,
+          compare_at: product.compareAtAmount ? present.money(product.compareAtAmount) : null,
+          currency: present.currency,
           vendor: product.vendor,
           brand_name: product.brandName,
           published_at: product.publishedAt,
@@ -653,15 +662,13 @@ export async function registerStorefrontRoutes(
             id: v.pubId,
             sku: v.sku,
             title: v.title,
-            price: { amount: v.priceAmount.toString(), currency: v.priceCurrency },
-            compare_at: v.compareAtAmount
-              ? { amount: v.compareAtAmount.toString(), currency: v.priceCurrency }
-              : null,
+            price: present.money(v.priceAmount),
+            compare_at: v.compareAtAmount ? present.money(v.compareAtAmount) : null,
             // EU Omnibus (per directive 2019/2161): lowest price of the last 30
             // days — shown next to the sale price. Only meaningful when on sale.
             lowest_price_30d:
               v.compareAtAmount && lowest30d.get(v.id) != null
-                ? { amount: lowest30d.get(v.id)!.toString(), currency: v.priceCurrency }
+                ? present.money(lowest30d.get(v.id)!)
                 : null,
             // Customer-facing availability = on hand − reserved (per `09`)
             stock_on_hand: Math.max(0, v.stockOnHand - v.stockReserved),
@@ -876,6 +883,35 @@ export async function registerStorefrontRoutes(
 // =============================================================================
 // Helpers
 // =============================================================================
+
+/** Money object presented (converted) in the resolved presentment currency. */
+interface Presenter {
+  currency: string;
+  /** Convert a base-currency minor amount to the presentment currency. */
+  money: (minor: bigint) => { amount: string; currency: string };
+}
+
+/**
+ * Build a price presenter for a request's `?currency=`. Falls back to the base
+ * (tenant.defaultCurrency) when the currency is unsupported or a rate is missing.
+ */
+async function buildPresenter(
+  db: AppDb,
+  tenant: { defaultCurrency: string; settings: unknown },
+  requested: string | undefined,
+): Promise<Presenter> {
+  const cfg = readCurrencyConfig(tenant.defaultCurrency, tenant.settings);
+  const target = resolvePresentmentCurrency(requested, cfg);
+  if (target === cfg.base) {
+    return { currency: cfg.base, money: (minor) => ({ amount: minor.toString(), currency: cfg.base }) };
+  }
+  const rates = await loadRates(db);
+  const conv = makeConverter(cfg.base, target, rates);
+  return {
+    currency: target,
+    money: (minor) => conv(minor) ?? { amount: minor.toString(), currency: cfg.base },
+  };
+}
 
 async function resolveTenant(db: AppDb, slug: string) {
   const [tenant] = await db
