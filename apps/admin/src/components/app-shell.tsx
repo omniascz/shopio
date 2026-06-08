@@ -42,6 +42,7 @@ export function AppShell() {
           <NavLink to="/returns">Vratky</NavLink>
           <NavLink to="/products">Produkty</NavLink>
           <NavLink to="/coupons">Slevy</NavLink>
+          <NavLink to="/gift-cards">Dárkové karty</NavLink>
           <NavLink to="/companies">Firmy (B2B)</NavLink>
           <NavLink to="/channels">Kanály</NavLink>
           <NavLink to="/content">Obsah</NavLink>

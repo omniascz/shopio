@@ -205,6 +205,30 @@ export interface CouponItem {
   created_at: string;
 }
 
+export interface GiftCardItem {
+  id: string;
+  code_masked: string;
+  kind: 'gift' | 'store_credit';
+  initial_amount: string;
+  balance: string;
+  currency: string;
+  status: 'active' | 'spent' | 'expired' | 'revoked' | 'pending_activation';
+  issued_to_email: string | null;
+  notes: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface GiftCardTransaction {
+  kind: string;
+  amount: string;
+  currency: string;
+  resulting_balance: string;
+  reference_type: string | null;
+  notes: string | null;
+  occurred_at: string;
+}
+
 export interface CompanyItem {
   id: string;
   name: string;
@@ -902,6 +926,46 @@ class ApiClient {
 
   async deleteCoupon(id: string): Promise<void> {
     await this.request(`/admin/coupons/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Gift cards (per `10`)
+  // ---------------------------------------------------------------------------
+  async listGiftCards(): Promise<{ gift_cards: GiftCardItem[] }> {
+    return this.request('/admin/gift-cards');
+  }
+
+  async issueGiftCard(body: {
+    amount: string;
+    currency?: string;
+    kind?: 'gift' | 'store_credit';
+    issuedToEmail?: string | null;
+    expiresAt?: string | null;
+    notes?: string | null;
+  }): Promise<{ id: string; code: string; code_prefix: string; code_last4: string; balance: string; currency: string }> {
+    return this.request('/admin/gift-cards', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getGiftCardTransactions(id: string): Promise<{ transactions: GiftCardTransaction[] }> {
+    return this.request(`/admin/gift-cards/${id}/transactions`);
+  }
+
+  async topupGiftCard(id: string, amount: string): Promise<{ balance: string }> {
+    return this.request(`/admin/gift-cards/${id}/topup`, { method: 'POST', body: JSON.stringify({ amount }) });
+  }
+
+  async revokeGiftCard(id: string): Promise<void> {
+    await this.request(`/admin/gift-cards/${id}/revoke`, { method: 'POST' });
+  }
+
+  async checkGiftCardBalance(code: string): Promise<{
+    status: string;
+    balance: string;
+    currency: string;
+    masked: string;
+    expires_at: string | null;
+  }> {
+    return this.request('/admin/gift-cards/check-balance', { method: 'POST', body: JSON.stringify({ code }) });
   }
 
   // ---------------------------------------------------------------------------

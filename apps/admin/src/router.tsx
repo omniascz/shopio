@@ -23,6 +23,7 @@ import { ProductCreatePage, ProductEditPage } from './pages/product-edit';
 import { SettingsPage } from './pages/settings';
 import { ReturnsListPage } from './pages/returns-list';
 import { CouponsListPage } from './pages/coupons-list';
+import { GiftCardsListPage } from './pages/gift-cards-list';
 import { CompaniesListPage } from './pages/companies-list';
 import { ChannelsListPage } from './pages/channels-list';
 import { ManualOrderPage } from './pages/manual-order';
@@ -143,6 +144,12 @@ const couponsListRoute = createRoute({
   component: CouponsListPage,
 });
 
+const giftCardsListRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/gift-cards',
+  component: GiftCardsListPage,
+});
+
 const analyticsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/analytics',
@@ -212,6 +219,7 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     returnsListRoute,
     couponsListRoute,
+    giftCardsListRoute,
     analyticsRoute,
     companiesRoute,
     channelsRoute,
