@@ -28,6 +28,7 @@ import {
   loadFeedItems,
   type FeedProvider,
 } from '../lib/feeds';
+import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -146,6 +147,37 @@ export async function registerStorefrontRoutes(
         }));
 
       return reply.send({ data: { methods } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/gift-cards/check-balance — validate a code →
+  // masked balance (per `10` §7.5). Public; rate-limited against brute force
+  // (the code space is large but we cap attempts per IP).
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string }; Body: { code?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/gift-cards/check-balance',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const code = (req.body?.code ?? '').trim();
+      if (code.length < 4 || code.length > 40) return notFound(reply, 'gift_card');
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const result = await withTenant(rlsDb, tenant.id, (tx) =>
+        checkGiftCardBalance(tx, tenant.id, code),
+      );
+      if (!result.found || result.status !== 'active') return notFound(reply, 'gift_card');
+      return reply.send({
+        data: {
+          status: result.status,
+          balance: result.balance?.toString(),
+          currency: result.currency,
+          masked: `${result.codePrefix}-…-${result.codeLast4}`,
+          expires_at: result.expiresAt,
+        },
+      });
     },
   );
 

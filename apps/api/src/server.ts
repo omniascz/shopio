@@ -24,6 +24,7 @@ import { eq } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
 import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import { registerCouponAdminRoutes } from './routes/coupons-admin';
+import { registerGiftCardAdminRoutes } from './routes/gift-cards-admin';
 import { registerCompanyAdminRoutes } from './routes/companies-admin';
 import { registerChannelAdminRoutes } from './routes/channels-admin';
 import { registerTranslationAdminRoutes } from './routes/translations-admin';
@@ -135,6 +136,7 @@ export async function buildServer() {
   registerSearchAdminRoutes(server, { config, db });
   await registerReviewAdminRoutes(server, { config, db });
   await registerCouponAdminRoutes(server, { config, db });
+  await registerGiftCardAdminRoutes(server, { config, db });
   await registerCompanyAdminRoutes(server, { config, db });
   await registerChannelAdminRoutes(server, { config, db });
   await registerTranslationAdminRoutes(server, { config, db });

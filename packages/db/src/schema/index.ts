@@ -49,3 +49,5 @@ export * from './payments';
 export * from './loyalty';
 // Subscriptions / recurring orders (Wave 1 — `24-subscriptions.md` MVP)
 export * from './subscriptions';
+// Gift cards / pay-with-balance (Wave 1 — `10-pricing-promotions.md` §3.7 MVP)
+export * from './gift-cards';

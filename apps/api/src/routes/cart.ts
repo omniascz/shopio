@@ -48,6 +48,7 @@ import {
   reserveStock,
 } from '../lib/inventory';
 import { getLoyaltyBalance, grantEarnedCredit, redeemCredit } from '../lib/loyalty';
+import { findByCode as findGiftCard, isRedeemable as giftCardRedeemable, redeem as redeemGiftCard } from '../lib/gift-cards';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { CouponError, computeDiscount, distributeDiscount, validateCoupon } from '../lib/coupons';
@@ -93,6 +94,10 @@ const CheckoutBody = z.object({
   /** Pay the whole order with store credit (per `19`), when the balance covers
    * it. Partial redemption (credit + gateway) is a follow-up. */
   useStoreCredit: z.boolean().default(false),
+  /** Gift card code applied as a tender (per `10` RULE-PRICING-014). When the
+   * card's balance covers the whole order it settles at placement (no gateway);
+   * partial redemption (gift card + gateway) is a follow-up. */
+  giftCardCode: z.string().max(40).optional(),
   /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
   shippingRateId: z.string().optional(),
   /** Selected pickup point for pickup_point services. The full address fields are
@@ -663,6 +668,10 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       };
       const loyaltyEnabled = Boolean(loyaltySettings.loyalty?.enabled);
       let paidByCredit = false;
+      // Gift-card full-coverage settlement (per `10` RULE-PRICING-014). Resolved
+      // inside the tx; the card id is captured so we can debit its ledger.
+      let paidByGiftCard = false;
+      let giftCardId: string | null = null;
 
       // Atomic: revalidate stock + decrement + create order + clear cart.
       // RLS-enforced (per `30`): placement runs under the tenant GUC.
@@ -736,6 +745,21 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           }
           const now = new Date();
 
+          // Gift card as a tender (full coverage only in this slice). Takes
+          // precedence only when store credit didn't already settle the order.
+          if (!paidByCredit && input.giftCardCode && !useNetTerms && total > 0n) {
+            const card = await findGiftCard(tx, tenant.id, input.giftCardCode);
+            if (
+              card &&
+              card.currency === cart.currency &&
+              giftCardRedeemable(card, now) &&
+              card.balance >= total
+            ) {
+              paidByGiftCard = true;
+              giftCardId = card.id;
+            }
+          }
+
           // Insert order
           const [order] = await tx
             .insert(schema.orders)
@@ -768,11 +792,15 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               priceIncludesTax: tenant.priceIncludesTax,
               taxBreakdown: serializeBreakdown(tax.breakdown),
               totalAmount: total,
-              status: paidByCredit ? 'paid' : 'pending_payment',
+              status: paidByCredit || paidByGiftCard ? 'paid' : 'pending_payment',
               statusEnteredAt: now,
-              paymentStatus: paidByCredit ? 'paid' : 'pending',
-              paidAt: paidByCredit ? now : null,
-              paymentMethod: paidByCredit ? 'store_credit' : paymentMethodValue,
+              paymentStatus: paidByCredit || paidByGiftCard ? 'paid' : 'pending',
+              paidAt: paidByCredit || paidByGiftCard ? now : null,
+              paymentMethod: paidByCredit
+                ? 'store_credit'
+                : paidByGiftCard
+                  ? 'gift_card'
+                  : paymentMethodValue,
               // B2B (per `21`): bill the company + record NET terms / PO ref.
               companyId: company?.id ?? null,
               companySnapshot: company ? buildCompanySnapshot(company) : null,
@@ -839,6 +867,20 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               amount: total,
               currency: cart.currency,
             });
+            await clearReservationExpiry(tx, order.id);
+          }
+
+          // Gift-card settlement (per `10` RULE-PRICING-014): debit the card's
+          // ledger + hold the reservation indefinitely (the order is paid).
+          if (paidByGiftCard && giftCardId) {
+            const applied = await redeemGiftCard(tx, tenant.id, giftCardId, total, now, {
+              type: 'order',
+              id: order.id,
+            });
+            if (applied < total) {
+              // Balance changed between read and debit — abort the placement.
+              throw new CheckoutError('GIFT_CARD_BALANCE_CHANGED', 'Gift card balance changed');
+            }
             await clearReservationExpiry(tx, order.id);
           }
 
@@ -946,9 +988,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         //   3. Legacy fallback: env-Stripe Checkout session, else mock.
         let paymentUrl: string | null = null;
         let offlineProvider = false;
-        if (paidByCredit) {
-          // Settled entirely by store credit — run the paid side effects
-          // (invoice, email, loyalty earn, outbound webhook), best-effort.
+        if (paidByCredit || paidByGiftCard) {
+          // Settled entirely by store credit or a gift card — run the paid side
+          // effects (invoice, email, loyalty earn, outbound webhook), best-effort.
           try {
             await issueInvoiceForOrder(db, tenant.id, result.id);
           } catch (err) {
@@ -1078,7 +1120,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             payment_url: paymentUrl,
             next_step: paidByCredit
               ? 'Zaplaceno věrnostním kreditem — objednávka je uhrazena.'
-              : useNetTerms
+              : paidByGiftCard
+                ? 'Zaplaceno dárkovou kartou — objednávka je uhrazena.'
+                : useNetTerms
                 ? 'B2B NET order — pay by bank transfer before due_at; merchant marks paid on receipt.'
                 : paymentUrl
                   ? 'Redirect customer to payment_url to complete payment'

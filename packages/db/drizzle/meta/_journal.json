@@ -183,6 +183,13 @@
       "when": 1780910051875,
       "tag": "0025_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1780923979062,
+      "tag": "0026_gift_cards",
+      "breakpoints": true
     }
   ]
 }
