@@ -225,6 +225,13 @@
       "when": 1780929438871,
       "tag": "0031_price_history",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780931274340,
+      "tag": "0032_exchange_rates",
+      "breakpoints": true
     }
   ]
 }

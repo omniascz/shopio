@@ -43,6 +43,7 @@ export default defineConfig({
     './src/schema/customer-addresses.ts',
     './src/schema/oauth.ts',
     './src/schema/price-history.ts',
+    './src/schema/exchange-rates.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

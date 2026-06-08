@@ -59,3 +59,5 @@ export * from './customer-addresses';
 export * from './oauth';
 // Variant price history (EU Omnibus — lowest price in 30 days)
 export * from './price-history';
+// FX reference rates (P1 multi-currency — ČNB daily fixing)
+export * from './exchange-rates';

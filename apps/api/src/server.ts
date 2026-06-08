@@ -35,6 +35,8 @@ import { registerAiAdminRoutes } from './routes/ai-admin';
 import { registerDeveloperAdminRoutes } from './routes/developer-admin';
 import { registerOAuthRoutes } from './routes/oauth';
 import { registerLookupRoutes } from './routes/lookup';
+import { registerFxRoutes } from './routes/fx';
+import { refreshCnbRates } from './lib/fx';
 import { registerPaymentAdminRoutes } from './routes/payments-admin';
 import { registerPaymentWebhookRoutes } from './routes/payments-webhooks';
 import { registerPlanAdminRoutes } from './routes/plan-admin';
@@ -150,6 +152,7 @@ export async function buildServer() {
   await registerDeveloperAdminRoutes(server, { config, db });
   await registerOAuthRoutes(server, { config, db });
   await registerLookupRoutes(server, { config, db });
+  await registerFxRoutes(server, { config, db });
   await registerPaymentAdminRoutes(server, { config, db });
   await registerPaymentWebhookRoutes(server, { config, db });
   await registerPlanAdminRoutes(server, { config, db });
@@ -216,6 +219,25 @@ export async function buildServer() {
   }, 60 * 60 * 1000);
   subInterval.unref();
   server.addHook('onClose', async () => clearInterval(subInterval));
+
+  // JOB-REFRESH-FX-RATES (P1 multi-currency) — pull the ČNB daily fixing. Once
+  // on boot (best-effort) + daily. ČNB publishes ~14:30 CET on working days.
+  void refreshCnbRates(db)
+    .then((r) => r && server.log.info({ fixingDate: r.fixingDate, count: r.count }, 'fx.rates.refreshed'))
+    .catch((err) => server.log.warn({ err }, 'fx.rates.refresh_failed'));
+  let fxRunning = false;
+  const fxInterval = setInterval(() => {
+    if (fxRunning) return;
+    fxRunning = true;
+    void refreshCnbRates(db)
+      .then((r) => r && server.log.info({ fixingDate: r.fixingDate, count: r.count }, 'fx.rates.refreshed'))
+      .catch((err) => server.log.warn({ err }, 'fx.rates.refresh_failed'))
+      .finally(() => {
+        fxRunning = false;
+      });
+  }, 24 * 60 * 60 * 1000);
+  fxInterval.unref();
+  server.addHook('onClose', async () => clearInterval(fxInterval));
 
   return server;
 }
