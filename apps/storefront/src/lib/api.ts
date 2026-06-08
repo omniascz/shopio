@@ -573,6 +573,22 @@ export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
 }
 
+// GDPR (per `30`) ----------------------------------------------------------------
+/** Direct download URL for the customer's data export (browser sends the cookie). */
+export function customerDataExportUrl(tenantSlug: string): string {
+  return `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/me/data-export`;
+}
+
+/** Erase (anonymize) the logged-in customer's account. */
+export async function customerDeleteAccount(
+  tenantSlug: string,
+): Promise<{ erased: boolean; invoices_retained: number } | null> {
+  return customerFetch(`/storefront/${tenantSlug}/me/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
 // B2B company profile (per `21`) -------------------------------------------------
 export async function customerCompany(tenantSlug: string): Promise<CustomerCompany | null> {
   try {

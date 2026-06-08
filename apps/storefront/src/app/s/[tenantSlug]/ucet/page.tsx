@@ -12,6 +12,8 @@ import {
   customerForgotPassword,
   customerResendVerification,
   customerCompany,
+  customerDataExportUrl,
+  customerDeleteAccount,
   customerLogin,
   customerLogout,
   customerMe,
@@ -173,6 +175,8 @@ function LoggedIn({
 
       <CompanySection tenantSlug={tenantSlug} />
 
+      <GdprSection tenantSlug={tenantSlug} onDeleted={onLogout} />
+
       <section style={sectionStyle}>
         <h2 style={{ fontSize: '1.125rem', margin: '0 0 1rem' }}>Objednávky</h2>
         {orders.length === 0 ? (
@@ -223,6 +227,60 @@ function LoggedIn({
         onChanged={onChanged}
       />
     </>
+  );
+}
+
+// GDPR (per `30`) — data export + account erasure.
+function GdprSection({ tenantSlug, onDeleted }: { tenantSlug: string; onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function doDelete() {
+    setBusy(true);
+    try {
+      await customerDeleteAccount(tenantSlug);
+      onDeleted();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: '1.125rem', margin: '0 0 0.5rem' }}>Soukromí a data</h2>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--sf-muted, #666)', margin: '0 0 1rem' }}>
+        Máte právo na kopii svých údajů i na jejich smazání (GDPR).
+      </p>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <a href={customerDataExportUrl(tenantSlug)} style={{ ...secondaryBtnStyle, textDecoration: 'none' }}>
+          ⬇ Stáhnout moje data
+        </a>
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            style={{ ...secondaryBtnStyle, color: '#c0392b', borderColor: '#e0a0a0' }}
+          >
+            Smazat účet
+          </button>
+        ) : (
+          <span style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8125rem' }}>Opravdu? Údaje budou anonymizovány.</span>
+            <button
+              type="button"
+              onClick={() => void doDelete()}
+              disabled={busy}
+              style={{ ...secondaryBtnStyle, background: '#c0392b', color: '#fff', borderColor: '#c0392b' }}
+            >
+              {busy ? 'Mažu…' : 'Ano, smazat'}
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} style={secondaryBtnStyle}>
+              Zrušit
+            </button>
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 

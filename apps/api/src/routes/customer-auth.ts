@@ -33,6 +33,7 @@ import {
 import { renderPasswordResetEmail, renderVerifyEmail, sendEmail } from '../lib/email';
 import { ReturnError, createReturn } from '../lib/returns';
 import { serializeCompany } from '../lib/companies';
+import { eraseCustomer, exportCustomerData } from '../lib/gdpr';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -221,6 +222,57 @@ export async function registerCustomerAuthRoutes(
         });
       }
       return reply.send({ data: { customer: serializeCustomer(customer) } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/me/data-export — GDPR Art. 15/20 (download)
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/data-export',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      const data = await exportCustomerData(rlsDb, tenant.id, customer, new Date().toISOString());
+      return reply
+        .header('content-type', 'application/json; charset=utf-8')
+        .header('content-disposition', `attachment; filename="moje-data-${req.params.tenantSlug}.json"`)
+        .send(JSON.stringify(data, null, 2));
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/me/delete — GDPR Art. 17 (erase own account)
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string }; Body: { confirm?: boolean } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/delete',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      if (req.body?.confirm !== true) {
+        return reply.code(422).send({
+          error: { code: 'CONFIRMATION_REQUIRED', message: 'Potvrďte smazání účtu (confirm: true)' },
+        });
+      }
+      const result = await eraseCustomer(rlsDb, tenant.id, customer);
+      reply.clearCookie(CUSTOMER_COOKIE_NAME, { path: '/' });
+      return reply.send({
+        data: {
+          erased: true,
+          orders_anonymized: result.ordersAnonymized,
+          reviews_anonymized: result.reviewsAnonymized,
+          invoices_retained: result.invoicesRetained,
+          note: 'Osobní údaje byly anonymizovány. Daňové doklady zůstávají archivovány dle zákona.',
+        },
+      });
     },
   );
 
