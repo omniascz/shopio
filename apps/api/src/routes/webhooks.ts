@@ -20,6 +20,7 @@ import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
 import { sendOrderPaidEmail } from '../lib/order-emails';
 import { issueInvoiceForOrder } from '../lib/invoices';
+import { grantEarnedCredit } from '../lib/loyalty';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
 import { mapPacketaStatus, parsePacketaWebhook } from '../lib/packeta';
 import { timingSafeEqual } from 'node:crypto';
@@ -399,6 +400,11 @@ async function handleCheckoutSessionCompleted(
   // Send payment confirmation email (best-effort)
   await sendOrderPaidEmail({ db, config, log: app.log }, order.id).catch((err) => {
     app.log.error({ err, orderId: order.id }, 'stripe.webhook.email_failed');
+  });
+
+  // Accrue loyalty credit (per `19`) — idempotent, best-effort.
+  await grantEarnedCredit(db, order.tenantId, order.id, app.log).catch((err) => {
+    app.log.error({ err, orderId: order.id }, 'stripe.webhook.loyalty_failed');
   });
 }
 

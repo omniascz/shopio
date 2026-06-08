@@ -72,6 +72,13 @@ const PatchIntegrationsBody = z.object({
   metaPixelId: z.string().max(40).regex(/^\d+$/).or(z.literal('')).nullish(),
 });
 
+/** Loyalty / store-credit program config (per `19`). */
+const PatchLoyaltyBody = z.object({
+  enabled: z.boolean().optional(),
+  /** Earn rate in basis points of the paid order total (e.g. 300 = 3 % back). */
+  earnRateBps: z.number().int().min(0).max(5000).optional(),
+});
+
 /** Storefront homepage config (announcement bar + hero) per `26`. */
 const PatchHomepageBody = z.object({
   announcement: z
@@ -290,6 +297,45 @@ export async function registerSettingsRoutes(
           ga4_measurement_id: input.ga4MeasurementId || null,
         }),
         ...(input.metaPixelId !== undefined && { meta_pixel_id: input.metaPixelId || null }),
+      };
+
+      const [updated] = await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId))
+        .returning();
+
+      return reply.send({ data: serializeSettings(updated!) });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /admin/settings/loyalty — store-credit program (per `19`)
+  // ---------------------------------------------------------------------------
+  app.patch(
+    '/api/2026-05-20/admin/settings/loyalty',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const parsed = PatchLoyaltyBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+      const input = parsed.data;
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>) };
+      const prior = (settings.loyalty ?? {}) as Record<string, unknown>;
+      settings.loyalty = {
+        ...prior,
+        ...(input.enabled !== undefined && { enabled: input.enabled }),
+        ...(input.earnRateBps !== undefined && { earn_rate_bps: input.earnRateBps }),
       };
 
       const [updated] = await db
@@ -599,6 +645,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
       hero?: Record<string, unknown>;
     };
     integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
+    loyalty?: { enabled?: boolean; earn_rate_bps?: number };
   };
   return {
     slug: tenant.slug,
@@ -634,6 +681,10 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
     integrations: {
       ga4_measurement_id: settings.integrations?.ga4_measurement_id ?? null,
       meta_pixel_id: settings.integrations?.meta_pixel_id ?? null,
+    },
+    loyalty: {
+      enabled: settings.loyalty?.enabled ?? false,
+      earn_rate_bps: settings.loyalty?.earn_rate_bps ?? 0,
     },
   };
 }

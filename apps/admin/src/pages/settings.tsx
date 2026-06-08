@@ -35,6 +35,7 @@ export function SettingsPage() {
       <ShippingSection currency={settings.default_currency} />
       <FeedsSection slug={settings.slug} />
       <IntegrationsSection settings={settings} />
+      <LoyaltySection settings={settings} />
       <AccountingSection />
       <AppearanceSection settings={settings} />
       <HomepageSection settings={settings} />
@@ -88,6 +89,64 @@ function AccountingSection() {
           style={{ padding: '0.5rem 1rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer' }}
         >
           {busy ? 'Exportuji…' : 'Stáhnout XML'}
+        </button>
+      </div>
+      {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}
+    </section>
+  );
+}
+
+// =============================================================================
+// Věrnostní program (per `19`) — store credit earned on paid orders
+// =============================================================================
+
+function LoyaltySection({ settings }: { settings: ShopSettings }) {
+  const queryClient = useQueryClient();
+  const [enabled, setEnabled] = useState(settings.loyalty?.enabled ?? false);
+  const [percent, setPercent] = useState(String((settings.loyalty?.earn_rate_bps ?? 0) / 100));
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateLoyalty({ enabled, earnRateBps: Math.round(parseFloat(percent || '0') * 100) }),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Uložení selhalo'),
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Věrnostní program</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Přihlášení zákazníci získají kredit z hodnoty zaplacených objednávek. Kredit uvidí ve svém
+        účtu (uplatnění v pokladně přidáme vzápětí).
+      </p>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: '0.875rem', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Aktivní
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8125rem' }}>
+          Kredit z nákupu (%)
+          <input
+            type="number"
+            min={0}
+            max={50}
+            step={0.5}
+            value={percent}
+            onChange={(e) => setPercent(e.target.value)}
+            style={{ width: 90, padding: '0.4rem', border: '1px solid #ddd', borderRadius: 4 }}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          style={{ padding: '0.5rem 1rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer', alignSelf: 'flex-end' }}
+        >
+          {mutation.isPending ? 'Ukládám…' : 'Uložit'}
         </button>
       </div>
       {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}

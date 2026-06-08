@@ -14,6 +14,7 @@ import {
   customerCompany,
   customerDataExportUrl,
   customerDeleteAccount,
+  customerLoyalty,
   customerLogin,
   customerLogout,
   customerMe,
@@ -175,6 +176,8 @@ function LoggedIn({
 
       <CompanySection tenantSlug={tenantSlug} />
 
+      <LoyaltySection tenantSlug={tenantSlug} />
+
       <GdprSection tenantSlug={tenantSlug} onDeleted={onLogout} />
 
       <section style={sectionStyle}>
@@ -227,6 +230,42 @@ function LoggedIn({
         onChanged={onChanged}
       />
     </>
+  );
+}
+
+// Loyalty (per `19`) — store-credit balance + history.
+function LoyaltySection({ tenantSlug }: { tenantSlug: string }) {
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof customerLoyalty>>>(null);
+  useEffect(() => {
+    void customerLoyalty(tenantSlug).then(setInfo);
+  }, [tenantSlug]);
+
+  // Hide entirely when the customer has no credit history (program off / unused).
+  if (!info || (BigInt(info.balance) === 0n && info.transactions.length === 0)) return null;
+  const currency = info.transactions[0]?.currency ?? 'CZK';
+
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: '1.125rem', margin: '0 0 0.5rem' }}>Věrnostní kredit</h2>
+      <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem' }}>
+        {formatMoney({ amount: info.balance, currency })}
+      </div>
+      {info.transactions.length > 0 && (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: '0.8125rem' }}>
+          {info.transactions.slice(0, 8).map((t, i) => (
+            <li key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.25rem 0', borderBottom: '1px solid rgba(128,128,128,0.12)' }}>
+              <span style={{ color: 'var(--sf-muted, #666)' }}>
+                {t.note ?? t.kind} · {new Date(t.created_at).toLocaleDateString('cs-CZ')}
+              </span>
+              <span style={{ color: BigInt(t.amount) < 0n ? '#c0392b' : '#1c7c34' }}>
+                {BigInt(t.amount) > 0n ? '+' : ''}
+                {formatMoney({ amount: t.amount, currency: t.currency })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

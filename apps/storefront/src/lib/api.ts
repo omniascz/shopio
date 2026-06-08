@@ -573,6 +573,20 @@ export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
 }
 
+// Loyalty / store credit (per `19`) ----------------------------------------------
+export interface LoyaltyInfo {
+  balance: string;
+  transactions: { kind: string; amount: string; currency: string; note: string | null; created_at: string }[];
+}
+
+export async function customerLoyalty(tenantSlug: string): Promise<LoyaltyInfo | null> {
+  try {
+    return await customerFetch<LoyaltyInfo>(`/storefront/${tenantSlug}/me/loyalty`);
+  } catch {
+    return null;
+  }
+}
+
 // GDPR (per `30`) ----------------------------------------------------------------
 /** Direct download URL for the customer's data export (browser sends the cookie). */
 export function customerDataExportUrl(tenantSlug: string): string {

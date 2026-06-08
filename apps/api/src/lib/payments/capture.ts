@@ -18,6 +18,7 @@ import { clearReservationExpiry } from '../inventory';
 import { issueInvoiceForOrder } from '../invoices';
 import { sendOrderPaidEmail } from '../order-emails';
 import { emitWebhookEvent } from '../webhooks-out';
+import { grantEarnedCredit } from '../loyalty';
 import type { PaymentStatus } from './types';
 
 export interface CaptureContext {
@@ -187,6 +188,11 @@ export async function applyPaymentTransition(
       updatedAt: now,
     })
     .where(eq(schema.orders.id, order.id));
+
+  // Accrue loyalty credit (per `19`) — idempotent per order, best-effort.
+  await grantEarnedCredit(db, order.tenantId, order.id, log).catch((err) =>
+    log.error({ err, orderId: order.id }, 'payments.webhook.loyalty_failed'),
+  );
 
   return { orderPaid: true };
 }

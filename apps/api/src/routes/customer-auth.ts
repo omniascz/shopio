@@ -34,6 +34,7 @@ import { renderPasswordResetEmail, renderVerifyEmail, sendEmail } from '../lib/e
 import { ReturnError, createReturn } from '../lib/returns';
 import { serializeCompany } from '../lib/companies';
 import { eraseCustomer, exportCustomerData } from '../lib/gdpr';
+import { getLoyaltyBalance, listLoyaltyTransactions } from '../lib/loyalty';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -222,6 +223,38 @@ export async function registerCustomerAuthRoutes(
         });
       }
       return reply.send({ data: { customer: serializeCustomer(customer) } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/me/loyalty — store-credit balance + history
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/loyalty',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      const { balance, transactions } = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const bal = await getLoyaltyBalance(tx, tenant.id, customer.id);
+        const txs = await listLoyaltyTransactions(tx, tenant.id, customer.id);
+        return { balance: bal, transactions: txs };
+      });
+      return reply.send({
+        data: {
+          balance: balance.toString(),
+          transactions: transactions.map((t) => ({
+            kind: t.kind,
+            amount: t.amount.toString(),
+            currency: t.currency,
+            note: t.note,
+            created_at: t.createdAt,
+          })),
+        },
+      });
     },
   );
 

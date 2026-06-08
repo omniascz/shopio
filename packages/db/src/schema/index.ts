@@ -45,3 +45,5 @@ export * from './marketplace';
 export * from './developer';
 // Payments — provider-abstracted gateways (Wave 1 — `13-payments.md` MVP)
 export * from './payments';
+// Loyalty / store credit (Wave 1 — `19-marketing-seo.md` MVP)
+export * from './loyalty';

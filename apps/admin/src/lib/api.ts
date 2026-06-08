@@ -442,6 +442,10 @@ export interface ShopSettings {
     ga4_measurement_id: string | null;
     meta_pixel_id: string | null;
   };
+  loyalty?: {
+    enabled: boolean;
+    earn_rate_bps: number;
+  };
 }
 
 export interface ShippingSettings {
@@ -1305,6 +1309,13 @@ class ApiClient {
     metaPixelId?: string | null;
   }): Promise<ShopSettings> {
     return this.request('/admin/settings/integrations', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateLoyalty(body: { enabled?: boolean; earnRateBps?: number }): Promise<ShopSettings> {
+    return this.request('/admin/settings/loyalty', {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
