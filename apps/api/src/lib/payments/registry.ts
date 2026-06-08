@@ -26,6 +26,7 @@ import { createBarionProvider, type BarionCredentials } from './barion';
 import { createBesteronProvider, type BesteronCredentials } from './besteron';
 import { createTwistoProvider, type TwistoCredentials } from './twisto';
 import { createPaypalProvider, type PaypalCredentials } from './paypal';
+import { createStripeAbstractionProvider, type StripeProviderCredentials } from './stripe-provider';
 import { openCredentials } from '../secrets';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
@@ -86,6 +87,10 @@ export function buildProvider(
     case 'paypal': {
       const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as PaypalCredentials;
       return createPaypalProvider(creds, cfg.isTestMode);
+    }
+    case 'stripe': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as StripeProviderCredentials;
+      return createStripeAbstractionProvider(creds);
     }
     default:
       return null;

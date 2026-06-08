@@ -153,6 +153,7 @@ const WIRED_CODES = new Set([
   'besteron',
   'twisto',
   'paypal',
+  'stripe',
 ]);
 
 /** Required credential keys per gateway (live mode). */
@@ -167,6 +168,7 @@ const REQUIRED_CREDENTIALS: Record<string, string[]> = {
   besteron: ['merchantId', 'apiKey'],
   twisto: ['apiKey'],
   paypal: ['clientId', 'clientSecret'],
+  stripe: ['secretKey'],
 };
 
 const UpsertBody = z.object({

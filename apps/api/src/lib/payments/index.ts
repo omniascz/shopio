@@ -17,3 +17,4 @@ export * from './barion';
 export * from './besteron';
 export * from './twisto';
 export * from './paypal';
+export * from './stripe-provider';

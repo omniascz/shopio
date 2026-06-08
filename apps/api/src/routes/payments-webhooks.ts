@@ -101,9 +101,12 @@ export async function registerPaymentWebhookRoutes(
       ? await provider.parseWebhookEvent(body, req.headers)
       : null;
 
+    // Stripe events nest the object id under data.object.id.
+    const stripeObjId = (body as { data?: { object?: { id?: string } } }).data?.object?.id;
     const providerPaymentId =
       parsed?.providerPaymentId ??
       req.query.id ??
+      stripeObjId ?? // Stripe (Checkout Session / PaymentIntent id)
       body.transId ?? // ComGate
       body.uid ?? // ThePay
       body.payment_uid ??
