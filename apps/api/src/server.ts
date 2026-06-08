@@ -26,6 +26,7 @@ import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import { registerCouponAdminRoutes } from './routes/coupons-admin';
 import { registerGiftCardAdminRoutes } from './routes/gift-cards-admin';
 import { registerPromotionAdminRoutes } from './routes/promotions-admin';
+import { registerFlowAdminRoutes } from './routes/flows-admin';
 import { registerBundleAdminRoutes } from './routes/bundles-admin';
 import { registerCompanyAdminRoutes } from './routes/companies-admin';
 import { registerChannelAdminRoutes } from './routes/channels-admin';
@@ -144,6 +145,7 @@ export async function buildServer() {
   await registerCouponAdminRoutes(server, { config, db });
   await registerGiftCardAdminRoutes(server, { config, db });
   await registerPromotionAdminRoutes(server, { config, db });
+  await registerFlowAdminRoutes(server, { config, db });
   await registerBundleAdminRoutes(server, { config, db });
   await registerCompanyAdminRoutes(server, { config, db });
   await registerChannelAdminRoutes(server, { config, db });

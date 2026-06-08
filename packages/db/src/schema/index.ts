@@ -65,3 +65,5 @@ export * from './exchange-rates';
 export * from './promotions';
 // Server-side wishlist (P2 — `18-customer-management.md`)
 export * from './wishlist';
+// No-code automation flows (P3 — BaseLinker Automatic Actions / Shopware Flow Builder)
+export * from './flows';

@@ -19,6 +19,7 @@ import { issueInvoiceForOrder } from '../invoices';
 import { sendOrderPaidEmail } from '../order-emails';
 import { emitWebhookEvent } from '../webhooks-out';
 import { grantEarnedCredit } from '../loyalty';
+import { buildOrderContext, runFlows } from '../flows';
 import type { PaymentStatus } from './types';
 
 export interface CaptureContext {
@@ -175,6 +176,27 @@ export async function applyPaymentTransition(
     total: { amount: order.totalAmount.toString(), currency: order.currency },
     customer_email: order.customerEmail,
     paid_at: now,
+  });
+
+  // Automation flows (P3): order.paid for gateway payments.
+  const qtyRows = await db
+    .select({ qty: dsql<number>`coalesce(sum(${schema.orderItems.quantity}), 0)::int` })
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.orderId, order.id));
+  const qty = qtyRows[0]?.qty ?? 0;
+  void runFlows({ db, config, log }, 'order.paid', {
+    tenantId: order.tenantId,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    context: buildOrderContext({
+      totalAmount: order.totalAmount,
+      currency: order.currency,
+      shippingAddress: order.shippingAddress,
+      paymentMethod: order.paymentMethod,
+      status: 'paid',
+      couponCode: order.couponCode,
+      itemCount: qty ?? 0,
+    }),
   });
 
   // Keep order.metadata reference to the provider payment (for support/refunds).

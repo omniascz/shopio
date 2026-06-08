@@ -37,6 +37,7 @@ import { resolveRates } from '../lib/tax-resolver';
 import { loadRates } from '../lib/fx';
 import { makeConverter, readCurrencyConfig, resolvePresentmentCurrency } from '../lib/presentment';
 import { evaluatePromotions, loadActivePromotions } from '../lib/promotions';
+import { buildOrderContext, runFlows } from '../lib/flows';
 import type { CartShippingMetrics } from '../lib/shipping';
 import {
   resolveShippingOptions,
@@ -1162,6 +1163,38 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           customer_email: result.customerEmail,
           placed_at: result.placedAt,
         });
+
+        // Automation flows (P3): order.placed — best-effort, post-commit.
+        void runFlows({ db, config, log: app.log }, 'order.placed', {
+          tenantId: tenant.id,
+          orderId: result.id,
+          orderNumber: result.orderNumber,
+          context: buildOrderContext({
+            totalAmount: result.totalAmount,
+            currency: result.currency,
+            shippingAddress: result.shippingAddress,
+            paymentMethod: result.paymentMethod,
+            status: result.status,
+            couponCode: result.couponCode,
+            itemCount: items.reduce((s, it) => s + it.quantity, 0),
+          }),
+        });
+        if (result.paymentStatus === 'paid') {
+          void runFlows({ db, config, log: app.log }, 'order.paid', {
+            tenantId: tenant.id,
+            orderId: result.id,
+            orderNumber: result.orderNumber,
+            context: buildOrderContext({
+              totalAmount: result.totalAmount,
+              currency: result.currency,
+              shippingAddress: result.shippingAddress,
+              paymentMethod: result.paymentMethod,
+              status: result.status,
+              couponCode: result.couponCode,
+              itemCount: items.reduce((s, it) => s + it.quantity, 0),
+            }),
+          });
+        }
 
         // Remember the shipping address on the account (best-effort)
         if (customer) {

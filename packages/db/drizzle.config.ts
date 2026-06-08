@@ -46,6 +46,7 @@ export default defineConfig({
     './src/schema/exchange-rates.ts',
     './src/schema/promotions.ts',
     './src/schema/wishlist.ts',
+    './src/schema/flows.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },
