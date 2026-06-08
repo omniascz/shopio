@@ -69,3 +69,5 @@ export * from './wishlist';
 export * from './flows';
 // Dynamic collections (P3 — Shopify smart collections / Shopware product streams)
 export * from './collections';
+// Native email marketing (P3 — `19-marketing-seo.md`)
+export * from './newsletter';

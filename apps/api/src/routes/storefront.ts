@@ -34,6 +34,7 @@ import { resolveBlocks } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
 import { frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
 import { resolveCollection, type CollectionRules } from '../lib/collections';
+import { subscribe as subscribeNewsletter, unsubscribeByToken } from '../lib/newsletter';
 import { loadRates } from '../lib/fx';
 import {
   makeConverter,
@@ -760,6 +761,42 @@ export async function registerStorefrontRoutes(
       return reply
         .header('cache-control', 'public, max-age=600')
         .send({ data: { frequently_bought_together: data.fbt, related: data.related } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /storefront/{tenantSlug}/newsletter/subscribe (P3) — public opt-in.
+  // ---------------------------------------------------------------------------
+  app.post<{ Params: { tenantSlug: string }; Body: { email?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/newsletter/subscribe',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const email = (req.body?.email ?? '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return reply.code(422).send({ error: { code: 'INVALID_EMAIL', message: 'Neplatný e-mail' } });
+      }
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      await withTenant(rlsDb, tenant.id, (tx) => subscribeNewsletter(tx, tenant.id, email, 'storefront'));
+      return reply.code(201).send({ data: { subscribed: true } });
+    },
+  );
+
+  // GET /storefront/{tenantSlug}/newsletter/unsubscribe?token= — one-click opt-out.
+  app.get<{ Params: { tenantSlug: string }; Querystring: { token?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/newsletter/unsubscribe',
+    async (req, reply) => {
+      const token = (req.query.token ?? '').trim();
+      const email = token ? await unsubscribeByToken(db, token) : null;
+      return reply
+        .header('content-type', 'text/html; charset=utf-8')
+        .send(
+          `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:2rem">` +
+            (email
+              ? `<h1>Odhlášeno</h1><p>${email} už nebude dostávat náš newsletter.</p>`
+              : `<h1>Neplatný odkaz</h1><p>Odkaz pro odhlášení je neplatný nebo vypršel.</p>`) +
+            `</body>`,
+        );
     },
   );
 
