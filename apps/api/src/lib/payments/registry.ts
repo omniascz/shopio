@@ -17,6 +17,7 @@ import { createCodProvider } from './cod';
 import { createBankTransferProvider } from './bank-transfer';
 import { createGopayProvider, type GopayCredentials } from './gopay';
 import { createComgateProvider, type ComgateCredentials } from './comgate';
+import { createThepayProvider, type ThepayCredentials } from './thepay';
 import { openCredentials } from '../secrets';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
@@ -43,6 +44,10 @@ export function buildProvider(
     case 'comgate': {
       const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as ComgateCredentials;
       return createComgateProvider(creds, cfg.isTestMode);
+    }
+    case 'thepay': {
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as ThepayCredentials;
+      return createThepayProvider(creds, cfg.isTestMode);
     }
     default:
       return null;

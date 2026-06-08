@@ -8,3 +8,4 @@ export * from './service';
 export * from './capture';
 export * from './gopay';
 export * from './comgate';
+export * from './thepay';

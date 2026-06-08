@@ -96,7 +96,14 @@ export async function registerPaymentWebhookRoutes(
     // gateways (ComGate/Pays/ThePay) post it in the form body.
     const body = (req.body ?? {}) as Record<string, string | undefined>;
     const providerPaymentId =
-      req.query.id ?? body.transId ?? body.id ?? body.payment_id ?? body.paymentId ?? null;
+      req.query.id ??
+      body.transId ?? // ComGate
+      body.uid ?? // ThePay
+      body.payment_uid ??
+      body.id ??
+      body.payment_id ??
+      body.paymentId ??
+      null;
     if (!providerPaymentId) {
       app.log.warn({ providerCode, tenantId: tenant.id }, 'payments.webhook.no_payment_id');
       return reply.code(200).send({ received: true, matched: false });
