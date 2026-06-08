@@ -1,0 +1,1 @@
+ALTER TABLE "customers" ADD COLUMN "customer_group_id" uuid;

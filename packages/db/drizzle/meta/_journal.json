@@ -281,6 +281,20 @@
       "when": 1780957024210,
       "tag": "0039_stock_watches",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1780957622094,
+      "tag": "0040_customer_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1780957659781,
+      "tag": "0041_customer_groups_table",
+      "breakpoints": true
     }
   ]
 }

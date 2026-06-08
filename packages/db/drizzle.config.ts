@@ -47,6 +47,7 @@ export default defineConfig({
     './src/schema/promotions.ts',
     './src/schema/wishlist.ts',
     './src/schema/stock-watch.ts',
+    './src/schema/customer-groups.ts',
     './src/schema/flows.ts',
     './src/schema/collections.ts',
     './src/schema/newsletter.ts',

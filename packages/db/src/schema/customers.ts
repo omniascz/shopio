@@ -54,6 +54,8 @@ export const customers = pgTable(
     defaultAddress: jsonb('default_address'),
     /** B2B: company this customer buys on behalf of (per `21`), nullable. */
     companyId: uuid('company_id'),
+    /** Wholesale price level (Shoptet "Velkoobchod") — % goods discount. */
+    customerGroupId: uuid('customer_group_id'),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

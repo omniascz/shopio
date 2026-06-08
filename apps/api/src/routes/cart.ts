@@ -154,7 +154,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const sessionId = ensureSession(req, reply, isProd);
       const cart = await getOrCreateCart(db, tenant.id, sessionId, tenant.defaultCurrency);
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items, await groupBpsFor(db, rlsDb, req, tenant.id)) });
     },
   );
 
@@ -249,7 +249,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
 
       const items = await listCartItems(db, cart.id);
       return reply.code(201).send({
-        data: { ...(await buildCartPayload(db, tenant, cart, items)), added_item_id: resultItemId },
+        data: { ...(await buildCartPayload(db, tenant, cart, items, await groupBpsFor(db, rlsDb, req, tenant.id))), added_item_id: resultItemId },
       });
     },
   );
@@ -348,7 +348,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const items = await listCartItems(db, cart.id);
       return reply.send({
         data: {
-          ...(await buildCartPayload(db, tenant, cart, items)),
+          ...(await buildCartPayload(db, tenant, cart, items, await groupBpsFor(db, rlsDb, req, tenant.id))),
           reorder: { added_lines: addedLines, skipped },
         },
       });
@@ -416,7 +416,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         .where(eq(schema.carts.id, cart.id));
 
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items, await groupBpsFor(db, rlsDb, req, tenant.id)) });
     },
   );
 
@@ -451,7 +451,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         .where(eq(schema.carts.id, cart.id));
 
       const items = await listCartItems(db, cart.id);
-      return reply.send({ data: await buildCartPayload(db, tenant, cart, items) });
+      return reply.send({ data: await buildCartPayload(db, tenant, cart, items, await groupBpsFor(db, rlsDb, req, tenant.id)) });
     },
   );
 
@@ -487,7 +487,9 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           .set({ couponCode: coupon.code, updatedAt: new Date() })
           .where(eq(schema.carts.id, cart.id));
         const fresh = { ...cart, couponCode: coupon.code };
-        return reply.send({ data: await buildCartPayload(db, tenant, fresh, items) });
+        return reply.send({
+          data: await buildCartPayload(db, tenant, fresh, items, await groupBpsFor(db, rlsDb, req, tenant.id)),
+        });
       } catch (err) {
         if (err instanceof CouponError) {
           return reply.code(422).send({ error: { code: err.code, message: err.message } });
@@ -511,7 +513,13 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         .where(eq(schema.carts.id, cart.id));
       const items = await listCartItems(db, cart.id);
       return reply.send({
-        data: await buildCartPayload(db, tenant, { ...cart, couponCode: null }, items),
+        data: await buildCartPayload(
+          db,
+          tenant,
+          { ...cart, couponCode: null },
+          items,
+          await groupBpsFor(db, rlsDb, req, tenant.id),
+        ),
       });
     },
   );
@@ -841,6 +849,22 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           }
           throw err;
         }
+      }
+
+      // Wholesale price level (Shoptet "Velkoobchod") — a % goods discount for
+      // members of the customer's group, stacked on any coupon, before promos.
+      if (customer?.customerGroupId) {
+        const [grp] = await db
+          .select({ bps: schema.customerGroups.discountBps })
+          .from(schema.customerGroups)
+          .where(
+            and(
+              eq(schema.customerGroups.tenantId, tenant.id),
+              eq(schema.customerGroups.id, customer.customerGroupId),
+            ),
+          )
+          .limit(1);
+        if (grp?.bps) goodsDiscount = goodsDiscount + (grossGoods * BigInt(grp.bps)) / 10000n;
       }
 
       // Automatic promotions (per `10`, P2) — no-code cart rules, summed on top
@@ -1588,6 +1612,24 @@ interface ResolvedVariant {
   maxOrderQuantity: number | null;
 }
 
+/** Wholesale group discount (bps) for the request's logged-in customer, if any
+ * (Shoptet "Velkoobchod"). 0 for anonymous shoppers or ungrouped customers. */
+async function groupBpsFor(
+  db: AppDb,
+  rlsDb: AppDb,
+  req: import('fastify').FastifyRequest,
+  tenantId: string,
+): Promise<number> {
+  const customer = await resolveCustomer(rlsDb, req, tenantId);
+  if (!customer?.customerGroupId) return 0;
+  const [g] = await db
+    .select({ bps: schema.customerGroups.discountBps })
+    .from(schema.customerGroups)
+    .where(and(eq(schema.customerGroups.tenantId, tenantId), eq(schema.customerGroups.id, customer.customerGroupId)))
+    .limit(1);
+  return g?.bps ?? 0;
+}
+
 /** Min/Max orderable-quantity guard (Shoptet parity). Returns an error payload
  * for the resulting line quantity, or null when within bounds. */
 function orderBoundsError(
@@ -1752,6 +1794,8 @@ async function buildCartPayload(
   tenant: { id: string; countryCode: string; priceIncludesTax: boolean },
   cart: typeof schema.carts.$inferSelect,
   items: Awaited<ReturnType<typeof listCartItems>>,
+  /** Wholesale group discount (bps) for the logged-in customer, if any. */
+  groupDiscountBps = 0,
 ) {
   const goodsGross = items.reduce((s, it) => s + it.unitPriceAmount * BigInt(it.quantity), 0n);
 
@@ -1774,6 +1818,12 @@ async function buildCartPayload(
       // invalid now → show no discount; checkout will surface the reason
       appliedCode = cart.couponCode;
     }
+  }
+
+  // Wholesale price level (Shoptet "Velkoobchod") — % goods discount preview.
+  if (groupDiscountBps > 0 && goodsGross > 0n) {
+    discount = discount + (goodsGross * BigInt(groupDiscountBps)) / 10000n;
+    if (discount > goodsGross) discount = goodsGross;
   }
 
   // Automatic promotions preview (per `10`, P2) — goods discount only in the

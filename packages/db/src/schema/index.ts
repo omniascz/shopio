@@ -67,6 +67,8 @@ export * from './promotions';
 export * from './wishlist';
 // Back-in-stock notifications (Shoptet "Hlídací pes")
 export * from './stock-watch';
+// Wholesale / B2B price levels (Shoptet "Velkoobchod")
+export * from './customer-groups';
 // No-code automation flows (P3 — BaseLinker Automatic Actions / Shopware Flow Builder)
 export * from './flows';
 // Dynamic collections (P3 — Shopify smart collections / Shopware product streams)
