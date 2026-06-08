@@ -31,6 +31,7 @@ import {
 import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { resolveBlocks } from '../lib/page-blocks';
+import { lowestPriceLast30Days } from '../lib/price-history';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -611,11 +612,18 @@ export async function registerStorefrontRoutes(
         // Bundle composition (per `06` §3.5) — components + derived availability.
         const bundleItems =
           product.type === 'bundle' ? await loadBundleComponents(tx, tenant.id, product.id) : [];
-        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems };
+        // EU Omnibus: lowest price of the last 30 days per variant (for sales).
+        const lowest30d = await lowestPriceLast30Days(
+          tx,
+          tenant.id,
+          variants.map((v) => v.id),
+          new Date(),
+        );
+        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d };
       });
 
       if (!loaded) return notFound(reply, 'product');
-      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems } =
+      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d } =
         loaded;
       const po = prodTr.get(product.id);
       const bundleAvail = product.type === 'bundle' ? bundleAvailableQuantity(bundleItems) : null;
@@ -649,6 +657,12 @@ export async function registerStorefrontRoutes(
             compare_at: v.compareAtAmount
               ? { amount: v.compareAtAmount.toString(), currency: v.priceCurrency }
               : null,
+            // EU Omnibus (per directive 2019/2161): lowest price of the last 30
+            // days — shown next to the sale price. Only meaningful when on sale.
+            lowest_price_30d:
+              v.compareAtAmount && lowest30d.get(v.id) != null
+                ? { amount: lowest30d.get(v.id)!.toString(), currency: v.priceCurrency }
+                : null,
             // Customer-facing availability = on hand − reserved (per `09`)
             stock_on_hand: Math.max(0, v.stockOnHand - v.stockReserved),
             in_stock: v.stockOnHand - v.stockReserved > 0 || v.allowBackorder,

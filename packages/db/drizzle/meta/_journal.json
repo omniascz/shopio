@@ -218,6 +218,13 @@
       "when": 1780925905658,
       "tag": "0030_oauth_apps",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1780929438871,
+      "tag": "0031_price_history",
+      "breakpoints": true
     }
   ]
 }

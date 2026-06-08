@@ -57,3 +57,5 @@ export * from './bundles';
 export * from './customer-addresses';
 // OAuth apps + marketplace (Wave 1 — `28-developer-platform.md`)
 export * from './oauth';
+// Variant price history (EU Omnibus — lowest price in 30 days)
+export * from './price-history';
