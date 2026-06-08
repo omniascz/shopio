@@ -5,7 +5,7 @@ import sensible from '@fastify/sensible';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { getConfig, corsOrigins } from './config';
-import { getDb } from './db';
+import { getDb, getRlsDb } from './db';
 import { registerAuthRoutes } from './routes/auth';
 import { registerTenantRoutes } from './routes/tenants';
 import { registerProductRoutes } from './routes/products';
@@ -42,6 +42,7 @@ import {
 } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
 import { sweepAbandonedCarts } from './lib/abandoned-cart';
+import { runDueSubscriptions } from './lib/subscriptions';
 
 export async function buildServer() {
   const config = getConfig();
@@ -173,6 +174,25 @@ export async function buildServer() {
   }, 15 * 60 * 1000);
   recoveryInterval.unref();
   server.addHook('onClose', async () => clearInterval(recoveryInterval));
+
+  // JOB-RUN-DUE-SUBSCRIPTIONS (per `24`) — generate recurring orders. Hourly;
+  // BullMQ later. Guarded against overlap.
+  const rlsDb = getRlsDb(config);
+  let subRunning = false;
+  const subInterval = setInterval(() => {
+    if (subRunning) return;
+    subRunning = true;
+    void runDueSubscriptions(db, rlsDb, config, server.log)
+      .then((count) => {
+        if (count > 0) server.log.info({ count }, 'subscriptions.generated');
+      })
+      .catch((err) => server.log.error({ err }, 'subscriptions.run_failed'))
+      .finally(() => {
+        subRunning = false;
+      });
+  }, 60 * 60 * 1000);
+  subInterval.unref();
+  server.addHook('onClose', async () => clearInterval(subInterval));
 
   return server;
 }

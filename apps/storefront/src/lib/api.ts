@@ -425,6 +425,7 @@ export interface OrderDetail {
   placed_at: string;
   items: {
     id: string;
+    variant_id: string;
     product_title: string;
     variant_title: string;
     sku: string | null;
@@ -571,6 +572,55 @@ export async function customerLogin(
 
 export async function customerLogout(tenantSlug: string): Promise<void> {
   await customerFetch(`/storefront/${tenantSlug}/auth/logout`, { method: 'POST' }).catch(() => {});
+}
+
+// Subscriptions (per `24`) -------------------------------------------------------
+export interface SubscriptionInfo {
+  id: string;
+  status: 'active' | 'paused' | 'cancelled';
+  items: { variant_id: string; quantity: number }[];
+  interval_unit: 'week' | 'month';
+  interval_count: number;
+  payment_method: string;
+  next_run_at: string;
+  orders_created: number;
+}
+
+export async function customerSubscriptions(tenantSlug: string): Promise<SubscriptionInfo[]> {
+  try {
+    const d = await customerFetch<{ subscriptions: SubscriptionInfo[] }>(
+      `/storefront/${tenantSlug}/me/subscriptions`,
+    );
+    return d?.subscriptions ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function customerCreateSubscription(
+  tenantSlug: string,
+  body: {
+    items: { variantId: string; quantity: number }[];
+    intervalUnit: 'week' | 'month';
+    intervalCount?: number;
+    paymentMethod?: string;
+    shippingAddress?: ShippingAddress;
+  },
+): Promise<SubscriptionInfo | null> {
+  return customerFetch(`/storefront/${tenantSlug}/me/subscriptions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function customerSubscriptionAction(
+  tenantSlug: string,
+  pubId: string,
+  action: 'cancel' | 'pause' | 'resume',
+): Promise<SubscriptionInfo | null> {
+  return customerFetch(`/storefront/${tenantSlug}/me/subscriptions/${pubId}/${action}`, {
+    method: 'POST',
+  });
 }
 
 // Loyalty / store credit (per `19`) ----------------------------------------------

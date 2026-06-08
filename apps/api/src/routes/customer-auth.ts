@@ -35,6 +35,7 @@ import { ReturnError, createReturn } from '../lib/returns';
 import { serializeCompany } from '../lib/companies';
 import { eraseCustomer, exportCustomerData } from '../lib/gdpr';
 import { getLoyaltyBalance, listLoyaltyTransactions } from '../lib/loyalty';
+import { advanceRunAt } from '../lib/subscriptions';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -257,6 +258,162 @@ export async function registerCustomerAuthRoutes(
       });
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // Subscriptions (per `24`) — recurring orders, customer self-service
+  // ---------------------------------------------------------------------------
+  const SubscribeBody = z.object({
+    items: z
+      .array(z.object({ variantId: z.string(), quantity: z.number().int().min(1).max(99) }))
+      .min(1),
+    intervalUnit: z.enum(['week', 'month']),
+    intervalCount: z.number().int().min(1).max(12).default(1),
+    paymentMethod: z.string().max(40).default('cod'),
+    shippingAddress: z
+      .object({
+        line1: z.string().min(1).max(200),
+        line2: z.string().max(200).optional(),
+        city: z.string().min(1).max(100),
+        postalCode: z.string().min(1).max(20),
+        countryCode: z.string().length(2),
+      })
+      .optional(),
+  });
+
+  function serializeSub(s: typeof schema.subscriptions.$inferSelect) {
+    return {
+      id: s.pubId,
+      status: s.status,
+      items: s.items,
+      interval_unit: s.intervalUnit,
+      interval_count: s.intervalCount,
+      payment_method: s.paymentMethod,
+      next_run_at: s.nextRunAt,
+      orders_created: s.ordersCreated,
+      created_at: s.createdAt,
+    };
+  }
+
+  app.post<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/subscriptions',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      const parsed = SubscribeBody.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(422).send({ error: { code: 'VALIDATION_FAILED', message: 'Neplatný vstup' } });
+      }
+      const input = parsed.data;
+      const shippingAddress = input.shippingAddress ?? customer.defaultAddress;
+      if (!shippingAddress) {
+        return reply.code(422).send({
+          error: { code: 'NO_ADDRESS', message: 'Zadejte doručovací adresu' },
+        });
+      }
+
+      // Resolve variant pub_ids → uuids (tenant-scoped).
+      const created = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const variants = await tx
+          .select({ id: schema.productVariants.id, pubId: schema.productVariants.pubId })
+          .from(schema.productVariants)
+          .where(eq(schema.productVariants.tenantId, tenant.id));
+        // Accept either a variant pub_id or its UUID (order items expose UUIDs).
+        const byPub = new Map(variants.map((v) => [v.pubId, v.id]));
+        const byUuid = new Map(variants.map((v) => [v.id, v.id]));
+        const items = input.items.map((i) => ({
+          variant_id: byPub.get(i.variantId) ?? byUuid.get(i.variantId),
+          quantity: i.quantity,
+        }));
+        if (items.some((i) => !i.variant_id)) return null;
+
+        const now = new Date();
+        const [row] = await tx
+          .insert(schema.subscriptions)
+          .values({
+            tenantId: tenant.id,
+            pubId: generatePubId('sub'),
+            customerId: customer.id,
+            status: 'active',
+            items,
+            shippingAddress,
+            paymentMethod: input.paymentMethod,
+            intervalUnit: input.intervalUnit,
+            intervalCount: input.intervalCount,
+            nextRunAt: advanceRunAt(now, input.intervalUnit, input.intervalCount, now),
+          })
+          .returning();
+        return row;
+      });
+      if (!created) {
+        return reply.code(422).send({
+          error: { code: 'VARIANT_NOT_FOUND', message: 'Produkt nenalezen' },
+        });
+      }
+      return reply.code(201).send({ data: serializeSub(created) });
+    },
+  );
+
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/subscriptions',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+      const customer = await resolveCustomer(rlsDb, req, tenant.id);
+      if (!customer) {
+        return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+      }
+      const rows = await withTenant(rlsDb, tenant.id, (tx) =>
+        tx
+          .select()
+          .from(schema.subscriptions)
+          .where(
+            and(
+              eq(schema.subscriptions.tenantId, tenant.id),
+              eq(schema.subscriptions.customerId, customer.id),
+            ),
+          )
+          .orderBy(desc(schema.subscriptions.createdAt)),
+      );
+      return reply.send({ data: { subscriptions: rows.map(serializeSub) } });
+    },
+  );
+
+  for (const [action, status] of [
+    ['cancel', 'cancelled'],
+    ['pause', 'paused'],
+    ['resume', 'active'],
+  ] as const) {
+    app.post<{ Params: { tenantSlug: string; pubId: string } }>(
+      `/api/2026-05-20/storefront/:tenantSlug/me/subscriptions/:pubId/${action}`,
+      async (req, reply) => {
+        const tenant = await resolveTenant(db, req.params.tenantSlug);
+        if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND');
+        const customer = await resolveCustomer(rlsDb, req, tenant.id);
+        if (!customer) {
+          return reply.code(401).send({ error: { code: 'NOT_LOGGED_IN', message: 'Přihlaste se' } });
+        }
+        const [updated] = await withTenant(rlsDb, tenant.id, (tx) =>
+          tx
+            .update(schema.subscriptions)
+            .set({ status, updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.subscriptions.tenantId, tenant.id),
+                eq(schema.subscriptions.pubId, req.params.pubId),
+                eq(schema.subscriptions.customerId, customer.id),
+              ),
+            )
+            .returning(),
+        );
+        if (!updated) return notFound(reply, 'SUBSCRIPTION_NOT_FOUND');
+        return reply.send({ data: serializeSub(updated) });
+      },
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // GET /storefront/{tenantSlug}/me/data-export — GDPR Art. 15/20 (download)

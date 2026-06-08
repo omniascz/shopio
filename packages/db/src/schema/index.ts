@@ -47,3 +47,5 @@ export * from './developer';
 export * from './payments';
 // Loyalty / store credit (Wave 1 — `19-marketing-seo.md` MVP)
 export * from './loyalty';
+// Subscriptions / recurring orders (Wave 1 — `24-subscriptions.md` MVP)
+export * from './subscriptions';

@@ -1156,6 +1156,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           placed_at: order.placedAt,
           items: items.map((it) => ({
             id: it.pubId,
+            variant_id: it.variantId, // for re-order / subscription
             product_title: it.productTitleSnapshot,
             variant_title: it.variantTitleSnapshot,
             sku: it.skuSnapshot,

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import {
   getOrder,
   getOrderTracking,
+  customerMe,
+  customerCreateSubscription,
   formatMoney,
   formatVatRate,
   invoicePdfUrl,
@@ -124,6 +126,8 @@ export default function OrderConfirmationPage({ params }: Props) {
             </li>
           ))}
         </ul>
+
+        <SubscribeFromOrder tenantSlug={tenantSlug} order={order} />
 
         <div style={{ marginTop: '1rem', borderTop: '2px solid #111', paddingTop: '0.75rem' }}>
           <Row
@@ -274,6 +278,63 @@ export default function OrderConfirmationPage({ params }: Props) {
         Pokračovat v nakupování
       </Link>
     </main>
+  );
+}
+
+// Subscribe to recurring delivery of this order's items (per `24`).
+function SubscribeFromOrder({ tenantSlug, order }: { tenantSlug: string; order: OrderDetail }) {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void customerMe(tenantSlug).then((me) => setLoggedIn(Boolean(me)));
+  }, [tenantSlug]);
+
+  if (!loggedIn) return null;
+  if (done) {
+    return (
+      <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#1c7c34' }}>
+        ✓ Pravidelná dodávka nastavena — spravovat ji můžete ve svém účtu.
+      </p>
+    );
+  }
+
+  async function subscribe() {
+    setBusy(true);
+    try {
+      const created = await customerCreateSubscription(tenantSlug, {
+        items: order.items.map((it) => ({ variantId: it.variant_id, quantity: it.quantity })),
+        intervalUnit: 'month',
+        intervalCount: 1,
+        paymentMethod: ['cod', 'bank_transfer'].includes(order.payment_method)
+          ? order.payment_method
+          : 'cod',
+        shippingAddress: order.shipping_address,
+      });
+      if (created) setDone(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void subscribe()}
+      disabled={busy}
+      style={{
+        marginTop: '1rem',
+        padding: '0.6rem 1rem',
+        background: 'transparent',
+        border: '1px solid var(--sf-accent, #111)',
+        color: 'var(--sf-accent, #111)',
+        borderRadius: 6,
+        fontSize: '0.875rem',
+        cursor: 'pointer',
+      }}
+    >
+      🔁 {busy ? 'Nastavuji…' : 'Objednávat pravidelně každý měsíc'}
+    </button>
   );
 }
 

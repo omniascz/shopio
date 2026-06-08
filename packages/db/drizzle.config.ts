@@ -37,6 +37,7 @@ export default defineConfig({
     './src/schema/developer.ts',
     './src/schema/payments.ts',
     './src/schema/loyalty.ts',
+    './src/schema/subscriptions.ts',
   ],
   out: './drizzle',
   dbCredentials: { url },

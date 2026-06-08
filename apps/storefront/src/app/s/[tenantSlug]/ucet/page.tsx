@@ -15,6 +15,8 @@ import {
   customerDataExportUrl,
   customerDeleteAccount,
   customerLoyalty,
+  customerSubscriptions,
+  customerSubscriptionAction,
   customerLogin,
   customerLogout,
   customerMe,
@@ -178,6 +180,8 @@ function LoggedIn({
 
       <LoyaltySection tenantSlug={tenantSlug} />
 
+      <SubscriptionsSection tenantSlug={tenantSlug} />
+
       <GdprSection tenantSlug={tenantSlug} onDeleted={onLogout} />
 
       <section style={sectionStyle}>
@@ -230,6 +234,76 @@ function LoggedIn({
         onChanged={onChanged}
       />
     </>
+  );
+}
+
+// Subscriptions (per `24`) — recurring-order management.
+function SubscriptionsSection({ tenantSlug }: { tenantSlug: string }) {
+  const [subs, setSubs] = useState<Awaited<ReturnType<typeof customerSubscriptions>>>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    setSubs(await customerSubscriptions(tenantSlug));
+  }
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantSlug]);
+
+  async function act(id: string, action: 'cancel' | 'pause' | 'resume') {
+    setBusy(true);
+    try {
+      await customerSubscriptionAction(tenantSlug, id, action);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const visible = subs.filter((s) => s.status !== 'cancelled');
+  if (visible.length === 0) return null;
+
+  const INTERVAL: Record<string, string> = { week: 'týden', month: 'měsíc' };
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: '1.125rem', margin: '0 0 1rem' }}>Pravidelné dodávky</h2>
+      {visible.map((s) => (
+        <div
+          key={s.id}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid rgba(128,128,128,0.12)', gap: '0.75rem', flexWrap: 'wrap' }}
+        >
+          <div style={{ fontSize: '0.875rem' }}>
+            {s.items.reduce((n, i) => n + i.quantity, 0)} ks · každý{' '}
+            {s.interval_count > 1 ? `${s.interval_count}. ` : ''}
+            {INTERVAL[s.interval_unit] ?? s.interval_unit}
+            <span style={{ color: 'var(--sf-muted, #666)' }}>
+              {' '}
+              · příští: {new Date(s.next_run_at).toLocaleDateString('cs-CZ')}
+              {s.status === 'paused' && ' · pozastaveno'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {s.status === 'active' ? (
+              <button type="button" onClick={() => void act(s.id, 'pause')} disabled={busy} style={secondaryBtnStyle}>
+                Pozastavit
+              </button>
+            ) : (
+              <button type="button" onClick={() => void act(s.id, 'resume')} disabled={busy} style={secondaryBtnStyle}>
+                Obnovit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void act(s.id, 'cancel')}
+              disabled={busy}
+              style={{ ...secondaryBtnStyle, color: '#c0392b' }}
+            >
+              Zrušit
+            </button>
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

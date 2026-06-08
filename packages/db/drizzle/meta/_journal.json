@@ -176,6 +176,13 @@
       "when": 1780908781070,
       "tag": "0024_loyalty",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780910051875,
+      "tag": "0025_subscriptions",
+      "breakpoints": true
     }
   ]
 }
