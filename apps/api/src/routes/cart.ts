@@ -34,6 +34,8 @@ import QRCode from 'qrcode';
 import { renderOrderPlacedEmail, sendEmail, type OrderEmailContext } from '../lib/email';
 import { computeTax, qualifiesForReverseCharge, serializeBreakdown, type TaxResult } from '../lib/tax';
 import { resolveRates } from '../lib/tax-resolver';
+import { loadRates } from '../lib/fx';
+import { makeConverter, readCurrencyConfig, resolvePresentmentCurrency } from '../lib/presentment';
 import type { CartShippingMetrics } from '../lib/shipping';
 import {
   resolveShippingOptions,
@@ -106,6 +108,10 @@ const CheckoutBody = z.object({
    * card's balance covers the whole order it settles at placement (no gateway);
    * partial redemption (gift card + gateway) is a follow-up. */
   giftCardCode: z.string().max(40).optional(),
+  /** Presentment currency to charge in (P1). Must be a tenant-supported currency;
+   * defaults to the base. Non-base currency cannot be combined with coupons,
+   * gift cards or store credit yet (those settle in the base currency). */
+  currency: z.string().length(3).optional(),
   /** Selected shipping rate (from GET /shipping/rates). Optional in MVP. */
   shippingRateId: z.string().optional(),
   /** Selected pickup point for pickup_point services. The full address fields are
@@ -762,10 +768,42 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           }
         }
       }
-      const shippingGross = shippingOption ? BigInt(shippingOption.amount) : 0n;
+      // Presentment currency (P1): charge in the customer's currency. Prices are
+      // authored in the base currency, so we convert line unit prices + shipping
+      // via the ČNB FX. `toCharge` is the identity when charging in the base, so
+      // the base-currency path is unchanged. Coupons / gift cards / store credit
+      // settle in the base currency only — reject them with a non-base charge.
+      const currencyCfg = readCurrencyConfig(tenant.defaultCurrency, tenant.settings);
+      const chargeCurrency = resolvePresentmentCurrency(input.currency, currencyCfg);
+      const baseCurrency = currencyCfg.base;
+      let toCharge = (minor: bigint): bigint => minor;
+      if (chargeCurrency !== baseCurrency) {
+        if (cart.couponCode || input.giftCardCode || input.useStoreCredit) {
+          return reply.code(422).send({
+            error: {
+              code: 'CURRENCY_TENDER_UNSUPPORTED',
+              message: 'Slevové kódy, dárkové karty a kredit zatím fungují jen v základní měně.',
+            },
+          });
+        }
+        const fxRates = await loadRates(db);
+        const conv = makeConverter(baseCurrency, chargeCurrency, fxRates);
+        const fxFailed = conv(100n) === null;
+        if (fxFailed) {
+          return reply.code(503).send({
+            error: { code: 'FX_UNAVAILABLE', message: 'Směnný kurz není dostupný, zkuste znovu.' },
+          });
+        }
+        toCharge = (minor: bigint): bigint => BigInt(conv(minor)!.amount);
+      }
+      // Per-item unit price in the charge currency (stored on the order item).
+      const chargeUnit = new Map(items.map((it) => [it.pubId, toCharge(it.unitPriceAmount)]));
+      const unitOf = (it: { pubId: string }): bigint => chargeUnit.get(it.pubId)!;
+
+      const shippingGross = shippingOption ? toCharge(BigInt(shippingOption.amount)) : 0n;
 
       const grossGoods = items.reduce(
-        (sum, it) => sum + it.unitPriceAmount * BigInt(it.quantity),
+        (sum, it) => sum + unitOf(it) * BigInt(it.quantity),
         0n,
       );
 
@@ -796,7 +834,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         }
       }
       const lineDiscounts = distributeDiscount(
-        items.map((it) => it.unitPriceAmount * BigInt(it.quantity)),
+        items.map((it) => unitOf(it) * BigInt(it.quantity)),
         goodsDiscount,
       );
       const discountByRef = new Map(items.map((it, i) => [it.pubId, lineDiscounts[i] ?? 0n]));
@@ -818,7 +856,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       const tax = computeTax({
         lines: items.map((it) => ({
           ref: it.pubId,
-          amount: it.unitPriceAmount * BigInt(it.quantity) - (discountByRef.get(it.pubId) ?? 0n),
+          amount: unitOf(it) * BigInt(it.quantity) - (discountByRef.get(it.pubId) ?? 0n),
           taxClassCode: it.taxClassCode,
         })),
         shippingAmount: effectiveShipping,
@@ -950,7 +988,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
               customerPhone: customerPhone ?? null,
               shippingAddress: shipAddress,
               billingAddress: shipAddress,
-              currency: cart.currency,
+              currency: chargeCurrency,
               subtotalAmount: grossGoods,
               discountAmount: totalDiscount,
               couponCode: validatedCoupon?.code ?? null,
@@ -999,7 +1037,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
           await tx.insert(schema.orderItems).values(
             items.map((it) => {
               const v = variantMap.get(it.variantId)!;
-              const lineGross = it.unitPriceAmount * BigInt(it.quantity);
+              const lineGross = unitOf(it) * BigInt(it.quantity);
               const lt = taxByRef.get(it.pubId);
               return {
                 tenantId: tenant.id,
@@ -1011,8 +1049,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 variantTitleSnapshot: v.title,
                 skuSnapshot: v.sku,
                 quantity: it.quantity,
-                unitPriceAmount: it.unitPriceAmount,
-                unitPriceCurrency: it.unitPriceCurrency,
+                unitPriceAmount: unitOf(it),
+                unitPriceCurrency: chargeCurrency,
                 // net base; tax + gross snapshot from the engine (post-discount)
                 lineSubtotalAmount: lt?.baseAmount ?? lineGross,
                 lineDiscountAmount: discountByRef.get(it.pubId) ?? 0n,
@@ -1132,7 +1170,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 variantTitle: it.titleSnapshot.split(' — ')[1] ?? '',
                 sku: null,
                 quantity: it.quantity,
-                lineTotalMinor: it.unitPriceAmount * BigInt(it.quantity),
+                lineTotalMinor: unitOf(it) * BigInt(it.quantity),
               })),
               currency: result.currency,
               totalMinor: result.totalAmount,
@@ -1202,7 +1240,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
                 items: items.map((it) => ({
                   title: it.titleSnapshot,
                   quantity: it.quantity,
-                  unitAmountMinor: it.unitPriceAmount,
+                  unitAmountMinor: unitOf(it),
                 })),
                 shippingAmountMinor: shippingGross,
                 shippingLabel: shippingOption?.display_name ?? 'Doprava',
