@@ -7,16 +7,19 @@
 import type { ShopioConfig } from '../../config';
 import type { CarrierProvider } from './types';
 import { PacketaCarrier } from './packeta-carrier';
+import { InPostCarrier } from './inpost-carrier';
 import { ManualCarrier } from './manual';
 
 export function getCarrier(carrierCode: string, config: ShopioConfig): CarrierProvider {
   if (carrierCode === 'zasilkovna') return new PacketaCarrier(config);
+  if (carrierCode === 'inpost') return new InPostCarrier();
   return new ManualCarrier(carrierCode);
 }
 
 /** Carrier catalog for the admin rate editor (code → label + capabilities). */
 export const CARRIER_CATALOG: { code: string; displayName: string; real: boolean }[] = [
   { code: 'zasilkovna', displayName: 'Zásilkovna', real: true },
+  { code: 'inpost', displayName: 'InPost (Paczkomaty)', real: true },
   { code: 'ppl', displayName: 'PPL', real: false },
   { code: 'dpd', displayName: 'DPD', real: false },
   { code: 'cp', displayName: 'Česká pošta', real: false },

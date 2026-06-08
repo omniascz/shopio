@@ -51,6 +51,7 @@ const SHIPPING_DEFAULTS: Record<
 > = {
   CZK: { pickup: 7900n, pickupFreeAbove: 150000n, home: 11900n },
   EUR: { pickup: 290n, pickupFreeAbove: 6000n, home: 490n },
+  PLN: { pickup: 1290n, pickupFreeAbove: 20000n, home: 1990n },
 };
 
 /**
@@ -170,6 +171,47 @@ export async function provisionTenantDefaults(tx: DbConn, tenant: TenantSeed): P
       isActive: false,
     },
   ]);
+
+  // 2b) PL market (per `14` + `29`): InPost Paczkomaty is the dominant Polish
+  // delivery method. Seed it ACTIVE for PL shops (pickup-locker + courier);
+  // real labels need the merchant's ShipX token (Nastavení → Doprava), mock
+  // until then. Mirrors the Zásilkovna default for CZ.
+  if (country === 'PL') {
+    await tx.insert(schema.shippingRates).values([
+      {
+        tenantId: tenant.id,
+        shippingZoneId: zone!.id,
+        carrierCode: 'inpost',
+        serviceCode: 'pickup_point',
+        displayName: 'InPost — Paczkomat',
+        description: 'Dostawa do paczkomatu InPost.',
+        kind: 'free_above_threshold' as const,
+        amount: prices.pickup,
+        currency,
+        freeAboveAmount: prices.pickupFreeAbove,
+        pickupOnly: true,
+        supportsCod: true,
+        estimatedDaysMin: 1,
+        estimatedDaysMax: 2,
+        priority: 11,
+      },
+      {
+        tenantId: tenant.id,
+        shippingZoneId: zone!.id,
+        carrierCode: 'inpost',
+        serviceCode: 'home_delivery',
+        displayName: 'InPost — Kurier',
+        description: 'Kurier InPost pod adres.',
+        kind: 'flat' as const,
+        amount: prices.home,
+        currency,
+        supportsCod: true,
+        estimatedDaysMin: 1,
+        estimatedDaysMax: 2,
+        priority: 6,
+      },
+    ]);
+  }
 
   // 3) Carrier provider config — disabled until the merchant adds credentials
   await tx.insert(schema.shippingProviderConfigs).values({

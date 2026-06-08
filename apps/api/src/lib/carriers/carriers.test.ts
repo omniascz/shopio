@@ -15,6 +15,13 @@ describe('getCarrier', () => {
     expect(c.real).toBe(true);
   });
 
+  it('resolves inpost to the real InPost carrier', () => {
+    const c = getCarrier('inpost', cfg);
+    expect(c.code).toBe('inpost');
+    expect(c.real).toBe(true);
+    expect(c.displayName).toContain('InPost');
+  });
+
   it('resolves unknown/manual carriers to the manual carrier', () => {
     for (const code of ['ppl', 'dpd', 'cp', 'gls', 'whatever']) {
       const c = getCarrier(code, cfg);
@@ -50,6 +57,29 @@ describe('manual carrier createLabel', () => {
     expect(a.barcode).toBe(b.barcode); // deterministic across retries
     expect(a.trackingUrl).toContain(a.barcode);
     expect(a.labelPdfBase64.length).toBeGreaterThan(100); // a real PDF was rendered
+  });
+});
+
+describe('InPost carrier createLabel (mock mode)', () => {
+  it('produces a Paczkomat label + InPost tracking URL when no token', async () => {
+    const carrier = getCarrier('inpost', cfg);
+    const input = {
+      orderNumber: 'ORD-2026-00000009',
+      shipmentNumber: 'SHP-2026-0009',
+      recipientName: 'Anna Kowalska',
+      recipientEmail: 'anna@example.pl',
+      weightGrams: 800,
+      valueMajor: 200,
+      pickup: { externalId: 'KRA010', name: 'Paczkomat KRA010' },
+      providerOptions: {},
+    };
+    const a = await carrier.createLabel(input);
+    const b = await carrier.createLabel(input);
+    expect(a.provider).toBe('mock');
+    expect(a.barcode).toBe(b.barcode); // deterministic
+    expect(a.trackingUrl).toContain('inpost.pl');
+    expect(a.trackingUrl).toContain(a.barcode);
+    expect(a.labelPdfBase64.length).toBeGreaterThan(100);
   });
 });
 
