@@ -883,6 +883,14 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
       shippingDiscount = shippingDiscount + promo.shippingDiscount;
       if (shippingDiscount > shippingGross) shippingDiscount = shippingGross;
 
+      // Gift with purchase (Shoptet "Dárek k objednávce") — highest-priority
+      // active gift promo whose threshold the cart meets. Added as a free line
+      // in the tx below; price 0 → no effect on the order totals.
+      const giftPromo = promoCandidates
+        .filter((p) => p.kind === 'gift' && p.giftVariantId && grossGoods >= p.minSubtotal)
+        .sort((a, b) => b.priority - a.priority)[0];
+      const giftVariantId = giftPromo?.giftVariantId ?? null;
+
       const lineDiscounts = distributeDiscount(
         items.map((it) => unitOf(it) * BigInt(it.quantity)),
         goodsDiscount,
@@ -1121,6 +1129,56 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             lines: items.map((it) => ({ variantId: it.variantId, quantity: it.quantity })),
             expiresAt: new Date(Date.now() + UNPAID_RESERVATION_TTL_HOURS * 60 * 60 * 1000),
           });
+
+          // Gift with purchase (Shoptet "Dárek k objednávce") — one free unit of
+          // the promo's gift variant, added as a 0-price line + reserved.
+          if (giftVariantId) {
+            const [gv] = await tx
+              .select({
+                id: schema.productVariants.id,
+                productId: schema.productVariants.productId,
+                sku: schema.productVariants.sku,
+                title: schema.productVariants.title,
+                productTitle: schema.products.title,
+              })
+              .from(schema.productVariants)
+              .innerJoin(schema.products, eq(schema.products.id, schema.productVariants.productId))
+              .where(
+                and(
+                  eq(schema.productVariants.tenantId, tenant.id),
+                  eq(schema.productVariants.id, giftVariantId),
+                ),
+              )
+              .limit(1);
+            if (gv) {
+              await tx.insert(schema.orderItems).values({
+                tenantId: tenant.id,
+                orderId: order.id,
+                pubId: generatePubId('oit'),
+                variantId: gv.id,
+                productId: gv.productId,
+                productTitleSnapshot: gv.productTitle,
+                variantTitleSnapshot: gv.title,
+                skuSnapshot: gv.sku,
+                quantity: 1,
+                unitPriceAmount: 0n,
+                unitPriceCurrency: chargeCurrency,
+                lineSubtotalAmount: 0n,
+                lineDiscountAmount: 0n,
+                taxClassCode: 'standard',
+                taxRateBasisPoints: 0,
+                lineTaxAmount: 0n,
+                lineTotalAmount: 0n,
+                metadata: { gift: true, promotion_id: giftPromo?.pubId ?? null },
+              });
+              await reserveStock(tx, {
+                tenantId: tenant.id,
+                orderId: order.id,
+                lines: [{ variantId: gv.id, quantity: 1 }],
+                expiresAt: new Date(Date.now() + UNPAID_RESERVATION_TTL_HOURS * 60 * 60 * 1000),
+              });
+            }
+          }
 
           // Store-credit settlement (per `19`): debit the credit ledger + hold
           // the reservation indefinitely (the order is already paid).

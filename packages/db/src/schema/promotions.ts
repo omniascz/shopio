@@ -18,7 +18,13 @@ import { sql } from 'drizzle-orm';
 import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 
-export const PROMOTION_KINDS = ['order_percentage', 'order_fixed', 'free_shipping', 'bogo'] as const;
+export const PROMOTION_KINDS = [
+  'order_percentage',
+  'order_fixed',
+  'free_shipping',
+  'bogo',
+  'gift', // free gift added to the order when the cart qualifies (Shoptet "Dárek k objednávce")
+] as const;
 
 export const promotions = pgTable(
   'promotions',
@@ -45,6 +51,8 @@ export const promotions = pgTable(
     getQuantity: integer('get_quantity').notNull().default(0),
     /** Discount on the "get" units in basis points (10000 = free). */
     getDiscountBps: integer('get_discount_bps').notNull().default(10000),
+    /** gift kind: the variant given free when the cart qualifies (≥ minSubtotal). */
+    giftVariantId: uuid('gift_variant_id'),
     // Stacking + ordering
     priority: integer('priority').notNull().default(0),
     stackable: boolean('stackable').notNull().default(true),

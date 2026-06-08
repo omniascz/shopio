@@ -1,0 +1,1 @@
+ALTER TABLE "promotions" ADD COLUMN "gift_variant_id" uuid;

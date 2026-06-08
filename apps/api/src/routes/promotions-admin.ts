@@ -28,7 +28,9 @@ const minor = z.union([z.string(), z.number()]).transform((v) => BigInt(v));
 
 const CreateBody = z.object({
   name: z.string().min(1).max(200),
-  kind: z.enum(['order_percentage', 'order_fixed', 'free_shipping', 'bogo']),
+  kind: z.enum(['order_percentage', 'order_fixed', 'free_shipping', 'bogo', 'gift']),
+  /** gift kind: variant given free (pub_id prv_… or uuid) when cart ≥ minSubtotal. */
+  giftVariantId: z.string().min(1).nullable().optional(),
   /** order_percentage: basis points (1500=15%); order_fixed: minor units. */
   value: minor.optional(),
   currency: z.string().length(3).optional(),
@@ -78,14 +80,36 @@ export async function registerPromotionAdminRoutes(
     if (i.kind === 'bogo' && (!i.buyQuantity || !i.getQuantity)) {
       return reply.code(422).send({ error: { code: 'INVALID_BOGO', message: 'BOGO vyžaduje buyQuantity + getQuantity' } });
     }
-    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
-      tx
+    if (i.kind === 'gift' && !i.giftVariantId) {
+      return reply.code(422).send({ error: { code: 'INVALID_GIFT', message: 'Dárek vyžaduje giftVariantId' } });
+    }
+    const result = await withTenant(rlsDb, tenantId, async (tx) => {
+      // Resolve the gift variant (pub_id or uuid) → internal uuid.
+      let giftUuid: string | null = null;
+      if (i.kind === 'gift' && i.giftVariantId) {
+        const [gv] = await tx
+          .select({ id: schema.productVariants.id })
+          .from(schema.productVariants)
+          .where(
+            and(
+              eq(schema.productVariants.tenantId, tenantId),
+              i.giftVariantId.startsWith('prv_')
+                ? eq(schema.productVariants.pubId, i.giftVariantId)
+                : eq(schema.productVariants.id, i.giftVariantId),
+            ),
+          )
+          .limit(1);
+        if (!gv) return { notFoundGift: true as const };
+        giftUuid = gv.id;
+      }
+      const [inserted] = await tx
         .insert(schema.promotions)
         .values({
           tenantId,
           pubId: generatePubId('prm'),
           name: i.name,
           kind: i.kind,
+          giftVariantId: giftUuid,
           value: i.value ?? 0n,
           currency: i.currency ?? null,
           maxDiscountAmount: i.maxDiscountAmount ?? null,
@@ -99,8 +123,13 @@ export async function registerPromotionAdminRoutes(
           startsAt: i.startsAt ? new Date(i.startsAt) : null,
           endsAt: i.endsAt ? new Date(i.endsAt) : null,
         })
-        .returning(),
-    );
+        .returning();
+      return { row: inserted };
+    });
+    if ('notFoundGift' in result) {
+      return reply.code(404).send({ error: { code: 'GIFT_VARIANT_NOT_FOUND', message: 'Dárková varianta nenalezena' } });
+    }
+    const row = result.row;
     return reply.code(201).send({ data: serialize(row!) });
   });
 
