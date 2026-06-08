@@ -105,3 +105,29 @@ describe('manualTrackingUrl', () => {
     expect(manualTrackingUrl('chronopost', 'CH2')).toContain('chronopost.fr');
   });
 });
+
+describe('balikobot carrier (aggregator)', () => {
+  it('resolves to the real Balíkobot carrier', () => {
+    const c = getCarrier('balikobot', cfg);
+    expect(c.code).toBe('balikobot');
+    expect(c.real).toBe(true);
+    expect(c.displayName).toBe('Balíkobot');
+    expect(c.trackingUrl('ABC123')).toContain('track.balikobot.cz');
+  });
+
+  it('falls back to a manual placeholder label when no credentials are set', async () => {
+    const c = getCarrier('balikobot', cfg);
+    const result = await c.createLabel({
+      orderNumber: 'ORD-1',
+      shipmentNumber: 'SHP-1',
+      recipientName: 'Jan Novák',
+      recipientEmail: 'jan@example.com',
+      weightGrams: 500,
+      valueMajor: 100,
+      providerOptions: {}, // no api_user/api_key/shipper → fallback
+    });
+    expect(result.provider).toBe('balikobot');
+    expect(result.barcode.length).toBeGreaterThan(0);
+    expect(result.labelPdfBase64.length).toBeGreaterThan(0);
+  });
+});

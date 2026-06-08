@@ -8,11 +8,13 @@ import type { ShopioConfig } from '../../config';
 import type { CarrierProvider } from './types';
 import { PacketaCarrier } from './packeta-carrier';
 import { InPostCarrier } from './inpost-carrier';
+import { BalikobotCarrier } from './balikobot-carrier';
 import { ManualCarrier } from './manual';
 
 export function getCarrier(carrierCode: string, config: ShopioConfig): CarrierProvider {
   if (carrierCode === 'zasilkovna') return new PacketaCarrier(config);
   if (carrierCode === 'inpost') return new InPostCarrier();
+  if (carrierCode === 'balikobot') return new BalikobotCarrier();
   return new ManualCarrier(carrierCode);
 }
 
@@ -25,6 +27,8 @@ export const CARRIER_CATALOG: { code: string; displayName: string; real: boolean
   { code: 'cp', displayName: 'Česká pošta', real: false },
   { code: 'balikovna', displayName: 'Balíkovna', real: false },
   { code: 'gls', displayName: 'GLS', real: false },
+  // Aggregator (brokers labels for PPL/DPD/ČP/GLS/… via one account)
+  { code: 'balikobot', displayName: 'Balíkobot', real: true },
   // PL
   { code: 'inpost', displayName: 'InPost (Paczkomaty)', real: true },
   // DACH
