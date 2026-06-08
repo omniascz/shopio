@@ -30,6 +30,7 @@ import {
 } from '../lib/feeds';
 import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
+import { resolveBlocks } from '../lib/page-blocks';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -708,6 +709,26 @@ export async function registerStorefrontRoutes(
   // CMS content (per `32`) — published-only, public.
   // ---------------------------------------------------------------------------
 
+  // GET /storefront/{tenantSlug}/homepage — page-builder blocks for the home
+  // page (per `32`), resolved to render-ready data. Stored in
+  // tenant.settings.homepage.blocks. Empty array = use the theme default hero.
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/homepage',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const settings = (tenant.settings ?? {}) as {
+        homepage?: { blocks?: unknown };
+      };
+      const blocks = await withTenant(rlsDb, tenant.id, (tx) =>
+        resolveBlocks(tx, tenant.id, settings.homepage?.blocks ?? []),
+      );
+      return reply
+        .header('cache-control', 'public, max-age=120')
+        .send({ data: { blocks } });
+    },
+  );
+
   // GET /storefront/{tenantSlug}/pages — published page list (footer nav)
   app.get<{ Params: { tenantSlug: string } }>(
     '/api/2026-05-20/storefront/:tenantSlug/pages',
@@ -745,11 +766,16 @@ export async function registerStorefrontRoutes(
           .limit(1),
       );
       if (!page) return notFound(reply, 'page');
+      // Page-builder blocks (per `32`) — resolved to render-ready data when set.
+      const blocks = await withTenant(rlsDb, tenant.id, (tx) =>
+        resolveBlocks(tx, tenant.id, page.blocks),
+      );
       return reply.send({
         data: {
           slug: page.slug,
           title: page.title,
           body_html: page.bodyHtml,
+          blocks,
           seo_title: page.seoTitle,
           seo_description: page.seoDescription,
           updated_at: page.updatedAt,

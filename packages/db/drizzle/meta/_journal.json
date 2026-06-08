@@ -204,6 +204,13 @@
       "when": 1780925059030,
       "tag": "0028_customer_addresses",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780925468199,
+      "tag": "0029_cms_page_blocks",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { isSearchEnabled, reindexTenant } from '../lib/search';
+import { BlocksSchema } from '../lib/page-blocks';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -444,6 +445,55 @@ export async function registerSettingsRoutes(
         .returning();
 
       return reply.send({ data: serializeSettings(updated!) });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET/PUT /admin/settings/homepage-blocks — page-builder blocks for the home
+  // page (per `32`). Stored in settings.homepage.blocks; validated on write.
+  // ---------------------------------------------------------------------------
+  app.get(
+    '/api/2026-05-20/admin/settings/homepage-blocks',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+      const s = (tenant.settings ?? {}) as { homepage?: { blocks?: unknown } };
+      return reply.send({ data: { blocks: s.homepage?.blocks ?? [] } });
+    },
+  );
+
+  app.put(
+    '/api/2026-05-20/admin/settings/homepage-blocks',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const parsed = z.object({ blocks: BlocksSchema }).safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>) };
+      const prior = (settings.homepage ?? {}) as Record<string, unknown>;
+      settings.homepage = { ...prior, blocks: parsed.data.blocks };
+
+      await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId));
+      return reply.send({ data: { blocks: parsed.data.blocks } });
     },
   );
 

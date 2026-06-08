@@ -18,6 +18,7 @@ import { schema } from '@shopio/db';
 import { PERMISSIONS, generatePubId } from '@shopio/authz';
 import { withTenant } from '@shopio/db';
 import { requirePermission } from '../plugins/auth-middleware';
+import { BlocksSchema } from '../lib/page-blocks';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -37,6 +38,9 @@ const PageCreate = z.object({
   slug,
   title: z.string().min(1).max(200),
   bodyHtml: z.string().max(200_000).optional(),
+  /** Page-builder blocks (per `32`). When non-empty the storefront renders
+   * these instead of body_html. Validated against the block model. */
+  blocks: BlocksSchema.optional(),
   status: z.enum(['draft', 'published']).optional(),
   seoTitle: z.string().max(200).nullable().optional(),
   seoDescription: z.string().max(400).nullable().optional(),
@@ -98,6 +102,7 @@ export async function registerCmsAdminRoutes(
             slug: i.slug,
             title: i.title,
             bodyHtml: sanitizeHtml(i.bodyHtml ?? ''),
+            blocks: i.blocks ?? [],
             status: i.status ?? 'draft',
             seoTitle: i.seoTitle ?? null,
             seoDescription: i.seoDescription ?? null,
@@ -264,6 +269,7 @@ function buildContentUpdates(p: {
   slug?: string | undefined;
   title?: string | undefined;
   bodyHtml?: string | undefined;
+  blocks?: unknown;
   seoTitle?: string | null | undefined;
   seoDescription?: string | null | undefined;
 }): Record<string, unknown> {
@@ -271,6 +277,7 @@ function buildContentUpdates(p: {
   if (p.slug !== undefined) u.slug = p.slug;
   if (p.title !== undefined) u.title = p.title;
   if (p.bodyHtml !== undefined) u.bodyHtml = sanitizeHtml(p.bodyHtml);
+  if (p.blocks !== undefined) u.blocks = p.blocks;
   if (p.seoTitle !== undefined) u.seoTitle = p.seoTitle;
   if (p.seoDescription !== undefined) u.seoDescription = p.seoDescription;
   return u;
@@ -298,6 +305,7 @@ function serializePage(p: typeof schema.cmsPages.$inferSelect) {
     slug: p.slug,
     title: p.title,
     body_html: p.bodyHtml,
+    blocks: p.blocks,
     status: p.status,
     seo_title: p.seoTitle,
     seo_description: p.seoDescription,

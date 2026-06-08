@@ -12,7 +12,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 
 export const cmsPages = pgTable(
@@ -28,6 +28,11 @@ export const cmsPages = pgTable(
     slug: text('slug').notNull(), // [a-z0-9-], unique per tenant
     title: text('title').notNull(),
     bodyHtml: text('body_html').notNull().default(''),
+    /** Page-builder blocks (per `32`): ordered typed blocks. When non-empty the
+     * storefront renders these instead of `body_html`. See lib/page-blocks.ts. */
+    blocks: jsonb('blocks')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     status: text('status', { enum: ['draft', 'published'] })
       .notNull()
       .default('draft'),
