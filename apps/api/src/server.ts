@@ -20,7 +20,7 @@ import { registerShipmentRoutes } from './routes/shipments';
 import { registerSettingsRoutes, registerSearchAdminRoutes } from './routes/settings';
 import { setTenantStatusChecker } from './plugins/auth-middleware';
 import { schema } from '@shopio/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { registerMediaRoutes } from './routes/media';
 import { registerReviewAdminRoutes } from './routes/reviews-admin';
 import { registerCouponAdminRoutes } from './routes/coupons-admin';
@@ -102,9 +102,18 @@ export async function buildServer() {
     allowList: (req) => req.url.startsWith('/health') || req.url.includes('/webhooks/'),
   });
 
-  // Health endpoints (per `31 §RULE-OPS-041`)
+  // Health endpoints (per `31 §RULE-OPS-041`). `live` = process up; `ready` =
+  // dependencies reachable (DB), so uptime monitors detect real outages (503).
   server.get('/health/live', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
-  server.get('/health/ready', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+  server.get('/health/ready', async (_req, reply) => {
+    try {
+      await getDb(config).execute(sql`select 1`);
+      return { status: 'ok', timestamp: new Date().toISOString() };
+    } catch (err) {
+      server.log.error({ err }, 'health.ready.db_unreachable');
+      return reply.code(503).send({ status: 'unavailable', db: false, timestamp: new Date().toISOString() });
+    }
+  });
   server.get('/health/startup', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
