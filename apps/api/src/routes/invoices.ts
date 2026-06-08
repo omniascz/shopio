@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { schema, withTenant, type TenantTx } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
@@ -25,6 +25,7 @@ import {
   listInvoicesForOrder,
 } from '../lib/invoices';
 import { buildIsdocXml } from '../lib/isdoc';
+import { buildPohodaDataPack, type PohodaInvoice } from '../lib/pohoda';
 import { renderInvoicePdf } from '../lib/invoice-pdf';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -213,6 +214,89 @@ export async function registerInvoiceRoutes(
         .header('content-type', 'application/pdf')
         .header('content-disposition', `attachment; filename="${found.invoice.number}.pdf"`)
         .send(pdf);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /admin/exports/pohoda.xml?from=&to=&kind= — Pohoda accounting export
+  // (per `29`). Issued invoices (+ credit notes) in a date range as a Pohoda
+  // dataPack the merchant imports into Stormware Pohoda. CZ-essential.
+  // ---------------------------------------------------------------------------
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/api/2026-05-20/admin/exports/pohoda.xml',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) {
+        return reply.code(400).send({
+          error: { code: 'NO_ACTIVE_TENANT', message: 'Select a tenant first' },
+        });
+      }
+      const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+      const fromStr = req.query.from && isoDate.test(req.query.from) ? req.query.from : null;
+      const toStr = req.query.to && isoDate.test(req.query.to) ? req.query.to : null;
+      const from = fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : null;
+      const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : null;
+
+      const { invoices, ico } = await withTenant(rlsDb, tenantId, async (tx) => {
+        const conditions = [eq(schema.invoices.tenantId, tenantId), eq(schema.invoices.isVoid, false)];
+        if (from) conditions.push(gte(schema.invoices.issuedAt, from));
+        if (to) conditions.push(lte(schema.invoices.issuedAt, to));
+        const rows = await tx
+          .select()
+          .from(schema.invoices)
+          .where(and(...conditions))
+          .orderBy(asc(schema.invoices.issuedAt));
+
+        const itemsByInvoice = new Map<string, (typeof schema.invoiceItems.$inferSelect)[]>();
+        if (rows.length > 0) {
+          const allItems = await tx
+            .select()
+            .from(schema.invoiceItems)
+            .where(eq(schema.invoiceItems.tenantId, tenantId))
+            .orderBy(asc(schema.invoiceItems.position));
+          for (const it of allItems) {
+            const arr = itemsByInvoice.get(it.invoiceId) ?? [];
+            arr.push(it);
+            itemsByInvoice.set(it.invoiceId, arr);
+          }
+        }
+
+        const sellerIco =
+          rows.length > 0
+            ? ((rows[0]!.sellerSnapshot as { ico?: string }).ico ?? '')
+            : '';
+
+        const mapped: PohodaInvoice[] = rows.map((inv) => ({
+          number: inv.number,
+          kind: inv.kind,
+          variableSymbol: inv.variableSymbol,
+          issuedAt: inv.issuedAt,
+          dueAt: null,
+          taxPointAt: null,
+          currency: inv.currency,
+          sellerSnapshot: inv.sellerSnapshot as PohodaInvoice['sellerSnapshot'],
+          buyerSnapshot: inv.buyerSnapshot as PohodaInvoice['buyerSnapshot'],
+          priceIncludesTax: inv.priceIncludesTax,
+          items: (itemsByInvoice.get(inv.id) ?? []).map((it) => ({
+            title: it.title,
+            quantity: it.quantity,
+            unitLabel: it.unitLabel,
+            netAmount: it.netAmount,
+            taxAmount: it.taxAmount,
+            grossAmount: it.grossAmount,
+            taxRateBasisPoints: it.taxRateBasisPoints,
+          })),
+        }));
+        return { invoices: mapped, ico: sellerIco };
+      });
+
+      const xml = buildPohodaDataPack(invoices, ico);
+      const fname = `pohoda-${fromStr ?? 'vse'}_${toStr ?? 'vse'}.xml`;
+      return reply
+        .header('content-type', 'application/xml; charset=utf-8')
+        .header('content-disposition', `attachment; filename="${fname}"`)
+        .send(xml);
     },
   );
 }

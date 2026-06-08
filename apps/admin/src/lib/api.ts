@@ -803,6 +803,29 @@ class ApiClient {
     URL.revokeObjectURL(url);
   }
 
+  /** Download the Pohoda accounting export (issued invoices in a date range). */
+  async downloadPohodaExport(from: string, to: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const qs = new URLSearchParams();
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+    const res = await fetch(
+      `${API_BASE}/api/${API_VERSION}/admin/exports/pohoda.xml?${qs.toString()}`,
+      { headers, credentials: 'include' },
+    );
+    if (!res.ok) throw new ApiError(`Export failed (${res.status})`, res.status);
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'pohoda.xml';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ---------------------------------------------------------------------------
   // Coupons
   // ---------------------------------------------------------------------------

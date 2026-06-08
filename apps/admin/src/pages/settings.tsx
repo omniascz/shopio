@@ -34,10 +34,63 @@ export function SettingsPage() {
       <InvoicingSection settings={settings} />
       <ShippingSection currency={settings.default_currency} />
       <FeedsSection slug={settings.slug} />
+      <AccountingSection />
       <AppearanceSection settings={settings} />
       <HomepageSection settings={settings} />
       <LocalesSection />
     </div>
+  );
+}
+
+// =============================================================================
+// Účetnictví (per `29-integrations.md`) — Pohoda XML export
+// =============================================================================
+
+function AccountingSection() {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.downloadPohodaExport(from, to);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export selhal');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Účetnictví — export do Pohody</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Stáhněte vystavené faktury a dobropisy jako XML dataPack a naimportujte je v Pohodě
+        (Soubor → Datová komunikace → XML import). Bez data se vyexportuje vše.
+      </p>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8125rem' }}>
+          Od
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ padding: '0.4rem', border: '1px solid #ddd', borderRadius: 4 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8125rem' }}>
+          Do
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ padding: '0.4rem', border: '1px solid #ddd', borderRadius: 4 }} />
+        </label>
+        <button
+          type="button"
+          onClick={() => void download()}
+          disabled={busy}
+          style={{ padding: '0.5rem 1rem', background: '#0066ff', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.8125rem', fontWeight: 500, cursor: 'pointer' }}
+        >
+          {busy ? 'Exportuji…' : 'Stáhnout XML'}
+        </button>
+      </div>
+      {error && <p style={{ color: '#c00', fontSize: '0.8125rem', margin: '0.5rem 0 0' }}>{error}</p>}
+    </section>
   );
 }
 
