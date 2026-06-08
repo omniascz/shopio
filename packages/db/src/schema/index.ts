@@ -51,3 +51,5 @@ export * from './loyalty';
 export * from './subscriptions';
 // Gift cards / pay-with-balance (Wave 1 — `10-pricing-promotions.md` §3.7 MVP)
 export * from './gift-cards';
+// Product bundles (Wave 1 — `06-catalog-pim.md` §3.5 MVP)
+export * from './bundles';

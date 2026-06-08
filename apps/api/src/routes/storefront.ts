@@ -29,6 +29,7 @@ import {
   type FeedProvider,
 } from '../lib/feeds';
 import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
+import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -606,18 +607,24 @@ export async function registerStorefrontRoutes(
           loadTranslations(tx, tenant.id, 'product', [product.id], locale, tenant.defaultLocale),
           loadTranslations(tx, tenant.id, 'category', catRows.map((c) => c.id), locale, tenant.defaultLocale),
         ]);
-        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr };
+        // Bundle composition (per `06` §3.5) — components + derived availability.
+        const bundleItems =
+          product.type === 'bundle' ? await loadBundleComponents(tx, tenant.id, product.id) : [];
+        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems };
       });
 
       if (!loaded) return notFound(reply, 'product');
-      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr } = loaded;
+      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems } =
+        loaded;
       const po = prodTr.get(product.id);
+      const bundleAvail = product.type === 'bundle' ? bundleAvailableQuantity(bundleItems) : null;
 
       return reply.send({
         data: {
           locale,
           id: product.pubId,
           slug: product.slug,
+          type: product.type,
           title: po?.get('title') ?? product.title,
           description_html: po?.get('description_html') ?? product.descriptionHtml,
           base_price: product.basePriceAmount
@@ -662,6 +669,21 @@ export async function registerStorefrontRoutes(
             name: catTr.get(c.id)?.get('name') ?? c.name,
             path: c.path,
           })),
+          // Bundle contents (per `06` §3.5) — present only for bundle products.
+          bundle: product.type === 'bundle'
+            ? {
+                available_quantity: Number.isFinite(bundleAvail) ? bundleAvail : null,
+                in_stock: (bundleAvail ?? 0) > 0,
+                items: bundleItems.map((b) => ({
+                  product_slug: b.productSlug,
+                  title: b.title,
+                  variant_title: b.variantTitle,
+                  sku: b.sku,
+                  quantity: b.quantity,
+                  is_optional: b.isOptional,
+                })),
+              }
+            : null,
           rating: { average: reviewSummary.average, count: reviewSummary.count },
           reviews: reviews.map((r) => ({
             id: r.pubId,

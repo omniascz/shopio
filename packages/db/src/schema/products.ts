@@ -28,6 +28,13 @@ export const products = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     pubId: text('pub_id').notNull(), // prd_ NanoID
+    /** Product kind (per `06` ENT-PRODUCT-001). `bundle` = composed of child
+     * variants via `product_bundle_items`; everything else sells normally. */
+    type: text('type', {
+      enum: ['simple', 'variable', 'bundle', 'digital', 'service', 'gift_card'],
+    })
+      .notNull()
+      .default('simple'),
     slug: text('slug').notNull(),
     title: text('title').notNull(),
     descriptionHtml: text('description_html'),
