@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
@@ -80,6 +81,16 @@ export async function buildServer() {
   await server.register(cookie);
   await server.register(sensible);
   await server.register(multipart); // product media uploads (per-route limits)
+
+  // Global per-IP rate limit (per `30 §10`) — basic abuse / brute-force defense
+  // on top of the account lockout. Health probes + provider webhooks (which can
+  // legitimately burst) are exempt.
+  await server.register(rateLimit, {
+    global: true,
+    max: config.SHOPIO_RATE_LIMIT_MAX,
+    timeWindow: '1 minute',
+    allowList: (req) => req.url.startsWith('/health') || req.url.includes('/webhooks/'),
+  });
 
   // Health endpoints (per `31 §RULE-OPS-041`)
   server.get('/health/live', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));

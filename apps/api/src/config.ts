@@ -50,6 +50,9 @@ const ConfigSchema = z.object({
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
 
+  /** Global per-IP rate limit (requests / minute). Health + webhooks exempt. */
+  SHOPIO_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
   // Stripe (optional — falls back to mock if absent or placeholder).
   // Real keys are >40 chars; placeholders like "sk_test_..." (or empty) → mock mode.
   STRIPE_SECRET_KEY: stripeKeySchema('sk_'),

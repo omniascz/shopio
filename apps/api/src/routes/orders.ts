@@ -12,6 +12,7 @@ import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { sendOrderPaidEmail } from '../lib/order-emails';
+import { grantEarnedCredit } from '../lib/loyalty';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
 import { emitWebhookEvent } from '../lib/webhooks-out';
@@ -390,6 +391,11 @@ export async function registerOrderRoutes(
           }
           await sendOrderPaidEmail({ db, config, log: app.log }, existing.id).catch((err) => {
             app.log.error({ err, orderId: existing.id }, 'order.paid_email_failed');
+          });
+          // Loyalty earn (per `19`) — covers COD / B2B / manually-marked paid
+          // orders (online-paid orders earn at capture). Idempotent per order.
+          await grantEarnedCredit(db, tenantId, existing.id, app.log).catch((err) => {
+            app.log.error({ err, orderId: existing.id }, 'order.loyalty_failed');
           });
         })();
       }
