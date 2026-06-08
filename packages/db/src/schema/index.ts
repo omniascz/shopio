@@ -63,3 +63,5 @@ export * from './price-history';
 export * from './exchange-rates';
 // Automatic promotions (P2 — `10-pricing-promotions.md` Magento-style cart rules)
 export * from './promotions';
+// Server-side wishlist (P2 — `18-customer-management.md`)
+export * from './wishlist';

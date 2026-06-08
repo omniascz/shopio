@@ -239,6 +239,13 @@
       "when": 1780933018265,
       "tag": "0033_promotions",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1780933622843,
+      "tag": "0034_wishlist",
+      "breakpoints": true
     }
   ]
 }

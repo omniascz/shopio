@@ -25,7 +25,7 @@ export interface ProductCard {
 }
 
 /** Load render-ready cards for a set of internal product ids (order preserved). */
-async function loadCards(db: Db, tenantId: string, productIds: string[]): Promise<ProductCard[]> {
+export async function loadCards(db: Db, tenantId: string, productIds: string[]): Promise<ProductCard[]> {
   if (productIds.length === 0) return [];
   const [rows, media, variants] = await Promise.all([
     db

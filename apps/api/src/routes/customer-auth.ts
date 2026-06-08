@@ -36,6 +36,7 @@ import { serializeCompany } from '../lib/companies';
 import { eraseCustomer, exportCustomerData } from '../lib/gdpr';
 import { getLoyaltyBalance, listLoyaltyTransactions } from '../lib/loyalty';
 import { advanceRunAt } from '../lib/subscriptions';
+import { loadCards } from '../lib/recommendations';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -434,6 +435,90 @@ export async function registerCustomerAuthRoutes(
         return true;
       });
       if (!ok) return notFound(reply, 'ADDRESS_NOT_FOUND');
+      return reply.code(204).send();
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Wishlist (per `18`, P2) — server-side favourites (cross-device).
+  //   GET    /me/wishlist
+  //   POST   /me/wishlist            { productId }  (product pub_id)
+  //   DELETE /me/wishlist/{productPubId}
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/wishlist',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const cards = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const rows = await tx
+          .select({ productId: schema.wishlistItems.productId })
+          .from(schema.wishlistItems)
+          .where(
+            and(
+              eq(schema.wishlistItems.tenantId, ctx.tenant.id),
+              eq(schema.wishlistItems.customerId, ctx.customer.id),
+            ),
+          )
+          .orderBy(desc(schema.wishlistItems.createdAt));
+        return loadCards(tx, ctx.tenant.id, rows.map((r) => r.productId));
+      });
+      return reply.send({ data: { items: cards } });
+    },
+  );
+
+  app.post<{ Params: { tenantSlug: string }; Body: { productId?: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/wishlist',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      const pubId = (req.body?.productId ?? '').trim();
+      if (!pubId) return validationErr(reply, new z.ZodError([]));
+      const ok = await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const [product] = await tx
+          .select({ id: schema.products.id })
+          .from(schema.products)
+          .where(and(eq(schema.products.tenantId, ctx.tenant.id), eq(schema.products.pubId, pubId)))
+          .limit(1);
+        if (!product) return false;
+        await tx
+          .insert(schema.wishlistItems)
+          .values({ tenantId: ctx.tenant.id, customerId: ctx.customer.id, productId: product.id })
+          .onConflictDoNothing();
+        return true;
+      });
+      if (!ok) return notFound(reply, 'PRODUCT_NOT_FOUND');
+      return reply.code(201).send({ data: { added: true } });
+    },
+  );
+
+  app.delete<{ Params: { tenantSlug: string; productPubId: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/me/wishlist/:productPubId',
+    async (req, reply) => {
+      const ctx = await requireCustomer(rlsDb, db, req, reply);
+      if (!ctx) return;
+      await withTenant(rlsDb, ctx.tenant.id, async (tx) => {
+        const [product] = await tx
+          .select({ id: schema.products.id })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, ctx.tenant.id),
+              eq(schema.products.pubId, req.params.productPubId),
+            ),
+          )
+          .limit(1);
+        if (!product) return;
+        await tx
+          .delete(schema.wishlistItems)
+          .where(
+            and(
+              eq(schema.wishlistItems.tenantId, ctx.tenant.id),
+              eq(schema.wishlistItems.customerId, ctx.customer.id),
+              eq(schema.wishlistItems.productId, product.id),
+            ),
+          );
+      });
       return reply.code(204).send();
     },
   );
