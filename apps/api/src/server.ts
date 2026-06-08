@@ -32,6 +32,7 @@ import { registerAiAdminRoutes } from './routes/ai-admin';
 import { registerDeveloperAdminRoutes } from './routes/developer-admin';
 import { registerPaymentAdminRoutes } from './routes/payments-admin';
 import { registerPaymentWebhookRoutes } from './routes/payments-webhooks';
+import { registerPlanAdminRoutes } from './routes/plan-admin';
 import { registerAnalyticsRoutes } from './routes/analytics';
 import {
   registerCustomerAuthRoutes,
@@ -131,6 +132,7 @@ export async function buildServer() {
   await registerDeveloperAdminRoutes(server, { config, db });
   await registerPaymentAdminRoutes(server, { config, db });
   await registerPaymentWebhookRoutes(server, { config, db });
+  await registerPlanAdminRoutes(server, { config, db });
   await registerAnalyticsRoutes(server, { config, db });
   await registerCustomerAuthRoutes(server, { config, db });
   await registerCustomerPasswordResetRoutes(server, { config, db });

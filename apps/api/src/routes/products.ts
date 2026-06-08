@@ -19,7 +19,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, or, sql as dsql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, or, sql as dsql } from 'drizzle-orm';
 import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS, can, generatePubId, type PermissionCode } from '@shopio/authz';
 import { requireAuth } from '../plugins/auth-middleware';
@@ -27,8 +27,19 @@ import { indexProduct, removeProductFromIndex } from '../lib/search';
 import { mapImportRows, parseCsv } from '../lib/csv';
 import { getRlsDb } from '../db';
 import { emitWebhookEvent } from '../lib/webhooks-out';
+import { planOf, type Plan } from '../lib/plans';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
+
+/** Resolve the tenant's plan (per `37`) from its settings. */
+async function planForTenant(db: AppDb, tenantId: string): Promise<Plan> {
+  const [t] = await db
+    .select({ settings: schema.tenants.settings })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .limit(1);
+  return planOf(t?.settings);
+}
 
 // =============================================================================
 // Schemas
@@ -312,6 +323,30 @@ export async function registerProductRoutes(
     const auth = req.auth!;
     if (!ensureTenant(auth, reply)) return;
     if (!ensurePermission(auth, PERMISSIONS.PRODUCT_CREATE, reply)) return;
+
+    // Plan limit (per `37`): cap the catalog size on lower tiers.
+    const plan = await planForTenant(db, auth.tenantId!);
+    if (plan.maxProducts !== null) {
+      const countRows = await withTenant(rlsDb, auth.tenantId!, (tx) =>
+        tx
+          .select({ count: dsql<number>`count(*)::int` })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, auth.tenantId!),
+              ne(schema.products.status, 'archived'),
+            ),
+          ),
+      );
+      if ((countRows[0]?.count ?? 0) >= plan.maxProducts) {
+        return reply.code(402).send({
+          error: {
+            code: 'PLAN_LIMIT_REACHED',
+            message: `Tarif ${plan.name} umožňuje ${plan.maxProducts} produktů. Pro více přejděte na vyšší tarif.`,
+          },
+        });
+      }
+    }
 
     const parsed = CreateProductBody.safeParse(req.body);
     if (!parsed.success) {

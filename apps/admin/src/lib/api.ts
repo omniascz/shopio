@@ -248,6 +248,26 @@ export interface WebhookDelivery {
   delivered_at: string | null;
 }
 
+export interface PlanTier {
+  code: string;
+  name: string;
+  priceEurMonth: number;
+  transactionFeeBps: number;
+  maxProducts: number | null;
+  maxOrdersPerMonth: number | null;
+  features: string[];
+}
+export interface PlanInfo {
+  current_plan: string;
+  plans: PlanTier[];
+  usage: {
+    products: number;
+    orders_this_month: number;
+    max_products: number | null;
+    max_orders_per_month: number | null;
+  };
+}
+
 export interface PaymentProviderConfigView {
   code: string;
   is_enabled: boolean;
@@ -995,6 +1015,16 @@ class ApiClient {
   }
   async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
     return this.request(`/admin/webhooks/${id}/deliveries`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan + billing (per `37`)
+  // ---------------------------------------------------------------------------
+  async getPlan(): Promise<PlanInfo> {
+    return this.request('/admin/plan');
+  }
+  async setPlan(plan: string): Promise<{ current_plan: string; note: string }> {
+    return this.request('/admin/plan', { method: 'POST', body: JSON.stringify({ plan }) });
   }
 
   // ---------------------------------------------------------------------------
