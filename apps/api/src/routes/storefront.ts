@@ -32,6 +32,7 @@ import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
 import { resolveBlocks } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
+import { frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
 import { loadRates } from '../lib/fx';
 import {
   makeConverter,
@@ -723,6 +724,41 @@ export async function registerStorefrontRoutes(
           },
         },
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /storefront/{tenantSlug}/products/{productSlug}/recommendations (P2) —
+  // "frequently bought together" (from order data) + related (same category).
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { tenantSlug: string; productSlug: string } }>(
+    '/api/2026-05-20/storefront/:tenantSlug/products/:productSlug/recommendations',
+    async (req, reply) => {
+      const tenant = await resolveTenant(db, req.params.tenantSlug);
+      if (!tenant) return notFound(reply, 'tenant');
+      const data = await withTenant(rlsDb, tenant.id, async (tx) => {
+        const [product] = await tx
+          .select({ id: schema.products.id })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, tenant.id),
+              eq(schema.products.slug, req.params.productSlug),
+              eq(schema.products.status, 'active'),
+            ),
+          )
+          .limit(1);
+        if (!product) return null;
+        const [fbt, related] = await Promise.all([
+          frequentlyBoughtTogether(tx, tenant.id, product.id, 4),
+          relatedProducts(tx, tenant.id, product.id, 4),
+        ]);
+        return { fbt, related };
+      });
+      if (!data) return notFound(reply, 'product');
+      return reply
+        .header('cache-control', 'public, max-age=600')
+        .send({ data: { frequently_bought_together: data.fbt, related: data.related } });
     },
   );
 
