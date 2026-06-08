@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { formatMoney, getProduct } from '@/lib/api';
+import { formatMoney, getProduct, getRecommendations } from '@/lib/api';
 import { getStorefrontLocale } from '@/lib/locale';
 import { AddToCart } from '@/components/add-to-cart';
 import { SaveButtons } from '@/components/save-buttons';
 import { RatingBadge } from '@/components/stars';
 import { ProductReviews } from '@/components/product-reviews';
+import { ProductCardRow } from '@/components/product-card-row';
 
 interface Props {
   params: Promise<{ tenantSlug: string; productSlug: string }>;
@@ -89,6 +90,17 @@ export default async function ProductPage({ params }: Props) {
   const defaultVariant = product.variants[0];
   const priceToShow = defaultVariant?.price ?? product.base_price;
   const jsonLd = productJsonLd(product, tenantSlug);
+
+  // EU Omnibus: lowest price of the last 30 days across on-sale variants.
+  const lows = product.variants
+    .map((v) => v.lowest_price_30d)
+    .filter((m): m is NonNullable<typeof m> => m != null);
+  const lowest30 = lows.length
+    ? lows.reduce((min, m) => (BigInt(m.amount) < BigInt(min.amount) ? m : min))
+    : null;
+
+  // Recommendations (P2) — "frequently bought together" + related.
+  const recs = await getRecommendations(tenantSlug, productSlug);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
@@ -250,6 +262,11 @@ export default async function ProductPage({ params }: Props) {
                 {formatMoney(product.compare_at, 'cs-CZ')}
               </div>
             )}
+            {lowest30 && (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--shopio-color-fg-muted)', marginBottom: '1rem' }}>
+                Nejnižší cena za posledních 30 dní: {formatMoney(lowest30, 'cs-CZ')}
+              </div>
+            )}
 
             <div style={{ marginTop: '1.5rem' }}>
               <AddToCart variants={product.variants} />
@@ -349,7 +366,10 @@ export default async function ProductPage({ params }: Props) {
           </section>
         )}
 
-        <div id="recenze">
+        <ProductCardRow title="Často kupováno společně" tenantSlug={tenantSlug} products={recs.frequently_bought_together} />
+        <ProductCardRow title="Mohlo by se vám líbit" tenantSlug={tenantSlug} products={recs.related} />
+
+        <div id="recenze" style={{ marginTop: '2.5rem' }}>
           <ProductReviews
             tenantSlug={tenantSlug}
             productSlug={product.slug}

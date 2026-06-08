@@ -8,6 +8,7 @@ import { CartDrawer } from '@/components/cart-drawer';
 import { CartButton } from '@/components/cart-button';
 import { SavedNav } from '@/components/saved-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { NewsletterBox } from '@/components/newsletter-box';
 import { AnalyticsScripts } from '@/components/analytics-scripts';
 import { getStorefrontLocale } from '@/lib/locale';
 
@@ -173,31 +174,29 @@ export default async function TenantLayout({ children, params }: Props) {
             fontSize: '0.875rem',
           }}
         >
-          <div
-            style={{
-              maxWidth: 1280,
-              margin: '0 auto',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '1.25rem',
-              alignItems: 'center',
-            }}
-          >
-            <Link href={`/s/${tenantSlug}/blog`} style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
-              Blog
-            </Link>
-            {pages.map((p) => (
-              <Link
-                key={p.slug}
-                href={`/s/${tenantSlug}/stranka/${p.slug}`}
-                style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}
-              >
-                {p.title}
+          <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Newsletter</div>
+              <NewsletterBox tenantSlug={tenantSlug} />
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
+              <Link href={`/s/${tenantSlug}/kolekce`} style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
+                Kolekce
               </Link>
-            ))}
-            <span style={{ marginLeft: 'auto', opacity: 0.5 }}>
-              © {tenant.display_name}
-            </span>
+              <Link href={`/s/${tenantSlug}/blog`} style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>
+                Blog
+              </Link>
+              {pages.map((p) => (
+                <Link
+                  key={p.slug}
+                  href={`/s/${tenantSlug}/stranka/${p.slug}`}
+                  style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}
+                >
+                  {p.title}
+                </Link>
+              ))}
+              <span style={{ marginLeft: 'auto', opacity: 0.5 }}>© {tenant.display_name}</span>
+            </div>
           </div>
         </footer>
         <CartDrawer />

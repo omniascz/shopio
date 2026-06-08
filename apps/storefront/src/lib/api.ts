@@ -42,6 +42,8 @@ export interface Tenant {
   default_locale: string;
   enabled_locales?: string[];
   default_currency: string;
+  /** Presentment currencies the shop accepts (base first), per P1. */
+  supported_currencies?: string[];
   country_code: string;
   appearance?: TenantAppearance;
   homepage?: StorefrontHomepage;
@@ -84,6 +86,8 @@ export interface ProductVariant {
   title: string;
   price: Money;
   compare_at: Money | null;
+  /** EU Omnibus: lowest price of the last 30 days (only when on sale). */
+  lowest_price_30d?: Money | null;
   stock_on_hand: number;
   in_stock: boolean;
   option_values: Record<string, string>;
@@ -225,9 +229,56 @@ export async function getProduct(
   tenantSlug: string,
   productSlug: string,
   locale?: string,
+  currency?: string,
 ): Promise<ProductDetail | null> {
-  const qs = locale ? `?locale=${encodeURIComponent(locale)}` : '';
-  return shopioFetch<ProductDetail>(`/storefront/${tenantSlug}/products/${productSlug}${qs}`);
+  const params = new URLSearchParams();
+  if (locale) params.set('locale', locale);
+  if (currency) params.set('currency', currency);
+  const qs = params.toString();
+  return shopioFetch<ProductDetail>(`/storefront/${tenantSlug}/products/${productSlug}${qs ? '?' + qs : ''}`);
+}
+
+// =============================================================================
+// Recommendations + collections + newsletter (P2/P3)
+// =============================================================================
+
+export interface RecCard {
+  id: string;
+  slug: string;
+  title: string;
+  base_price: Money | null;
+  primary_image: { url: string; alt: string | null } | null;
+}
+
+export async function getRecommendations(
+  tenantSlug: string,
+  productSlug: string,
+): Promise<{ frequently_bought_together: RecCard[]; related: RecCard[] }> {
+  const data = await shopioFetch<{ frequently_bought_together: RecCard[]; related: RecCard[] }>(
+    `/storefront/${tenantSlug}/products/${productSlug}/recommendations`,
+  );
+  return data ?? { frequently_bought_together: [], related: [] };
+}
+
+export interface CollectionLink {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
+export async function getCollections(tenantSlug: string): Promise<CollectionLink[]> {
+  const data = await shopioFetch<{ collections: CollectionLink[] }>(`/storefront/${tenantSlug}/collections`);
+  return data?.collections ?? [];
+}
+
+export async function getCollection(
+  tenantSlug: string,
+  slug: string,
+  currency?: string,
+): Promise<{ name: string; description: string | null; currency: string; products: RecCard[] } | null> {
+  const qs = currency ? `?currency=${encodeURIComponent(currency)}` : '';
+  return shopioFetch(`/storefront/${tenantSlug}/collections/${slug}${qs}`);
 }
 
 // =============================================================================
@@ -444,6 +495,15 @@ export const STOREFRONT_API_BASE =
   typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_SHOPIO_API_URL ?? 'http://localhost:4040')
     : API_BASE;
+
+/** Newsletter opt-in (client-side, public). */
+export async function subscribeNewsletter(tenantSlug: string, email: string): Promise<boolean> {
+  const res = await fetch(
+    `${STOREFRONT_API_BASE}/api/${API_VERSION}/storefront/${tenantSlug}/newsletter/subscribe`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) },
+  );
+  return res.ok;
+}
 
 export interface OrderTrackingShipment {
   number: string;
