@@ -16,6 +16,7 @@ import type { PaymentProvider } from './types';
 import { createCodProvider } from './cod';
 import { createBankTransferProvider } from './bank-transfer';
 import { createGopayProvider, type GopayCredentials } from './gopay';
+import { openCredentials } from '../secrets';
 
 type PaymentProviderConfig = typeof schema.paymentProviderConfigs.$inferSelect;
 type ProviderCode = (typeof schema.paymentProviderConfigs.$inferInsert)['providerCode'];
@@ -26,7 +27,7 @@ type ProviderCode = (typeof schema.paymentProviderConfigs.$inferInsert)['provide
  */
 export function buildProvider(
   cfg: PaymentProviderConfig,
-  _appConfig: ShopioConfig,
+  appConfig: ShopioConfig,
 ): PaymentProvider | null {
   switch (cfg.providerCode) {
     case 'cod':
@@ -34,7 +35,8 @@ export function buildProvider(
     case 'bank_transfer':
       return createBankTransferProvider();
     case 'gopay': {
-      const creds = (cfg.credentials as GopayCredentials) ?? {};
+      // Credentials are sealed at rest (per `30`) — decrypt before use.
+      const creds = openCredentials(appConfig, (cfg.credentials as Record<string, unknown>) ?? {}) as GopayCredentials;
       return createGopayProvider(creds, cfg.isTestMode);
     }
     default:

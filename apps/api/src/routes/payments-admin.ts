@@ -18,6 +18,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
+import { sealSecret, sealCredentials } from '../lib/secrets';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -182,9 +183,11 @@ export async function registerPaymentAdminRoutes(
           )
           .limit(1);
 
+        // Seal NEW credential values at rest (per `30`); existing values are
+        // already sealed. Sealed strings stay truthy for the required-check.
         const mergedCredentials = {
           ...((existing?.credentials as Record<string, unknown>) ?? {}),
-          ...(input.credentials ?? {}),
+          ...sealCredentials(opts.config, input.credentials ?? {}),
         };
 
         // Live-mode gateways need their credentials before they can go live.
@@ -215,7 +218,7 @@ export async function registerPaymentAdminRoutes(
               }),
               ...(input.credentials !== undefined && { credentials: mergedCredentials }),
               ...(input.webhookSecret !== undefined && {
-                webhookSecret: input.webhookSecret ?? null,
+                webhookSecret: input.webhookSecret ? sealSecret(opts.config, input.webhookSecret) : null,
               }),
               updatedAt: new Date(),
             })
@@ -237,7 +240,7 @@ export async function registerPaymentAdminRoutes(
             supportedMethodKinds:
               input.supportedMethodKinds ?? catalogEntry.defaultMethodKinds,
             credentials: mergedCredentials,
-            webhookSecret: input.webhookSecret ?? null,
+            webhookSecret: input.webhookSecret ? sealSecret(opts.config, input.webhookSecret) : null,
           })
           .returning();
         return row;

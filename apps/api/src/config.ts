@@ -47,6 +47,13 @@ const ConfigSchema = z.object({
    * cross-tenant master-admin back-office (per `30`/`36`). Empty = disabled. */
   PLATFORM_ADMIN_EMAILS: z.string().default(''),
 
+  /** 32-byte key (64 hex chars) for encrypting stored gateway secrets at rest
+   * (per `30`). Absent → secrets stored plaintext (dev). Set in production. */
+  SHOPIO_SECRET_KEY: z.preprocess(
+    (v) => (typeof v === 'string' && /^[0-9a-fA-F]{64}$/.test(v) ? v : undefined),
+    z.string().length(64).optional(),
+  ),
+
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
 
