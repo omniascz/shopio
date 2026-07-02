@@ -77,3 +77,7 @@ export * from './flows';
 export * from './collections';
 // Native email marketing (P3 — `19-marketing-seo.md`)
 export * from './newsletter';
+// WMS foundation — warehouses, storage bins, stocktakes (BaseLinker WMS)
+export * from './wms';
+// External marketplace channels + listings (BaseLinker-style Allegro/Amazon sync)
+export * from './marketplace-channels';
