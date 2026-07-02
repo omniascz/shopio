@@ -33,6 +33,7 @@ import {
   shippableQuantity,
 } from '../lib/shipments';
 import { getCarrier, manualTrackingUrl } from '../lib/carriers/registry';
+import { openCarrierOptions } from '../lib/carriers/secrets';
 import { commitShipmentStock } from '../lib/inventory';
 import { renderOrderShippedEmail, sendEmail } from '../lib/email';
 import { getRlsDb } from '../db';
@@ -333,7 +334,10 @@ export async function registerShipmentRoutes(
           )
           .limit(1),
       );
-      const providerOptions = (providerConfig?.options ?? {}) as Record<string, unknown>;
+      const providerOptions = openCarrierOptions(
+        config,
+        (providerConfig?.options ?? {}) as Record<string, unknown>,
+      );
 
       const pickup = shipment.pickupPointSnapshot as { external_id?: string; name?: string } | null;
       const address = shipment.shippingAddressSnapshot as {

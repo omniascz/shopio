@@ -20,6 +20,7 @@ import { schema, withTenant } from '@shopio/db';
 import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { isSearchEnabled, reindexTenant } from '../lib/search';
+import { sealCarrierOptions } from '../lib/carriers/secrets';
 import { BlocksSchema } from '../lib/page-blocks';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
@@ -727,7 +728,7 @@ export async function registerSettingsRoutes(
           .update(schema.shippingProviderConfigs)
           .set({
             ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
-            options,
+            options: sealCarrierOptions(config, options),
             ...(input.senderName !== undefined && {
               senderAddressSnapshot: { name: input.senderName },
             }),

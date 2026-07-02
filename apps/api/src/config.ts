@@ -54,6 +54,11 @@ const ConfigSchema = z.object({
     z.string().length(64).optional(),
   ),
 
+  // Background jobs (per `09`/Fáze 1) — `interval` (default, in-process timers)
+  // or `bullmq` (durable, distributed; requires REDIS_URL). Prod sets bullmq.
+  JOBS_BACKEND: z.enum(['interval', 'bullmq']).default('interval'),
+  REDIS_URL: z.string().optional(),
+
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3030,http://localhost:3031'),
 

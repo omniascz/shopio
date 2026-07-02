@@ -19,6 +19,7 @@ import { schema } from '@shopio/db';
 import type Stripe from 'stripe';
 import { constructWebhookEvent, isStripeEnabled } from '../lib/stripe';
 import { sendOrderPaidEmail } from '../lib/order-emails';
+import { openCarrierOptions } from '../lib/carriers/secrets';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { grantEarnedCredit } from '../lib/loyalty';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
@@ -171,7 +172,8 @@ export async function registerWebhookRoutes(
           ),
         )
         .limit(1);
-      const expected = ((provider?.options ?? {}) as { webhook_secret?: string }).webhook_secret;
+      const carrierOpts = openCarrierOptions(config, (provider?.options ?? {}) as Record<string, unknown>);
+      const expected = (carrierOpts as { webhook_secret?: string }).webhook_secret;
       const provided = req.query.secret ?? '';
       if (
         !expected ||

@@ -16,6 +16,7 @@ import { grantEarnedCredit } from '../lib/loyalty';
 import { issueInvoiceForOrder } from '../lib/invoices';
 import { clearReservationExpiry, releaseOrderReservations } from '../lib/inventory';
 import { emitWebhookEvent } from '../lib/webhooks-out';
+import { buildOrderContext, runFlows } from '../lib/flows';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -372,6 +373,25 @@ export async function registerOrderRoutes(
       }
       if (parsed.data.status === 'fulfilled') emitWebhookEvent(db, tenantId, 'order.fulfilled', webhookBase);
       if (parsed.data.status === 'cancelled') emitWebhookEvent(db, tenantId, 'order.cancelled', webhookBase);
+
+      // Automation flows (P3): fulfilled / cancelled — best-effort, post-commit.
+      if (parsed.data.status === 'fulfilled' || parsed.data.status === 'cancelled') {
+        void runFlows({ db, config, log: app.log }, `order.${parsed.data.status}`, {
+          tenantId,
+          orderId: updated!.id,
+          orderNumber: updated!.orderNumber,
+          context: buildOrderContext({
+            totalAmount: updated!.totalAmount,
+            currency: updated!.currency,
+            shippingAddress: updated!.shippingAddress,
+            paymentMethod: updated!.paymentMethod,
+            status: updated!.status,
+            couponCode: updated!.couponCode,
+            itemCount: items.reduce((s, it) => s + it.quantity, 0),
+            customerEmail: updated!.customerEmail,
+          }),
+        });
+      }
 
       // Trigger invoice + paid email when transitioning into paid (manual admin mark).
       // Invoice first so the email can attach the PDF (per `15 §3.5`).

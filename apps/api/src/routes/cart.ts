@@ -38,6 +38,7 @@ import { loadRates } from '../lib/fx';
 import { makeConverter, readCurrencyConfig, resolvePresentmentCurrency } from '../lib/presentment';
 import { evaluatePromotions, loadActivePromotions } from '../lib/promotions';
 import { buildOrderContext, runFlows } from '../lib/flows';
+import { openCarrierOptions } from '../lib/carriers/secrets';
 import type { CartShippingMetrics } from '../lib/shipping';
 import {
   resolveShippingOptions,
@@ -557,7 +558,8 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
         )
         .limit(1);
       const widgetKey =
-        ((provider?.options ?? {}) as { api_key?: string }).api_key ?? config.PACKETA_API_KEY;
+        (openCarrierOptions(config, (provider?.options ?? {}) as Record<string, unknown>) as { api_key?: string })
+          .api_key || config.PACKETA_API_KEY;
 
       return reply.send({
         data: {
@@ -1266,6 +1268,7 @@ export async function registerCartRoutes(app: FastifyInstance, opts: PluginOptio
             status: result.status,
             couponCode: result.couponCode,
             itemCount: items.reduce((s, it) => s + it.quantity, 0),
+            customerEmail: result.customerEmail,
           }),
         });
         if (result.paymentStatus === 'paid') {
