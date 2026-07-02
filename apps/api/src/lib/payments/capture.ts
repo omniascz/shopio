@@ -196,6 +196,7 @@ export async function applyPaymentTransition(
       status: 'paid',
       couponCode: order.couponCode,
       itemCount: qty ?? 0,
+      customerEmail: order.customerEmail,
     }),
   });
 
