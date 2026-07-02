@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
 
@@ -43,7 +43,7 @@ jobs:
     needs: setup
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
@@ -61,7 +61,7 @@ jobs:
     needs: setup
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
@@ -101,7 +101,7 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
@@ -116,7 +116,7 @@ jobs:
     needs: [lint, typecheck]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
@@ -157,7 +157,7 @@ jobs:
       NEXT_PUBLIC_SHOPIO_API_URL: http://localhost:4040
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
@@ -219,7 +219,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with:
