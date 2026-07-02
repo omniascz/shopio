@@ -178,8 +178,199 @@ export async function generateSeo(
 }
 
 // =============================================================================
+// Translation (fills the `23-i18n` "AI auto-translation" deferral)
+// =============================================================================
+
+export interface TranslateInput {
+  /** field → source text, e.g. { title: '…', description_html: '<p>…</p>' } */
+  fields: Record<string, string>;
+  sourceLocale: string;
+  targetLocale: string;
+}
+
+export async function translateFields(
+  config: ShopioConfig,
+  input: TranslateInput,
+): Promise<{ translations: Record<string, string>; model: string; tokens: { input: number; output: number }; mock: boolean }> {
+  const entries = Object.entries(input.fields).filter(([k, v]) => k && v);
+
+  if (!isAiEnabled(config)) {
+    const lang = languageTag(input.targetLocale);
+    const out: Record<string, string> = {};
+    for (const [k, v] of entries) out[k] = `[${lang}] ${v}`;
+    return { translations: out, model: 'mock', tokens: { input: 0, output: 0 }, mock: true };
+  }
+
+  const system =
+    `You are a professional e-commerce translator. Translate the given product/category ` +
+    `field values from ${input.sourceLocale} to ${input.targetLocale}. Preserve any HTML ` +
+    `tags exactly — translate only the human-readable text between them. Do NOT translate ` +
+    `brand names, SKUs, or units of measure. Return ONLY a JSON object mapping each field ` +
+    `name to its translated value. No markdown, no code fences.`;
+  const user = entries.map(([k, v]) => `${k}:\n${v}`).join('\n\n');
+
+  const { text, tokens } = await callClaude(config, { system, user, maxTokens: 2048 });
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(stripFences(text)) as Record<string, unknown>;
+  } catch {
+    throw new AiError('AI_BAD_OUTPUT', 'AI returned unparseable translation output');
+  }
+  const out: Record<string, string> = {};
+  for (const [k] of entries) {
+    const v = parsed[k];
+    if (typeof v === 'string') out[k] = k.endsWith('_html') ? sanitize(v) : v.trim();
+  }
+  return { translations: out, model: MODEL, tokens, mock: false };
+}
+
+// =============================================================================
+// Category suggestion (auto-categorisation)
+// =============================================================================
+
+export interface CategorizeInput {
+  title: string;
+  attributes?: Record<string, string>;
+  /** Candidate categories to choose from — id is opaque (pub_id in practice). */
+  categories: { id: string; name: string; path?: string }[];
+}
+
+export async function suggestCategory(
+  config: ShopioConfig,
+  input: CategorizeInput,
+): Promise<{ categoryId: string | null; model: string; tokens: { input: number; output: number }; mock: boolean }> {
+  if (input.categories.length === 0) {
+    return { categoryId: null, model: isAiEnabled(config) ? MODEL : 'mock', tokens: { input: 0, output: 0 }, mock: !isAiEnabled(config) };
+  }
+
+  if (!isAiEnabled(config)) {
+    // Deterministic: category whose name/path words most overlap the product text.
+    const hay = `${input.title} ${Object.values(input.attributes ?? {}).join(' ')}`.toLowerCase();
+    let best = input.categories[0]!;
+    let bestScore = -1;
+    for (const c of input.categories) {
+      const words = `${c.name} ${c.path ?? ''}`.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2);
+      const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return { categoryId: bestScore > 0 ? best.id : null, model: 'mock', tokens: { input: 0, output: 0 }, mock: true };
+  }
+
+  const list = input.categories
+    .map((c) => `- [${c.id}] ${c.name}${c.path ? ` (${c.path})` : ''}`)
+    .join('\n');
+  const attrs = Object.entries(input.attributes ?? {}).filter(([k, v]) => k && v);
+  const system =
+    `You are an e-commerce merchandiser. Choose the single best-fitting category for the ` +
+    `product from the provided list. Return ONLY a JSON object {"categoryId": string|null} ` +
+    `using one of the EXACT ids shown in brackets, or null if none fit. No markdown.`;
+  const user =
+    `Product: ${input.title}\n` +
+    (attrs.length ? `Attributes: ${attrs.map(([k, v]) => `${k}=${v}`).join(', ')}\n` : '') +
+    `Categories:\n${list}`;
+
+  const { text, tokens } = await callClaude(config, { system, user, maxTokens: 128 });
+  let categoryId: string | null = null;
+  try {
+    const parsed = JSON.parse(stripFences(text)) as { categoryId?: string | null };
+    if (parsed.categoryId && input.categories.some((c) => c.id === parsed.categoryId)) {
+      categoryId = parsed.categoryId;
+    }
+  } catch {
+    throw new AiError('AI_BAD_OUTPUT', 'AI returned unparseable category output');
+  }
+  return { categoryId, model: MODEL, tokens, mock: false };
+}
+
+// =============================================================================
+// Bullet points (Amazon-style key features)
+// =============================================================================
+
+export interface BulletsInput {
+  title: string;
+  attributes?: Record<string, string>;
+  keywords?: string[];
+  locale: string;
+  count?: number;
+}
+
+export async function generateBulletPoints(
+  config: ShopioConfig,
+  input: BulletsInput,
+): Promise<{ bullets: string[]; model: string; tokens: { input: number; output: number }; mock: boolean }> {
+  const count = clamp(input.count ?? 5, 3, 7);
+  const attrs = Object.entries(input.attributes ?? {}).filter(([k, v]) => k && v);
+
+  if (!isAiEnabled(config)) {
+    const bullets = attrs.slice(0, count).map(([k, v]) => `${k}: ${v}`);
+    if (bullets.length === 0) bullets.push(input.title);
+    return { bullets, model: 'mock', tokens: { input: 0, output: 0 }, mock: true };
+  }
+
+  const system =
+    `You write Amazon-style product bullet points in ${input.locale}. Produce exactly ` +
+    `${count} concise, benefit-led bullets. Base them strictly on the provided data — ` +
+    `invent no specs or claims. Return ONLY a JSON array of strings. No markdown.`;
+  const user =
+    `Title: ${input.title}\n` +
+    (attrs.length ? `Attributes:\n${attrs.map(([k, v]) => `- ${k}: ${v}`).join('\n')}\n` : '') +
+    (input.keywords?.length ? `Keywords: ${input.keywords.join(', ')}\n` : '');
+
+  const { text, tokens } = await callClaude(config, { system, user, maxTokens: 512 });
+  let bullets: string[] = [];
+  try {
+    const parsed = JSON.parse(stripFences(text));
+    if (Array.isArray(parsed)) bullets = parsed.filter((x) => typeof x === 'string').slice(0, count);
+  } catch {
+    throw new AiError('AI_BAD_OUTPUT', 'AI returned unparseable bullet output');
+  }
+  return { bullets, model: MODEL, tokens, mock: false };
+}
+
+// =============================================================================
+// Image alt text (accessibility + SEO; text-based, vision deferred)
+// =============================================================================
+
+export interface AltTextInput {
+  title: string;
+  attributes?: Record<string, string>;
+  locale: string;
+}
+
+export async function generateAltText(
+  config: ShopioConfig,
+  input: AltTextInput,
+): Promise<{ altText: string; model: string; tokens: { input: number; output: number }; mock: boolean }> {
+  if (!isAiEnabled(config)) {
+    const firstAttr = Object.entries(input.attributes ?? {}).find(([k, v]) => k && v);
+    const alt = firstAttr ? `${input.title} – ${firstAttr[1]}` : input.title;
+    return { altText: alt.slice(0, 125), model: 'mock', tokens: { input: 0, output: 0 }, mock: true };
+  }
+
+  const attrs = Object.entries(input.attributes ?? {}).filter(([k, v]) => k && v);
+  const system =
+    `You write concise image alt text (max 125 characters) for an e-commerce product image ` +
+    `in ${input.locale}. Describe the product plainly for accessibility and SEO. No "image ` +
+    `of" / "photo of" prefix. Return ONLY the alt text — no quotes, no markdown.`;
+  const user =
+    `Product: ${input.title}\n` +
+    (attrs.length ? `Attributes: ${attrs.map(([k, v]) => `${k}=${v}`).join(', ')}` : '');
+
+  const { text, tokens } = await callClaude(config, { system, user, maxTokens: 96 });
+  return { altText: text.replace(/^["']|["']$/g, '').trim().slice(0, 125), model: MODEL, tokens, mock: false };
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
+
+/** Upper-case language subtag for mock labels — 'de-DE' → 'DE'. */
+function languageTag(locale: string): string {
+  return (locale.split('-')[1] ?? locale.split('-')[0] ?? locale).toUpperCase();
+}
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(n)));
