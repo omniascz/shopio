@@ -38,6 +38,8 @@ import { registerTranslationAdminRoutes } from './routes/translations-admin';
 import { registerCmsAdminRoutes } from './routes/cms-admin';
 import { registerMarketplaceAdminRoutes } from './routes/marketplace-admin';
 import { registerAiAdminRoutes } from './routes/ai-admin';
+import { registerWmsAdminRoutes } from './routes/wms-admin';
+import { registerMarketplaceChannelAdminRoutes } from './routes/marketplace-channels-admin';
 import { registerDeveloperAdminRoutes } from './routes/developer-admin';
 import { registerOAuthRoutes } from './routes/oauth';
 import { registerLookupRoutes } from './routes/lookup';
@@ -56,6 +58,8 @@ import {
   registerCustomerReviewRoutes,
 } from './routes/customer-auth';
 import { sweepExpiredReservations } from './lib/inventory';
+import { runDueFlowRetries } from './lib/flows';
+import { createJobRunner } from './lib/jobs';
 import { sweepAbandonedCarts } from './lib/abandoned-cart';
 import { runDueSubscriptions } from './lib/subscriptions';
 
@@ -170,6 +174,8 @@ export async function buildServer() {
   await registerCmsAdminRoutes(server, { config, db });
   await registerMarketplaceAdminRoutes(server, { config, db });
   await registerAiAdminRoutes(server, { config, db });
+  await registerWmsAdminRoutes(server, { config, db });
+  await registerMarketplaceChannelAdminRoutes(server, { config, db });
   await registerDeveloperAdminRoutes(server, { config, db });
   await registerOAuthRoutes(server, { config, db });
   await registerLookupRoutes(server, { config, db });
@@ -185,80 +191,62 @@ export async function buildServer() {
   await registerCustomerVerificationRoutes(server, { config, db });
   await registerCustomerReviewRoutes(server, { config, db });
 
-  // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — dev-grade interval timer;
-  // BullMQ takes over in a later wave. Releases expired unpaid holds and
-  // cancels their orders. Guarded against overlapping runs.
-  let sweeping = false;
-  const sweepInterval = setInterval(() => {
-    if (sweeping) return;
-    sweeping = true;
-    void sweepExpiredReservations(db, server.log)
-      .then((count) => {
-        if (count > 0) server.log.info({ count }, 'inventory.sweeper.swept');
-      })
-      .catch((err) => server.log.error({ err }, 'inventory.sweeper.failed'))
-      .finally(() => {
-        sweeping = false;
-      });
-  }, 5 * 60 * 1000);
-  sweepInterval.unref(); // never keep the process alive just for the sweeper
-  server.addHook('onClose', async () => clearInterval(sweepInterval));
-
-  // JOB-SEND-ABANDONED-CART-EMAIL (per `11`/`19`) — recovery e-mails for idle
-  // carts of logged-in customers. Every 15 min; BullMQ later. Guarded.
-  let recovering = false;
-  const recoveryInterval = setInterval(() => {
-    if (recovering) return;
-    recovering = true;
-    void sweepAbandonedCarts(db, config, server.log)
-      .then((count) => {
-        if (count > 0) server.log.info({ count }, 'abandoned_cart.recovery.sent');
-      })
-      .catch((err) => server.log.error({ err }, 'abandoned_cart.recovery.failed'))
-      .finally(() => {
-        recovering = false;
-      });
-  }, 15 * 60 * 1000);
-  recoveryInterval.unref();
-  server.addHook('onClose', async () => clearInterval(recoveryInterval));
-
-  // JOB-RUN-DUE-SUBSCRIPTIONS (per `24`) — generate recurring orders. Hourly;
-  // BullMQ later. Guarded against overlap.
+  // Background jobs (per `09`/Fáze 1) — driven by the interval backend by
+  // default; `JOBS_BACKEND=bullmq` (+ REDIS_URL) switches to durable Redis
+  // repeatable jobs. Same handlers either way; overlap-guarded + error-isolated
+  // inside the runner.
   const rlsDb = getRlsDb(config);
-  let subRunning = false;
-  const subInterval = setInterval(() => {
-    if (subRunning) return;
-    subRunning = true;
-    void runDueSubscriptions(db, rlsDb, config, server.log)
-      .then((count) => {
-        if (count > 0) server.log.info({ count }, 'subscriptions.generated');
-      })
-      .catch((err) => server.log.error({ err }, 'subscriptions.run_failed'))
-      .finally(() => {
-        subRunning = false;
-      });
-  }, 60 * 60 * 1000);
-  subInterval.unref();
-  server.addHook('onClose', async () => clearInterval(subInterval));
+  const jobs = createJobRunner(config, server.log);
 
-  // JOB-REFRESH-FX-RATES (P1 multi-currency) — pull the ČNB daily fixing. Once
-  // on boot (best-effort) + daily. ČNB publishes ~14:30 CET on working days.
-  void refreshCnbRates(db)
-    .then((r) => r && server.log.info({ fixingDate: r.fixingDate, count: r.count }, 'fx.rates.refreshed'))
-    .catch((err) => server.log.warn({ err }, 'fx.rates.refresh_failed'));
-  let fxRunning = false;
-  const fxInterval = setInterval(() => {
-    if (fxRunning) return;
-    fxRunning = true;
-    void refreshCnbRates(db)
-      .then((r) => r && server.log.info({ fixingDate: r.fixingDate, count: r.count }, 'fx.rates.refreshed'))
-      .catch((err) => server.log.warn({ err }, 'fx.rates.refresh_failed'))
-      .finally(() => {
-        fxRunning = false;
-      });
-  }, 24 * 60 * 60 * 1000);
-  fxInterval.unref();
-  server.addHook('onClose', async () => clearInterval(fxInterval));
+  // JOB-SWEEP-EXPIRED-RESERVATIONS (per `09`) — release expired unpaid holds.
+  jobs.register({
+    name: 'sweep-expired-reservations',
+    everyMs: 5 * 60 * 1000,
+    handler: async () => {
+      const count = await sweepExpiredReservations(db, server.log);
+      if (count > 0) server.log.info({ count }, 'inventory.sweeper.swept');
+    },
+  });
+  // JOB-SEND-ABANDONED-CART-EMAIL (per `11`/`19`) — recovery e-mails.
+  jobs.register({
+    name: 'send-abandoned-cart-email',
+    everyMs: 15 * 60 * 1000,
+    handler: async () => {
+      const count = await sweepAbandonedCarts(db, config, server.log);
+      if (count > 0) server.log.info({ count }, 'abandoned_cart.recovery.sent');
+    },
+  });
+  // JOB-RUN-DUE-SUBSCRIPTIONS (per `24`) — generate recurring orders.
+  jobs.register({
+    name: 'run-due-subscriptions',
+    everyMs: 60 * 60 * 1000,
+    handler: async () => {
+      const count = await runDueSubscriptions(db, rlsDb, config, server.log);
+      if (count > 0) server.log.info({ count }, 'subscriptions.generated');
+    },
+  });
+  // JOB-REFRESH-FX-RATES (P1 multi-currency) — ČNB daily fixing, + once on boot.
+  jobs.register({
+    name: 'refresh-fx-rates',
+    everyMs: 24 * 60 * 60 * 1000,
+    runOnStart: true,
+    handler: async () => {
+      const r = await refreshCnbRates(db);
+      if (r) server.log.info({ fixingDate: r.fixingDate, count: r.count }, 'fx.rates.refreshed');
+    },
+  });
+  // JOB-RUN-FLOW-RETRIES (P3 automation) — re-attempt failed flow actions.
+  jobs.register({
+    name: 'run-flow-retries',
+    everyMs: 60 * 1000,
+    handler: async () => {
+      const count = await runDueFlowRetries({ db, config, log: server.log });
+      if (count > 0) server.log.info({ count }, 'flows.retries.advanced');
+    },
+  });
+
+  await jobs.start();
+  server.addHook('onClose', async () => jobs.stop());
 
   return server;
 }
