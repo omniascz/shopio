@@ -11,7 +11,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useRouter } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type ProductDetail, type ProductVariantDetail } from '../lib/api';
+import { api, type PageBlock, type ProductDetail, type ProductVariantDetail } from '../lib/api';
+import { BlockList } from './content';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Koncept',
@@ -242,10 +243,48 @@ export function ProductEditPage() {
       <VariantsPanel product={product} onSaved={invalidate} />
       <BundlePanel product={product} />
       <CategoriesPanel product={product} onSaved={invalidate} />
+      <ContentBlocksPanel product={product} onSaved={invalidate} />
       <AiAssistPanel product={product} onSaved={invalidate} />
       <VendorPanel product={product} onSaved={invalidate} />
       <TranslationsPanel productId={product.id} />
     </div>
+  );
+}
+
+// =============================================================================
+// Content blocks (per `32`) — page-builder sections below the description
+// =============================================================================
+
+function ContentBlocksPanel({ product, onSaved }: { product: ProductDetail; onSaved: () => void }) {
+  const [blocks, setBlocks] = useState<PageBlock[]>((product.content_blocks as PageBlock[]) ?? []);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBlocks((product.content_blocks as PageBlock[]) ?? []);
+  }, [product.id, product.content_blocks]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.updateProduct(product.id, { contentBlocks: blocks }),
+    onSuccess: () => { setSaved(true); setError(null); onSaved(); setTimeout(() => setSaved(false), 2000); },
+    onError: (err) => setError((err as Error).message),
+  });
+
+  return (
+    <section style={cardStyle}>
+      <h2 style={sectionHeaderStyle}>Obsahové bloky (pod popisem)</h2>
+      <p style={{ fontSize: '0.8125rem', color: '#666', margin: '0 0 0.75rem' }}>
+        Poskládejte bohatý obsah, který se zobrazí na detailu produktu pod popisem — galerie, video,
+        FAQ, reference, „Koupit" i znovupoužitelné sekce.
+      </p>
+      <BlockList blocks={blocks} onChange={setBlocks} />
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.75rem' }}>
+        <button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtnStyle}>
+          {saveMutation.isPending ? 'Ukládám…' : saved ? '✓ Uloženo' : 'Uložit bloky'}
+        </button>
+        {error && <span style={{ color: '#c00', fontSize: '0.8125rem' }}>{error}</span>}
+      </div>
+    </section>
   );
 }
 

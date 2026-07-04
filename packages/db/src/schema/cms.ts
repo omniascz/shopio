@@ -33,6 +33,12 @@ export const cmsPages = pgTable(
     blocks: jsonb('blocks')
       .notNull()
       .default(sql`'[]'::jsonb`),
+    /** Version history (per `32` §5.7) — newest-first snapshots of
+     * {at,title,body_html,blocks}, capped to the last 10 on write. Powers the
+     * editor's "Historie" restore. */
+    revisions: jsonb('revisions')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     status: text('status', { enum: ['draft', 'published'] })
       .notNull()
       .default('draft'),

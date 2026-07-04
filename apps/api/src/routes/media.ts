@@ -49,6 +49,52 @@ export async function registerMediaRoutes(
   const { db, config } = opts;
 
   // ---------------------------------------------------------------------------
+  // POST /admin/media — tenant-scoped "quick upload" for the page builder / CMS
+  // (per `32` media library MVP). Uploads to the public media bucket and returns
+  // the URL; no DB row (the block/page JSON is the source of truth). A full
+  // media library with tagging/search is Fáze 2.
+  // ---------------------------------------------------------------------------
+  app.post(
+    '/api/2026-05-20/admin/media',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+
+      const file = await req.file({ limits: { fileSize: MAX_BYTES, files: 1 } });
+      if (!file) {
+        return reply.code(422).send({ error: { code: 'NO_FILE', message: 'Multipart file field required' } });
+      }
+      const ext = ALLOWED_MIME[file.mimetype];
+      if (!ext) {
+        return reply.code(422).send({
+          error: {
+            code: 'UNSUPPORTED_MEDIA_TYPE',
+            message: `Unsupported type ${file.mimetype} (allowed: ${Object.keys(ALLOWED_MIME).join(', ')})`,
+          },
+        });
+      }
+
+      let buffer: Buffer;
+      try {
+        buffer = await file.toBuffer();
+      } catch {
+        return reply.code(413).send({ error: { code: 'FILE_TOO_LARGE', message: `Max ${MAX_BYTES / 1024 / 1024} MB` } });
+      }
+
+      const key = `media/${tenantId}/library/${generatePubId('img')}.${ext}`;
+      try {
+        const uploaded = await putObject(config, key, buffer, file.mimetype);
+        app.log.info({ tenantId, key, bytes: buffer.length }, 'media.library_uploaded');
+        return reply.code(201).send({ data: { url: uploaded.url } });
+      } catch (err) {
+        app.log.error({ err, key }, 'media.library_upload_failed');
+        return reply.code(502).send({ error: { code: 'STORAGE_ERROR', message: 'Object storage unavailable' } });
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
   // POST /products/{id}/media — multipart upload
   // ---------------------------------------------------------------------------
   app.post<{ Params: { productId: string } }>(

@@ -29,6 +29,7 @@ import { getRlsDb } from '../db';
 import { notifyRestocked } from '../lib/stock-watch';
 import { emitWebhookEvent } from '../lib/webhooks-out';
 import { planOf, type Plan } from '../lib/plans';
+import { BlocksSchema } from '../lib/page-blocks';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
 
@@ -158,6 +159,9 @@ const UpdateProductBody = z.object({
   /** Full replacement of category assignments (M:M sync). Accepts category
    * pub_ids (cat_…) or internal UUIDs. */
   categoryIds: z.array(z.string().min(1)).max(20).optional(),
+  /** Page-builder content blocks for the product detail page (per `32`), stored
+   * in metadata.content_blocks. Rendered below the description on the PDP. */
+  contentBlocks: BlocksSchema.optional(),
   ...ProductChargeFields,
 });
 
@@ -693,7 +697,7 @@ export async function registerProductRoutes(
 
       const [existing] = await withTenant(rlsDb, auth.tenantId!, (tx) =>
         tx
-          .select({ id: schema.products.id, status: schema.products.status })
+          .select({ id: schema.products.id, status: schema.products.status, metadata: schema.products.metadata })
           .from(schema.products)
           .where(
             and(
@@ -710,8 +714,16 @@ export async function registerProductRoutes(
         });
       }
 
-      const { categoryIds, vendorId: vendorPubId, ...fieldInput } = parsed.data;
+      const { categoryIds, vendorId: vendorPubId, contentBlocks, ...fieldInput } = parsed.data;
       const updates: Record<string, unknown> = { ...fieldInput, updatedAt: new Date() };
+      // Content blocks live in metadata.content_blocks (per `32`) — merge, don't
+      // clobber other metadata keys.
+      if (contentBlocks !== undefined) {
+        updates.metadata = {
+          ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+          content_blocks: contentBlocks,
+        };
+      }
       // numeric columns take strings in Drizzle
       for (const k of ['unitContentAmount', 'unitBaseAmount'] as const) {
         if (updates[k] != null) updates[k] = String(updates[k]);
@@ -1274,6 +1286,8 @@ function serializeProduct(
     vendor_id: vendorPubId,
     brand_name: product.brandName,
     attributes: product.attributes,
+    /** Page-builder content blocks (per `32`) for the product detail page. */
+    content_blocks: (product.metadata as { content_blocks?: unknown } | null)?.content_blocks ?? [],
     published_at: product.publishedAt,
     created_at: product.createdAt,
     updated_at: product.updatedAt,

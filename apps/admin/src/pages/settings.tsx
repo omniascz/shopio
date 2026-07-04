@@ -793,6 +793,15 @@ function HomepageSection({ settings }: { settings: ShopSettings }) {
   const [ctaUrl, setCtaUrl] = useState(hp?.hero.cta_url ?? '');
   const [imageUrl, setImageUrl] = useState(hp?.hero.image_url ?? '');
   const [align, setAlign] = useState(hp?.hero.align ?? 'center');
+  // Pop-up modal
+  const [popEnabled, setPopEnabled] = useState(hp?.popup?.enabled ?? false);
+  const [popHeading, setPopHeading] = useState(hp?.popup?.heading ?? '');
+  const [popText, setPopText] = useState(hp?.popup?.text ?? '');
+  const [popImage, setPopImage] = useState(hp?.popup?.image_url ?? '');
+  const [popCtaText, setPopCtaText] = useState(hp?.popup?.cta_text ?? '');
+  const [popCtaUrl, setPopCtaUrl] = useState(hp?.popup?.cta_url ?? '');
+  const [popDelay, setPopDelay] = useState(String(hp?.popup?.delay_seconds ?? 3));
+  const [popFreq, setPopFreq] = useState<'once' | 'always'>(hp?.popup?.frequency ?? 'once');
   const [error, setError] = useState<string | null>(null);
 
   const saveMutation = useMutation({
@@ -807,6 +816,16 @@ function HomepageSection({ settings }: { settings: ShopSettings }) {
           ...(ctaText && { cta_text: ctaText }),
           ...(ctaUrl && { cta_url: ctaUrl }),
           ...(imageUrl && { image_url: imageUrl }),
+        },
+        popup: {
+          enabled: popEnabled,
+          frequency: popFreq,
+          delay_seconds: Math.max(0, parseInt(popDelay, 10) || 0),
+          ...(popHeading && { heading: popHeading }),
+          ...(popText && { text: popText }),
+          ...(popImage && { image_url: popImage }),
+          ...(popCtaText && { cta_text: popCtaText }),
+          ...(popCtaUrl && { cta_url: popCtaUrl }),
         },
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }),
@@ -857,6 +876,41 @@ function HomepageSection({ settings }: { settings: ShopSettings }) {
       <Field label="URL obrázku pozadí (volitelné)">
         <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} style={inputStyle} placeholder="https://…" />
       </Field>
+
+      <h3 style={{ fontSize: '0.9375rem', margin: '1rem 0 0.5rem' }}>Vyskakovací okno (pop-up)</h3>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+        <input type="checkbox" checked={popEnabled} onChange={(e) => setPopEnabled(e.target.checked)} />
+        Zobrazit pop-up návštěvníkům
+      </label>
+      <div style={grid2}>
+        <Field label="Nadpis">
+          <input value={popHeading} onChange={(e) => setPopHeading(e.target.value)} style={inputStyle} placeholder="Sleva 10 % na první nákup" />
+        </Field>
+        <Field label="URL obrázku (volitelné)">
+          <input value={popImage} onChange={(e) => setPopImage(e.target.value)} style={inputStyle} placeholder="https://…" />
+        </Field>
+      </div>
+      <Field label="Text">
+        <input value={popText} onChange={(e) => setPopText(e.target.value)} style={inputStyle} placeholder="Přihlaste se k newsletteru a získejte slevový kód." />
+      </Field>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <Field label="Text tlačítka">
+          <input value={popCtaText} onChange={(e) => setPopCtaText(e.target.value)} style={{ ...inputStyle, width: 180 }} placeholder="Chci slevu" />
+        </Field>
+        <Field label="Odkaz tlačítka">
+          <input value={popCtaUrl} onChange={(e) => setPopCtaUrl(e.target.value)} style={{ ...inputStyle, width: 220 }} placeholder="/s/.../akce" />
+        </Field>
+        <Field label="Prodleva (s)">
+          <input type="number" min={0} max={120} value={popDelay} onChange={(e) => setPopDelay(e.target.value)} style={{ ...inputStyle, width: 90 }} />
+        </Field>
+        <Field label="Frekvence">
+          <select value={popFreq} onChange={(e) => setPopFreq(e.target.value as 'once' | 'always')} style={{ ...inputStyle, width: 200 }}>
+            <option value="once">Jednou (zapamatuje zavření)</option>
+            <option value="always">Při každé návštěvě</option>
+          </select>
+        </Field>
+      </div>
+
       {error && <p style={errorStyle}>{error}</p>}
       <SaveButton mutation={saveMutation} onClick={() => { setError(null); saveMutation.mutate(); }} />
     </section>

@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getPage } from '@/lib/api';
+import { getStorefrontLocale } from '@/lib/locale';
+import { BlockRenderer } from '@/components/block-renderer';
 
 interface Props {
   params: Promise<{ tenantSlug: string; slug: string }>;
@@ -19,6 +21,20 @@ export default async function ContentPage({ params }: Props) {
   const { tenantSlug, slug } = await params;
   const page = await getPage(tenantSlug, slug);
   if (!page) notFound();
+
+  const locale = (await getStorefrontLocale()) ?? 'cs-CZ';
+
+  // Page-builder blocks take precedence over legacy body_html (per `32`).
+  if (page.blocks && page.blocks.length > 0) {
+    return (
+      <main style={{ padding: '1.5rem 0 4rem' }}>
+        <h1 style={{ maxWidth: 760, margin: '0 auto', padding: '0 2rem', fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--sf-font-heading)' }}>
+          {page.title}
+        </h1>
+        <BlockRenderer blocks={page.blocks} tenantSlug={tenantSlug} locale={locale} />
+      </main>
+    );
+  }
 
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '2.5rem 2rem 4rem' }}>

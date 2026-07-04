@@ -11,6 +11,7 @@ import { LocaleSwitcher } from '@/components/locale-switcher';
 import { CurrencySwitcher } from '@/components/currency-switcher';
 import { NewsletterBox } from '@/components/newsletter-box';
 import { AnalyticsScripts } from '@/components/analytics-scripts';
+import { PromoPopup } from '@/components/promo-popup';
 import { getStorefrontLocale } from '@/lib/locale';
 import { getStorefrontCurrency } from '@/lib/currency';
 
@@ -204,6 +205,9 @@ export default async function TenantLayout({ children, params }: Props) {
           </div>
         </footer>
         <CartDrawer />
+        {tenant.homepage?.popup?.enabled && (
+          <PromoPopup popup={tenant.homepage.popup} tenantSlug={tenantSlug} />
+        )}
       </div>
      </CompareProvider>
     </CartProvider>
