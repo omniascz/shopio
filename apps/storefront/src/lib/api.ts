@@ -30,9 +30,21 @@ export interface StorefrontHero {
   align?: 'left' | 'center';
 }
 
+export interface StorefrontPopup {
+  enabled?: boolean;
+  heading?: string;
+  text?: string;
+  image_url?: string;
+  cta_text?: string;
+  cta_url?: string;
+  delay_seconds?: number;
+  frequency?: 'once' | 'always';
+}
+
 export interface StorefrontHomepage {
   announcement?: { enabled?: boolean; text?: string; url?: string };
   hero?: StorefrontHero;
+  popup?: StorefrontPopup;
 }
 
 export interface Tenant {
@@ -110,6 +122,9 @@ export interface ProductDetail {
   slug: string;
   title: string;
   description_html: string | null;
+  /** Page-builder content blocks (per `32`) — resolved, rendered below the
+   * description on the product detail page. */
+  content_blocks?: PageBlockResolved[];
   base_price: Money | null;
   compare_at: Money | null;
   vendor: string | null;
@@ -291,10 +306,19 @@ export interface CmsPageLink {
   slug: string;
   title: string;
 }
+/** Resolved page-builder block (per `32`) — loose; `type` drives the fields. */
+export interface PageBlockResolved {
+  id: string;
+  type: string;
+  [key: string]: unknown;
+}
 export interface CmsPage {
   slug: string;
   title: string;
   body_html: string;
+  /** Page-builder blocks (per `32`) — resolved to render-ready data. When
+   * non-empty the storefront renders these instead of `body_html`. */
+  blocks?: PageBlockResolved[];
   seo_title: string | null;
   seo_description: string | null;
   updated_at: string;
@@ -319,6 +343,13 @@ export async function getPages(tenantSlug: string): Promise<CmsPageLink[]> {
 
 export async function getPage(tenantSlug: string, slug: string): Promise<CmsPage | null> {
   return shopioFetch<CmsPage>(`/storefront/${tenantSlug}/pages/${slug}`);
+}
+
+/** Homepage page-builder blocks (per `32`), resolved to render-ready data.
+ * Empty array = no blocks configured (fall back to the default catalog view). */
+export async function getHomepage(tenantSlug: string): Promise<PageBlockResolved[]> {
+  const data = await shopioFetch<{ blocks: PageBlockResolved[] }>(`/storefront/${tenantSlug}/homepage`);
+  return data?.blocks ?? [];
 }
 
 export async function getBlogPosts(tenantSlug: string): Promise<CmsBlogListItem[]> {

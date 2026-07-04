@@ -30,7 +30,7 @@ import {
 } from '../lib/feeds';
 import { checkBalance as checkGiftCardBalance } from '../lib/gift-cards';
 import { bundleAvailableQuantity, loadBundleComponents } from '../lib/bundles';
-import { resolveBlocks } from '../lib/page-blocks';
+import { resolveBlocks, type SectionLibraryItem } from '../lib/page-blocks';
 import { lowestPriceLast30Days } from '../lib/price-history';
 import { bestSellers, frequentlyBoughtTogether, relatedProducts } from '../lib/recommendations';
 import { addStockWatch } from '../lib/stock-watch';
@@ -85,7 +85,11 @@ export async function registerStorefrontRoutes(
           radius?: string;
           logo_url?: string;
         };
-        homepage?: { announcement?: Record<string, unknown>; hero?: Record<string, unknown> };
+        homepage?: {
+          announcement?: Record<string, unknown>;
+          hero?: Record<string, unknown>;
+          popup?: Record<string, unknown>;
+        };
         integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
         currencies?: { presentment?: string[] };
       };
@@ -116,6 +120,7 @@ export async function registerStorefrontRoutes(
             homepage: {
               announcement: s.homepage?.announcement ?? { enabled: false },
               hero: s.homepage?.hero ?? { enabled: false },
+              popup: s.homepage?.popup ?? { enabled: false },
             },
             analytics: {
               ga4_measurement_id: s.integrations?.ga4_measurement_id ?? null,
@@ -638,11 +643,21 @@ export async function registerStorefrontRoutes(
           variants.map((v) => v.id),
           new Date(),
         );
-        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d };
+        // Page-builder content blocks (per `32`) for the PDP — stored in
+        // metadata.content_blocks, dereferencing reusable sections.
+        const library = ((tenant.settings ?? {}) as { reusable_sections?: SectionLibraryItem[] })
+          .reusable_sections ?? [];
+        const contentBlocks = await resolveBlocks(
+          tx,
+          tenant.id,
+          (product.metadata as { content_blocks?: unknown } | null)?.content_blocks ?? [],
+          library,
+        );
+        return { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d, contentBlocks };
       });
 
       if (!loaded) return notFound(reply, 'product');
-      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d } =
+      const { product, variants, media, catRows, reviewSummary, reviews, prodTr, catTr, bundleItems, lowest30d, contentBlocks } =
         loaded;
       const po = prodTr.get(product.id);
       const bundleAvail = product.type === 'bundle' ? bundleAvailableQuantity(bundleItems) : null;
@@ -655,6 +670,8 @@ export async function registerStorefrontRoutes(
           type: product.type,
           title: po?.get('title') ?? product.title,
           description_html: po?.get('description_html') ?? product.descriptionHtml,
+          // Page-builder content blocks (per `32`) — rendered below the description.
+          content_blocks: contentBlocks,
           base_price: product.basePriceAmount ? present.money(product.basePriceAmount) : null,
           compare_at: product.compareAtAmount ? present.money(product.compareAtAmount) : null,
           currency: present.currency,
@@ -965,9 +982,10 @@ export async function registerStorefrontRoutes(
       if (!tenant) return notFound(reply, 'tenant');
       const settings = (tenant.settings ?? {}) as {
         homepage?: { blocks?: unknown };
+        reusable_sections?: SectionLibraryItem[];
       };
       const blocks = await withTenant(rlsDb, tenant.id, (tx) =>
-        resolveBlocks(tx, tenant.id, settings.homepage?.blocks ?? []),
+        resolveBlocks(tx, tenant.id, settings.homepage?.blocks ?? [], settings.reusable_sections ?? []),
       );
       return reply
         .header('cache-control', 'public, max-age=120')
@@ -1012,9 +1030,12 @@ export async function registerStorefrontRoutes(
           .limit(1),
       );
       if (!page) return notFound(reply, 'page');
-      // Page-builder blocks (per `32`) — resolved to render-ready data when set.
+      // Page-builder blocks (per `32`) — resolved to render-ready data when set,
+      // dereferencing reusable sections from the tenant's library.
+      const library = ((tenant.settings ?? {}) as { reusable_sections?: SectionLibraryItem[] })
+        .reusable_sections ?? [];
       const blocks = await withTenant(rlsDb, tenant.id, (tx) =>
-        resolveBlocks(tx, tenant.id, page.blocks),
+        resolveBlocks(tx, tenant.id, page.blocks, library),
       );
       return reply.send({
         data: {

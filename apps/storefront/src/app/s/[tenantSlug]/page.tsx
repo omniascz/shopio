@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { formatMoney, getCategories, getProducts, getTenant } from '@/lib/api';
+import { formatMoney, getCategories, getHomepage, getProducts, getTenant } from '@/lib/api';
 import { getStorefrontLocale } from '@/lib/locale';
 import { getStorefrontCurrency } from '@/lib/currency';
 import { RatingBadge } from '@/components/stars';
 import { SaveButtons } from '@/components/save-buttons';
+import { BlockRenderer } from '@/components/block-renderer';
 
 interface Props {
   params: Promise<{ tenantSlug: string }>;
@@ -38,7 +39,7 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
 
   const locale = await getStorefrontLocale();
   const currency = await getStorefrontCurrency();
-  const [{ products, facets }, categories] = await Promise.all([
+  const [{ products, facets }, categories, homepageBlocks] = await Promise.all([
     getProducts(tenantSlug, {
       limit: 24,
       ...(q && { q }),
@@ -48,7 +49,14 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
       facets: selectedFacets,
     }),
     getCategories(tenantSlug, locale),
+    getHomepage(tenantSlug),
   ]);
+
+  // Homepage page-builder blocks (per `32`) — shown above the catalog. Only on
+  // the unfiltered landing view (a search / category / facet drill-down is a
+  // catalog listing, not the marketing homepage).
+  const isLanding = !q && !categorySlug && Object.keys(selectedFacets).length === 0;
+  const showBlocks = isLanding && homepageBlocks.length > 0;
 
   // Helper to build a URL with one facet value toggled, preserving the rest
   function facetHref(name: string, value: string): string {
@@ -70,10 +78,14 @@ export default async function TenantCatalogPage({ params, searchParams }: Props)
   const anyFacetActive = Object.values(selectedFacets).some((v) => v.length > 0);
 
   const hero = tenant.homepage?.hero;
-  const showHero = hero?.enabled && (hero.headline || hero.image_url);
+  // Block-built homepage replaces the single legacy hero when present.
+  const showHero = !showBlocks && hero?.enabled && (hero.headline || hero.image_url);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--shopio-color-surface-1)' }}>
+      {showBlocks && (
+        <BlockRenderer blocks={homepageBlocks} tenantSlug={tenantSlug} locale={locale ?? tenant.default_locale} />
+      )}
       {showHero && (
         <section
           style={{

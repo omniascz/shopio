@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { formatMoney, getProduct, getRecommendations } from '@/lib/api';
+import { BlockRenderer } from '@/components/block-renderer';
 import { getStorefrontLocale } from '@/lib/locale';
 import { getStorefrontCurrency } from '@/lib/currency';
 import { AddToCart } from '@/components/add-to-cart';
@@ -82,7 +83,8 @@ function productJsonLd(
 
 export default async function ProductPage({ params }: Props) {
   const { tenantSlug, productSlug } = await params;
-  const product = await getProduct(tenantSlug, productSlug, await getStorefrontLocale(), await getStorefrontCurrency());
+  const locale = (await getStorefrontLocale()) ?? 'cs-CZ';
+  const product = await getProduct(tenantSlug, productSlug, locale, await getStorefrontCurrency());
   if (!product) notFound();
 
   const primaryMedia = product.media.find((m) => m.is_primary) ?? product.media[0];
@@ -299,6 +301,12 @@ export default async function ProductPage({ params }: Props) {
                 // (per `32-cms-content.md §RULE-CMS-003` enforcement Fáze 1 wave 2)
                 dangerouslySetInnerHTML={{ __html: product.description_html }}
               />
+            )}
+
+            {product.content_blocks && product.content_blocks.length > 0 && (
+              <div style={{ marginTop: '2rem' }}>
+                <BlockRenderer blocks={product.content_blocks} tenantSlug={tenantSlug} locale={locale} />
+              </div>
             )}
 
             {product.categories.length > 0 && (

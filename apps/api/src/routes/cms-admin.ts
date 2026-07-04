@@ -137,19 +137,115 @@ export async function registerCmsAdminRoutes(
     if (!parsed.success) return validationErr(reply, parsed.error);
     try {
       const updates = buildContentUpdates(parsed.data);
-      const [row] = await withTenant(rlsDb, tenantId, (tx) =>
-        tx
+      const editsContent =
+        parsed.data.title !== undefined ||
+        parsed.data.bodyHtml !== undefined ||
+        parsed.data.blocks !== undefined;
+      const row = await withTenant(rlsDb, tenantId, async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(schema.cmsPages)
+          .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+          .limit(1);
+        if (!current) return null;
+        // Snapshot the pre-edit content into history (per `32` §5.7) before we
+        // overwrite it — only when the edit actually touches content.
+        if (editsContent) {
+          updates.revisions = pushRevision(current.revisions, {
+            at: new Date().toISOString(),
+            title: current.title,
+            body_html: current.bodyHtml,
+            blocks: current.blocks,
+          });
+        }
+        const [updated] = await tx
           .update(schema.cmsPages)
           .set(applyPublish(updates, parsed.data.status, schema.cmsPages))
           .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
-          .returning(),
-      );
+          .returning();
+        return updated ?? null;
+      });
       if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
       return reply.send({ data: serializePage(row) });
     } catch (err) {
       return slugConflict(reply, err);
     }
   });
+
+  // GET /admin/cms/pages/:pubId/revisions — lightweight history list (newest
+  // first): timestamp + title + whether it used blocks. Body/blocks omitted here
+  // (fetched on restore) to keep the list small.
+  app.get<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/pages/:pubId/revisions', guard, async (req, reply) => {
+    const tenantId = req.auth!.tenantId;
+    if (!tenantId) return noTenant(reply);
+    const [row] = await withTenant(rlsDb, tenantId, (tx) =>
+      tx
+        .select({ revisions: schema.cmsPages.revisions })
+        .from(schema.cmsPages)
+        .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+        .limit(1),
+    );
+    if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
+    const revs = (row.revisions as PageRevision[]) ?? [];
+    return reply.send({
+      data: {
+        revisions: revs.map((r, index) => ({
+          index,
+          at: r.at,
+          title: r.title,
+          block_count: Array.isArray(r.blocks) ? r.blocks.length : 0,
+        })),
+      },
+    });
+  });
+
+  // POST /admin/cms/pages/:pubId/revisions/:index/restore — restore a past
+  // snapshot. The current content is first snapshotted (so a restore is itself
+  // undoable), then title/body/blocks are replaced from the chosen revision.
+  app.post<{ Params: { pubId: string; index: string } }>(
+    '/api/2026-05-20/admin/cms/pages/:pubId/revisions/:index/restore',
+    guard,
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const idx = Number.parseInt(req.params.index, 10);
+      if (!Number.isInteger(idx) || idx < 0) {
+        return reply.code(422).send({ error: { code: 'BAD_INDEX', message: 'Neplatný index revize' } });
+      }
+      const row = await withTenant(rlsDb, tenantId, async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(schema.cmsPages)
+          .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+          .limit(1);
+        if (!current) return null;
+        const revs = (current.revisions as PageRevision[]) ?? [];
+        const target = revs[idx];
+        if (!target) return 'NO_REV' as const;
+        const revisions = pushRevision(current.revisions, {
+          at: new Date().toISOString(),
+          title: current.title,
+          body_html: current.bodyHtml,
+          blocks: current.blocks,
+        });
+        const [updated] = await tx
+          .update(schema.cmsPages)
+          .set({
+            title: target.title,
+            bodyHtml: target.body_html ?? '',
+            blocks: target.blocks ?? [],
+            revisions,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(schema.cmsPages.tenantId, tenantId), eq(schema.cmsPages.pubId, req.params.pubId)))
+          .returning();
+        return updated ?? null;
+      });
+      if (!row) return notFound(reply, 'PAGE_NOT_FOUND');
+      if (row === 'NO_REV') return notFound(reply, 'REVISION_NOT_FOUND');
+      return reply.send({ data: serializePage(row) });
+    },
+  );
 
   app.delete<{ Params: { pubId: string } }>('/api/2026-05-20/admin/cms/pages/:pubId', guard, async (req, reply) => {
     const tenantId = req.auth!.tenantId;
@@ -264,6 +360,22 @@ export async function registerCmsAdminRoutes(
 }
 
 // ===== helpers ===============================================================
+
+/** A stored content snapshot (per `32` §5.7). */
+interface PageRevision {
+  at: string;
+  title: string;
+  body_html: string;
+  blocks: unknown;
+}
+
+const MAX_REVISIONS = 10;
+
+/** Prepend a snapshot to the history, newest-first, capped to MAX_REVISIONS. */
+function pushRevision(existing: unknown, rev: PageRevision): PageRevision[] {
+  const prior = Array.isArray(existing) ? (existing as PageRevision[]) : [];
+  return [rev, ...prior].slice(0, MAX_REVISIONS);
+}
 
 function buildContentUpdates(p: {
   slug?: string | undefined;

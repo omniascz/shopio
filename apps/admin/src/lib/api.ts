@@ -293,8 +293,39 @@ export interface GiftCardTransaction {
 /** Page-builder block (per `32`) — loose shape; type drives the fields used. */
 export interface PageBlock {
   id: string;
-  type: 'hero' | 'rich_text' | 'image_banner' | 'product_grid' | 'featured_category' | 'newsletter' | 'spacer';
+  type:
+    | 'hero'
+    | 'rich_text'
+    | 'image_banner'
+    | 'product_grid'
+    | 'featured_category'
+    | 'newsletter'
+    | 'spacer'
+    | 'heading'
+    | 'button'
+    | 'buy_button'
+    | 'gallery'
+    | 'video'
+    | 'faq'
+    | 'testimonial'
+    | 'columns'
+    | 'section_ref';
   [key: string]: unknown;
+}
+
+/** A reusable section in the tenant's library (per `32` §4.6). */
+export interface ReusableSection {
+  key: string;
+  name: string;
+  blocks: PageBlock[];
+}
+
+/** One page-history entry (per `32` §5.7) — lightweight list item. */
+export interface PageRevisionSummary {
+  index: number;
+  at: string;
+  title: string;
+  block_count: number;
 }
 
 export interface OAuthApp {
@@ -464,6 +495,7 @@ export interface CmsPageItem {
   slug: string;
   title: string;
   body_html: string;
+  blocks?: PageBlock[];
   status: 'draft' | 'published';
   seo_title: string | null;
   seo_description: string | null;
@@ -474,6 +506,7 @@ export interface CmsPageInput {
   slug: string;
   title: string;
   bodyHtml?: string;
+  blocks?: PageBlock[];
   status?: 'draft' | 'published';
   seoTitle?: string | null;
   seoDescription?: string | null;
@@ -571,6 +604,8 @@ export interface ProductDetail {
   media: MediaItem[];
   category_ids: string[];
   attributes: { name: string; value: string }[];
+  /** Page-builder content blocks for the product detail page (per `32`). */
+  content_blocks?: PageBlock[];
 }
 
 export interface ShopSettings {
@@ -604,6 +639,16 @@ export interface ShopSettings {
       cta_url?: string;
       image_url?: string;
       align?: string;
+    };
+    popup?: {
+      enabled?: boolean;
+      heading?: string;
+      text?: string;
+      image_url?: string;
+      cta_text?: string;
+      cta_url?: string;
+      delay_seconds?: number;
+      frequency?: 'once' | 'always';
     };
   };
   integrations?: {
@@ -1121,6 +1166,15 @@ class ApiClient {
     return this.request('/admin/settings/homepage-blocks', { method: 'PUT', body: JSON.stringify({ blocks }) });
   }
 
+  // Reusable sections library (per `32` §4.6) — "create once, use everywhere"
+  async getReusableSections(): Promise<{ sections: ReusableSection[] }> {
+    return this.request('/admin/settings/reusable-sections');
+  }
+
+  async putReusableSections(sections: ReusableSection[]): Promise<{ sections: ReusableSection[] }> {
+    return this.request('/admin/settings/reusable-sections', { method: 'PUT', body: JSON.stringify({ sections }) });
+  }
+
   // ---------------------------------------------------------------------------
   // Promotions (P2)
   // ---------------------------------------------------------------------------
@@ -1300,6 +1354,12 @@ class ApiClient {
   }
   async deleteCmsPage(id: string): Promise<void> {
     await this.request(`/admin/cms/pages/${id}`, { method: 'DELETE' });
+  }
+  async getPageRevisions(id: string): Promise<{ revisions: PageRevisionSummary[] }> {
+    return this.request(`/admin/cms/pages/${id}/revisions`);
+  }
+  async restorePageRevision(id: string, index: number): Promise<CmsPageItem> {
+    return this.request(`/admin/cms/pages/${id}/revisions/${index}/restore`, { method: 'POST' });
   }
 
   async listBlogPosts(): Promise<{ posts: CmsPostItem[] }> {
@@ -1538,6 +1598,7 @@ class ApiClient {
       brandName: string | null;
       categoryIds: string[];
       attributes: { name: string; value: string }[];
+      contentBlocks: PageBlock[];
     }>,
   ): Promise<ProductDetail> {
     return this.request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -1604,6 +1665,26 @@ class ApiClient {
       throw new ApiError(json?.error?.message ?? `Upload failed (${res.status})`, res.status, json?.error?.code);
     }
     return json.data as MediaItem;
+  }
+
+  /** Tenant-scoped quick upload for the page builder / CMS (per `32`). Returns
+   * the public URL of the stored image. */
+  async uploadMedia(file: File): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    const headers: Record<string, string> = {};
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const res = await fetch(`${API_BASE}/api/${API_VERSION}/admin/media`, {
+      method: 'POST',
+      headers, // no content-type — browser sets the multipart boundary
+      body: form,
+      credentials: 'include',
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new ApiError(json?.error?.message ?? `Upload failed (${res.status})`, res.status, json?.error?.code);
+    }
+    return json.data as { url: string };
   }
 
   async updateProductMedia(
@@ -1695,6 +1776,16 @@ class ApiClient {
       cta_url?: string;
       image_url?: string;
       align?: string;
+    };
+    popup?: {
+      enabled: boolean;
+      heading?: string;
+      text?: string;
+      image_url?: string;
+      cta_text?: string;
+      cta_url?: string;
+      delay_seconds?: number;
+      frequency?: 'once' | 'always';
     };
   }): Promise<ShopSettings> {
     return this.request('/admin/settings/homepage', {

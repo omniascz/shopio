@@ -21,7 +21,7 @@ import { PERMISSIONS } from '@shopio/authz';
 import { requirePermission } from '../plugins/auth-middleware';
 import { isSearchEnabled, reindexTenant } from '../lib/search';
 import { sealCarrierOptions } from '../lib/carriers/secrets';
-import { BlocksSchema } from '../lib/page-blocks';
+import { BlocksSchema, SectionBlocksSchema } from '../lib/page-blocks';
 import { getRlsDb } from '../db';
 import type { AppDb } from '../db';
 import type { ShopioConfig } from '../config';
@@ -110,6 +110,21 @@ const PatchHomepageBody = z.object({
       cta_url: z.string().max(500).optional(),
       image_url: z.string().max(1000).optional(),
       align: z.enum(['left', 'center']).optional(),
+    })
+    .optional(),
+  /** Promotional pop-up modal (per `32`) — newsletter capture / promo. */
+  popup: z
+    .object({
+      enabled: z.boolean(),
+      heading: z.string().max(120).optional(),
+      text: z.string().max(400).optional(),
+      image_url: z.string().max(1000).optional(),
+      cta_text: z.string().max(40).optional(),
+      cta_url: z.string().max(500).optional(),
+      /** Seconds to wait before showing (0 = immediately on load). */
+      delay_seconds: z.number().int().min(0).max(120).optional(),
+      /** 'once' remembers dismissal (localStorage); 'always' shows every visit. */
+      frequency: z.enum(['once', 'always']).optional(),
     })
     .optional(),
 });
@@ -437,6 +452,7 @@ export async function registerSettingsRoutes(
         ...prior,
         ...(input.announcement !== undefined && { announcement: input.announcement }),
         ...(input.hero !== undefined && { hero: input.hero }),
+        ...(input.popup !== undefined && { popup: input.popup }),
       };
 
       const [updated] = await db
@@ -495,6 +511,81 @@ export async function registerSettingsRoutes(
         .set({ settings, updatedAt: new Date() })
         .where(eq(schema.tenants.id, tenantId));
       return reply.send({ data: { blocks: parsed.data.blocks } });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET/PUT /admin/settings/reusable-sections — global reusable section library
+  // (per `32` §4.6). "Create once, use everywhere": pages reference these via a
+  // `section_ref` block. Stored in settings.reusable_sections.
+  // ---------------------------------------------------------------------------
+  app.get(
+    '/api/2026-05-20/admin/settings/reusable-sections',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+      const s = (tenant.settings ?? {}) as { reusable_sections?: unknown };
+      return reply.send({ data: { sections: s.reusable_sections ?? [] } });
+    },
+  );
+
+  app.put(
+    '/api/2026-05-20/admin/settings/reusable-sections',
+    { preHandler: [requirePermission(PERMISSIONS.ADMIN_FULL)] },
+    async (req, reply) => {
+      const tenantId = req.auth!.tenantId;
+      if (!tenantId) return noTenant(reply);
+      const SectionsBody = z.object({
+        sections: z
+          .array(
+            z.object({
+              key: z
+                .string()
+                .min(1)
+                .max(60)
+                .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Klíč: malá písmena, číslice, pomlčky'),
+              name: z.string().max(120).default(''),
+              blocks: SectionBlocksSchema,
+            }),
+          )
+          .max(50),
+      });
+      const parsed = SectionsBody.safeParse(req.body);
+      if (!parsed.success) return validationErr(reply, parsed.error);
+
+      // Reject duplicate keys (a ref must resolve to exactly one section).
+      const keys = new Set<string>();
+      for (const s of parsed.data.sections) {
+        if (keys.has(s.key)) {
+          return reply
+            .code(422)
+            .send({ error: { code: 'DUPLICATE_SECTION_KEY', message: `Klíč "${s.key}" je použit dvakrát` } });
+        }
+        keys.add(s.key);
+      }
+
+      const [tenant] = await db
+        .select({ settings: schema.tenants.settings })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, tenantId))
+        .limit(1);
+      if (!tenant) return notFound(reply, 'TENANT_NOT_FOUND', 'Tenant not found');
+
+      const settings = { ...(tenant.settings as Record<string, unknown>) };
+      settings.reusable_sections = parsed.data.sections;
+
+      await db
+        .update(schema.tenants)
+        .set({ settings, updatedAt: new Date() })
+        .where(eq(schema.tenants.id, tenantId));
+      return reply.send({ data: { sections: parsed.data.sections } });
     },
   );
 
@@ -806,6 +897,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
     homepage?: {
       announcement?: { enabled?: boolean; text?: string; url?: string };
       hero?: Record<string, unknown>;
+      popup?: Record<string, unknown>;
     };
     integrations?: { ga4_measurement_id?: string | null; meta_pixel_id?: string | null };
     loyalty?: { enabled?: boolean; earn_rate_bps?: number };
@@ -841,6 +933,7 @@ function serializeSettings(tenant: typeof schema.tenants.$inferSelect) {
         url: settings.homepage?.announcement?.url ?? '',
       },
       hero: (settings.homepage?.hero as Record<string, unknown>) ?? { enabled: false },
+      popup: (settings.homepage?.popup as Record<string, unknown>) ?? { enabled: false },
     },
     integrations: {
       ga4_measurement_id: settings.integrations?.ga4_measurement_id ?? null,
