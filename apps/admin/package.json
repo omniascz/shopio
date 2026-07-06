@@ -19,8 +19,8 @@
     "@shopio/sdk": "workspace:*",
     "@shopio/ui": "workspace:*",
     "@shopio/authz": "workspace:*",
-    "@tanstack/react-query": "^5.62.0",
-    "@tanstack/react-router": "^1.87.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-router": "^1.170.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
